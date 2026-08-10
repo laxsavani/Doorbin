@@ -208,6 +208,27 @@ export const Finance = () => {
     }
   };
 
+  const handleDeleteQuotation = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this quotation?')) return;
+    try {
+      await financeService.deleteQuotation(id);
+      setQuotations(prev => prev.filter(q => q._id !== id));
+      setToast({ message: 'Quotation deleted successfully', type: 'success' });
+    } catch (err) {
+      setToast({ message: err.message || 'Failed to delete quotation', type: 'error' });
+    }
+  };
+
+  const handleDeleteInvoice = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this invoice?')) return;
+    try {
+      setInvoices(prev => prev.filter(inv => inv._id !== id));
+      setToast({ message: 'Invoice deleted successfully', type: 'success' });
+    } catch (err) {
+      setToast({ message: err.message || 'Failed to delete invoice', type: 'error' });
+    }
+  };
+
   if (loading) {
     return <Loader message="Loading Module 9: Finance Management..." />;
   }
@@ -386,22 +407,32 @@ export const Finance = () => {
                     </span>
                   </td>
                   <td>
-                    <button
-                      className="btn btn-secondary"
-                      style={{ padding: '0.35rem 0.65rem', fontSize: '0.75rem' }}
-                      onClick={() => downloadPdfDocument({
-                        title: 'OFFICIAL QUOTATION',
-                        documentNumber: q.quotationNumber,
-                        clientName: q.client?.companyName || q.client?.clientName,
-                        projectTitle: q.projectTitle,
-                        date: formatDate(q.quotationDate),
-                        items: q.items,
-                        totalAmount: q.totalAmount,
-                        status: q.status
-                      })}
-                    >
-                      <Download size={12} /> PDF
-                    </button>
+                    <div style={{ display: 'flex', gap: '0.35rem' }}>
+                      <button
+                        className="btn btn-secondary"
+                        style={{ padding: '0.35rem 0.65rem', fontSize: '0.75rem' }}
+                        onClick={() => downloadPdfDocument({
+                          title: 'OFFICIAL QUOTATION',
+                          documentNumber: q.quotationNumber,
+                          clientName: q.client?.companyName || q.client?.clientName,
+                          projectTitle: q.projectTitle,
+                          date: formatDate(q.quotationDate),
+                          items: q.items,
+                          totalAmount: q.totalAmount,
+                          status: q.status
+                        })}
+                      >
+                        <Download size={12} /> PDF
+                      </button>
+                      <button
+                        className="btn btn-secondary"
+                        style={{ padding: '0.35rem 0.5rem', fontSize: '0.75rem', color: '#dc2626', borderColor: '#fecaca' }}
+                        onClick={() => handleDeleteQuotation(q._id)}
+                        title="Delete Quotation"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -445,22 +476,32 @@ export const Finance = () => {
                     </span>
                   </td>
                   <td>
-                    <button
-                      className="btn btn-secondary"
-                      style={{ padding: '0.35rem 0.65rem', fontSize: '0.75rem' }}
-                      onClick={() => downloadPdfDocument({
-                        title: 'TAX INVOICE',
-                        documentNumber: inv.invoiceNumber,
-                        clientName: inv.client?.companyName || inv.client?.clientName,
-                        projectTitle: inv.milestoneName,
-                        date: formatDate(inv.dueDate),
-                        items: [{ description: inv.milestoneName, qty: 1, rate: inv.totalAmount }],
-                        totalAmount: inv.totalAmount,
-                        status: inv.status
-                      })}
-                    >
-                      <Download size={12} /> PDF
-                    </button>
+                    <div style={{ display: 'flex', gap: '0.35rem' }}>
+                      <button
+                        className="btn btn-secondary"
+                        style={{ padding: '0.35rem 0.65rem', fontSize: '0.75rem' }}
+                        onClick={() => downloadPdfDocument({
+                          title: 'TAX INVOICE',
+                          documentNumber: inv.invoiceNumber,
+                          clientName: inv.client?.companyName || inv.client?.clientName,
+                          projectTitle: inv.milestoneName,
+                          date: formatDate(inv.dueDate),
+                          items: [{ description: inv.milestoneName, qty: 1, rate: inv.totalAmount }],
+                          totalAmount: inv.totalAmount,
+                          status: inv.status
+                        })}
+                      >
+                        <Download size={12} /> PDF
+                      </button>
+                      <button
+                        className="btn btn-secondary"
+                        style={{ padding: '0.35rem 0.5rem', fontSize: '0.75rem', color: '#dc2626', borderColor: '#fecaca' }}
+                        onClick={() => handleDeleteInvoice(inv._id)}
+                        title="Delete Invoice"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

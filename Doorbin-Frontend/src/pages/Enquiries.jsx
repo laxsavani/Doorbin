@@ -6,7 +6,7 @@ import { FormField } from '../components/FormField';
 import { Toast } from '../components/Toast';
 import { Loader } from '../components/Loader';
 import { validators, focusFirstErrorField } from '../utils/validation';
-import { Plus, Search, PhoneCall, TrendingUp, UserCheck, DollarSign, Calendar, MessageSquare, ArrowRight, ShieldCheck, Trash2, Briefcase, Tag, AlertTriangle, Award } from 'lucide-react';
+import { Plus, Search, PhoneCall, TrendingUp, UserCheck, DollarSign, Calendar, MessageSquare, ArrowRight, ShieldCheck, Trash2, Briefcase, Tag, AlertTriangle, Award, Edit3 } from 'lucide-react';
 import './Dashboard.css';
 
 const PROJECT_TYPES = ['Architecture', 'Interior Design', 'Animation'];
@@ -25,6 +25,8 @@ export const Enquiries = () => {
 
   // Modals
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingEnquiry, setEditingEnquiry] = useState(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [selectedEnquiry, setSelectedEnquiry] = useState(null);
 
@@ -134,6 +136,77 @@ export const Enquiries = () => {
       setIsCreateModalOpen(false);
     } catch (err) {
       setToast({ message: err.message || 'Failed to create enquiry', type: 'error' });
+    }
+  };
+
+  const handleOpenEditModal = (enq) => {
+    setEditingEnquiry(enq);
+    setNewEnquiry({
+      clientName: enq.clientName || '',
+      architectName: enq.architectName || '',
+      projectName: enq.projectName || '',
+      projectType: enq.projectType || 'Architecture',
+      estimatedValue: enq.estimatedValue || '',
+      source: enq.source || '',
+      assignedExecutive: typeof enq.assignedExecutive === 'object' ? (enq.assignedExecutive?._id || '') : (enq.assignedExecutive || ''),
+      followUpDate: enq.followUpDate ? enq.followUpDate.split('T')[0] : '',
+      priority: enq.priority || 'Medium',
+      clientCategory: enq.clientCategory || 'Aspirational',
+      notes: enq.notes || '',
+      status: enq.status || 'New Enquiry'
+    });
+    setFormErrors({});
+    setIsEditModalOpen(true);
+  };
+
+  const handleUpdateEnquiry = async (e) => {
+    e.preventDefault();
+    if (!editingEnquiry) return;
+
+    const errors = {};
+    const clientErr = validators.required(newEnquiry.clientName, 'Client Name');
+    if (clientErr) errors.clientName = clientErr;
+
+    const projErr = validators.required(newEnquiry.projectName, 'Project Name');
+    if (projErr) errors.projectName = projErr;
+
+    setFormErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      focusFirstErrorField(errors);
+      return;
+    }
+
+    try {
+      const updatePayload = {
+        ...newEnquiry,
+        estimatedValue: Number(newEnquiry.estimatedValue || 0)
+      };
+
+      const response = await enquiryService.updateEnquiry(editingEnquiry._id, updatePayload);
+      const updatedItem = response.enquiry || response;
+
+      const matchedExec = executives.find(u => u._id === newEnquiry.assignedExecutive);
+
+      setEnquiries(enquiries.map(e => e._id === editingEnquiry._id ? {
+        ...e,
+        ...updatedItem,
+        ...newEnquiry,
+        assignedExecutive: matchedExec || e.assignedExecutive
+      } : e));
+
+      if (selectedEnquiry && selectedEnquiry._id === editingEnquiry._id) {
+        setSelectedEnquiry(prev => ({
+          ...prev,
+          ...newEnquiry,
+          assignedExecutive: matchedExec || prev.assignedExecutive
+        }));
+      }
+
+      setToast({ message: 'Enquiry record updated successfully!', type: 'success' });
+      setIsEditModalOpen(false);
+      setEditingEnquiry(null);
+    } catch (err) {
+      setToast({ message: err.message || 'Failed to update enquiry record', type: 'error' });
     }
   };
 
@@ -393,19 +466,28 @@ export const Enquiries = () => {
                       ))}
                     </select>
 
-                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center' }}>
                       <button
                         onClick={() => { setSelectedEnquiry(enq); setIsDetailModalOpen(true); }}
                         className="btn btn-secondary"
-                        style={{ fontSize: '0.75rem', padding: '0.4rem 0.85rem' }}
+                        style={{ fontSize: '0.75rem', padding: '0.4rem 0.65rem' }}
                       >
-                        <MessageSquare size={14} /> Activity & Timeline ({enq.activityLog?.length || 0})
+                        <MessageSquare size={14} /> Activity ({enq.activityLog?.length || 0})
+                      </button>
+
+                      <button
+                        onClick={() => handleOpenEditModal(enq)}
+                        className="btn btn-secondary"
+                        style={{ fontSize: '0.75rem', padding: '0.4rem 0.5rem', color: '#10529d' }}
+                        title="Edit Enquiry Record"
+                      >
+                        <Edit3 size={14} />
                       </button>
 
                       <button
                         onClick={() => setDeletingEnquiryId(enq._id)}
                         className="btn btn-secondary"
-                        style={{ fontSize: '0.75rem', padding: '0.4rem 0.6rem', color: '#dc2626', borderColor: '#fecaca' }}
+                        style={{ fontSize: '0.75rem', padding: '0.4rem 0.5rem', color: '#dc2626', borderColor: '#fecaca' }}
                         title="Delete Enquiry Record"
                       >
                         <Trash2 size={14} />
@@ -488,6 +570,122 @@ export const Enquiries = () => {
           </FormField>
           <FormField
             label="Lead Priority"
+            name="priority"
+            type="select"
+            value={newEnquiry.priority}
+            onChange={(e) => setNewEnquiry({ ...newEnquiry, priority: e.target.value })}
+          >
+            {PRIORITIES.map(pr => <option key={pr} value={pr}>{pr}</option>)}
+          </FormField>
+          <FormField
+            label="Client Category"
+            name="clientCategory"
+            type="select"
+            value={newEnquiry.clientCategory}
+            onChange={(e) => setNewEnquiry({ ...newEnquiry, clientCategory: e.target.value })}
+          >
+            {CLIENT_CATEGORIES.map(cc => <option key={cc} value={cc}>{cc}</option>)}
+          </FormField>
+          <FormField
+            label="Source of Enquiry"
+            name="source"
+            placeholder="e.g. Direct Referral, Website, Expo"
+            value={newEnquiry.source}
+            onChange={(e) => setNewEnquiry({ ...newEnquiry, source: e.target.value })}
+          />
+          <FormField
+            label="Notes & Scope Description"
+            name="notes"
+            type="textarea"
+            placeholder="Key requirements and visualization scope..."
+            value={newEnquiry.notes}
+            onChange={(e) => setNewEnquiry({ ...newEnquiry, notes: e.target.value })}
+          />
+        </form>
+      </Modal>
+
+      {/* Modal for Editing Business Development Enquiry */}
+      <Modal
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        title="Edit Business Development Enquiry"
+        footer={
+          <>
+            <button className="btn btn-secondary" onClick={() => setIsEditModalOpen(false)}>Cancel</button>
+            <button className="btn btn-primary" onClick={handleUpdateEnquiry}>Update Enquiry</button>
+          </>
+        }
+      >
+        <form onSubmit={handleUpdateEnquiry} noValidate>
+          <FormField
+            label="Client Name (Company / Individual)"
+            name="clientName"
+            placeholder="e.g. Mahavir Properties"
+            value={newEnquiry.clientName}
+            onChange={(e) => setNewEnquiry({ ...newEnquiry, clientName: e.target.value })}
+            error={formErrors.clientName}
+            required
+          />
+          <FormField
+            label="Architect / Principal Designer"
+            name="architectName"
+            placeholder="e.g. Ar. Rajesh Shah"
+            value={newEnquiry.architectName}
+            onChange={(e) => setNewEnquiry({ ...newEnquiry, architectName: e.target.value })}
+          />
+          <FormField
+            label="Project Title"
+            name="projectName"
+            placeholder="e.g. Mahavir One Commercial Hub"
+            value={newEnquiry.projectName}
+            onChange={(e) => setNewEnquiry({ ...newEnquiry, projectName: e.target.value })}
+            error={formErrors.projectName}
+            required
+          />
+          <FormField
+            label="Project Scope Category"
+            name="projectType"
+            type="select"
+            value={newEnquiry.projectType}
+            onChange={(e) => setNewEnquiry({ ...newEnquiry, projectType: e.target.value })}
+          >
+            {PROJECT_TYPES.map(pt => <option key={pt} value={pt}>{pt}</option>)}
+          </FormField>
+          <FormField
+            label="Estimated Deal Value (₹ INR)"
+            name="estimatedValue"
+            type="number"
+            placeholder="e.g. 180000"
+            value={newEnquiry.estimatedValue}
+            onChange={(e) => setNewEnquiry({ ...newEnquiry, estimatedValue: e.target.value })}
+          />
+          <FormField
+            label="Pipeline Status Stage"
+            name="status"
+            type="select"
+            value={newEnquiry.status}
+            onChange={(e) => setNewEnquiry({ ...newEnquiry, status: e.target.value })}
+          >
+            {STAGES.map(s => <option key={s} value={s}>{s}</option>)}
+          </FormField>
+          <FormField
+            label="Assigned BD Executive"
+            name="assignedExecutive"
+            type="select"
+            value={newEnquiry.assignedExecutive}
+            onChange={(e) => setNewEnquiry({ ...newEnquiry, assignedExecutive: e.target.value })}
+          >
+            {executives.map(exec => <option key={exec._id} value={exec._id}>{exec.name}</option>)}
+          </FormField>
+          <FormField
+            label="Follow-Up Date"
+            name="followUpDate"
+            type="date"
+            value={newEnquiry.followUpDate}
+            onChange={(e) => setNewEnquiry({ ...newEnquiry, followUpDate: e.target.value })}
+          />
+          <FormField
+            label="Priority Level"
             name="priority"
             type="select"
             value={newEnquiry.priority}

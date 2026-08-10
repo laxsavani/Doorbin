@@ -6,7 +6,7 @@ import { FormField } from '../components/FormField';
 import { Toast } from '../components/Toast';
 import { Loader } from '../components/Loader';
 import { validators, focusFirstErrorField } from '../utils/validation';
-import { Plus, Users as UsersIcon, Trash2, Building, Award } from 'lucide-react';
+import { Plus, Users as UsersIcon, Trash2, Building, Award, Edit3 } from 'lucide-react';
 import './Dashboard.css';
 
 export const Departments = () => {
@@ -16,6 +16,8 @@ export const Departments = () => {
   const [loading, setLoading] = useState(true);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingDept, setEditingDept] = useState(null);
   const [deletingDeptId, setDeletingDeptId] = useState(null);
 
   const [formData, setFormData] = useState({
@@ -95,6 +97,54 @@ export const Departments = () => {
       setIsModalOpen(false);
     } catch (err) {
       setToast({ message: err.message || 'Failed to create department', type: 'error' });
+    }
+  };
+
+  const handleOpenEditModal = (dept) => {
+    setEditingDept(dept);
+    setFormData({
+      name: dept.name || '',
+      description: dept.description || '',
+      head: typeof dept.head === 'object' ? (dept.head?._id || '') : (dept.head || ''),
+      parentDepartment: typeof dept.parentDepartment === 'object' ? (dept.parentDepartment?._id || '') : (dept.parentDepartment || ''),
+      status: dept.status || 'Active'
+    });
+    setFormErrors({});
+    setIsEditModalOpen(true);
+  };
+
+  const handleUpdateDepartment = async (e) => {
+    e.preventDefault();
+    if (!editingDept) return;
+
+    const errors = {};
+    const nameErr = validators.required(formData.name, 'Department Name');
+    if (nameErr) errors.name = nameErr;
+
+    setFormErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      focusFirstErrorField(errors);
+      return;
+    }
+
+    try {
+      const updatePayload = {
+        name: formData.name,
+        description: formData.description || '',
+        head: formData.head || null,
+        parentDepartment: formData.parentDepartment || null,
+        status: formData.status || 'Active'
+      };
+
+      const response = await departmentService.updateDepartment(editingDept._id, updatePayload);
+      const updatedItem = response.department || response;
+
+      setDepartments(departments.map(d => (d._id === editingDept._id ? { ...d, ...updatedItem, name: formData.name, description: formData.description, status: formData.status } : d)));
+      setToast({ message: 'Department updated successfully!', type: 'success' });
+      setIsEditModalOpen(false);
+      setEditingDept(null);
+    } catch (err) {
+      setToast({ message: err.message || 'Failed to update department', type: 'error' });
     }
   };
 
@@ -185,13 +235,22 @@ export const Departments = () => {
                       <span className={`status-badge-pill ${dept.status === 'Active' ? 'badge-on-track' : 'badge-at-risk'}`}>
                         {dept.status || 'Active'}
                       </span>
-                      <button
-                        onClick={() => setDeletingDeptId(dept._id)}
-                        style={{ background: 'none', border: 'none', color: '#c7452e', cursor: 'pointer' }}
-                        title="Delete Department"
-                      >
-                        <Trash2 size={16} />
-                      </button>
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <button
+                          onClick={() => handleOpenEditModal(dept)}
+                          style={{ background: 'none', border: 'none', color: '#10529d', cursor: 'pointer' }}
+                          title="Edit Department"
+                        >
+                          <Edit3 size={16} />
+                        </button>
+                        <button
+                          onClick={() => setDeletingDeptId(dept._id)}
+                          style={{ background: 'none', border: 'none', color: '#c7452e', cursor: 'pointer' }}
+                          title="Delete Department"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
                     </div>
 
                     <div className="task-title-bold" style={{ fontSize: '1.1rem', marginBottom: '0.35rem' }}>{dept.name}</div>
@@ -287,6 +346,76 @@ export const Departments = () => {
           >
             <option value="">None (Top Level)</option>
             {departments.map((dept) => (
+              <option key={dept._id} value={dept._id}>
+                {dept.name}
+              </option>
+            ))}
+          </FormField>
+          <FormField
+            label="Status"
+            name="status"
+            type="select"
+            value={formData.status}
+            onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+          >
+            <option value="Active">Active</option>
+            <option value="Inactive">Inactive</option>
+          </FormField>
+        </form>
+      </Modal>
+
+      {/* Modal for Editing Department */}
+      <Modal
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        title="Edit Department"
+        footer={
+          <>
+            <button className="btn btn-secondary" onClick={() => setIsEditModalOpen(false)}>Cancel</button>
+            <button className="btn btn-primary" onClick={handleUpdateDepartment}>Update Department</button>
+          </>
+        }
+      >
+        <form onSubmit={handleUpdateDepartment} noValidate>
+          <FormField
+            label="Department Name"
+            name="name"
+            placeholder="e.g. Architecture & 3D Visualization"
+            value={formData.name}
+            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+            error={formErrors.name}
+            required
+          />
+          <FormField
+            label="Description"
+            name="description"
+            placeholder="Brief scope of responsibilities"
+            value={formData.description}
+            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+          />
+          <FormField
+            label="Department Head (User Ref)"
+            name="head"
+            type="select"
+            value={formData.head}
+            onChange={(e) => setFormData({ ...formData, head: e.target.value })}
+          >
+            <option value="">None (Unassigned)</option>
+            {usersList.map((usr) => (
+              <option key={usr._id} value={usr._id}>
+                {usr.name} ({typeof usr.role === 'object' ? usr.role?.name : usr.role})
+              </option>
+            ))}
+          </FormField>
+          <FormField
+            label="Parent Department (Optional)"
+            name="parentDepartment"
+            type="select"
+            value={formData.parentDepartment}
+            onChange={(e) => setFormData({ ...formData, parentDepartment: e.target.value })}
+          >
+            <option value="">None (Top Level)</option>
+            {departments.filter(d => d._id !== editingDept?._id).map((dept) => (
               <option key={dept._id} value={dept._id}>
                 {dept.name}
               </option>

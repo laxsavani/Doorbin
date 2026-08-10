@@ -8,7 +8,7 @@ import { Toast } from '../components/Toast';
 import { Loader } from '../components/Loader';
 import { validators, focusFirstErrorField } from '../utils/validation';
 import { formatDate } from '../utils/dateUtils';
-import { Plus, Search, CheckSquare, Clock, UserCheck, MessageSquare, AlertCircle, FileText, CheckCircle2, ShieldCheck, Trash2 } from 'lucide-react';
+import { Plus, Search, CheckSquare, Clock, UserCheck, MessageSquare, AlertCircle, FileText, CheckCircle2, ShieldCheck, Trash2, Edit3, Calendar } from 'lucide-react';
 import './Dashboard.css';
 
 const TASK_STATUSES = ['Pending', 'Assigned', 'In Progress', 'Under Review', 'Completed', 'Revision Required', 'Approved'];
@@ -25,6 +25,10 @@ export const Tasks = () => {
 
   // Modals
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingTask, setEditingTask] = useState(null);
+  const [isRescheduleModalOpen, setIsRescheduleModalOpen] = useState(false);
+  const [rescheduleData, setRescheduleData] = useState({ newStartDate: '', newEndDate: '', reason: '' });
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState(null);
 
@@ -144,6 +148,98 @@ export const Tasks = () => {
       setIsCreateModalOpen(false);
     } catch (err) {
       setToast({ message: err.message || 'Failed to create task', type: 'error' });
+    }
+  };
+
+  const handleOpenEditModal = (task) => {
+    setEditingTask(task);
+    setNewTask({
+      taskName: task.taskName || '',
+      project: typeof task.project === 'object' ? (task.project?._id || '') : (task.project || ''),
+      assignee: typeof task.assignee === 'object' ? (task.assignee?._id || '') : (task.assignee || ''),
+      reviewer: typeof task.reviewer === 'object' ? (task.reviewer?._id || '') : (task.reviewer || ''),
+      startDate: task.startDate ? task.startDate.split('T')[0] : '',
+      endDate: task.endDate ? task.endDate.split('T')[0] : '',
+      estimatedHours: task.estimatedHours || '40',
+      priority: task.priority || 'Medium',
+      status: task.status || 'Assigned'
+    });
+    setFormErrors({});
+    setIsEditModalOpen(true);
+  };
+
+  const handleUpdateTask = async (e) => {
+    e.preventDefault();
+    if (!editingTask) return;
+
+    const errors = {};
+    const nameErr = validators.required(newTask.taskName, 'Task Title');
+    if (nameErr) errors.taskName = nameErr;
+
+    setFormErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      focusFirstErrorField(errors);
+      return;
+    }
+
+    try {
+      const updatePayload = {
+        ...newTask,
+        estimatedHours: Number(newTask.estimatedHours || 0)
+      };
+
+      const response = await taskService.updateTask(editingTask._id, updatePayload);
+      const updatedItem = response.task || response;
+
+      const matchedProj = projectsList.find(p => p._id === newTask.project);
+      const matchedAssignee = usersList.find(u => u._id === newTask.assignee);
+
+      setTasks(tasks.map(t => t._id === editingTask._id ? {
+        ...t,
+        ...updatedItem,
+        ...newTask,
+        project: matchedProj || t.project,
+        assignee: matchedAssignee || t.assignee
+      } : t));
+
+      setToast({ message: 'Task updated successfully!', type: 'success' });
+      setIsEditModalOpen(false);
+      setEditingTask(null);
+    } catch (err) {
+      setToast({ message: err.message || 'Failed to update task', type: 'error' });
+    }
+  };
+
+  const handleOpenRescheduleModal = (task) => {
+    setEditingTask(task);
+    setRescheduleData({
+      newStartDate: task.startDate ? task.startDate.split('T')[0] : '',
+      newEndDate: task.endDate ? task.endDate.split('T')[0] : '',
+      reason: ''
+    });
+    setIsRescheduleModalOpen(true);
+  };
+
+  const handleRescheduleTask = async (e) => {
+    e.preventDefault();
+    if (!editingTask || !rescheduleData.newStartDate || !rescheduleData.newEndDate) return;
+
+    try {
+      const response = await taskService.rescheduleTask(editingTask._id, rescheduleData);
+      const updatedItem = response.task || response;
+
+      setTasks(tasks.map(t => t._id === editingTask._id ? {
+        ...t,
+        ...updatedItem,
+        startDate: rescheduleData.newStartDate,
+        endDate: rescheduleData.newEndDate
+      } : t));
+
+      setToast({ message: 'Task rescheduled & audit log created!', type: 'success' });
+      setIsRescheduleModalOpen(false);
+      setEditingTask(null);
+    } catch (err) {
+      setToast({ message: err.message || 'Failed to reschedule task', type: 'error' });
     }
   };
 
@@ -449,19 +545,37 @@ export const Tasks = () => {
                       {TASK_STATUSES.map(st => <option key={st} value={st}>{st}</option>)}
                     </select>
 
-                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center' }}>
                       <button
                         onClick={() => { setSelectedTask(task); setIsDetailModalOpen(true); }}
                         className="btn btn-secondary"
-                        style={{ fontSize: '0.75rem', padding: '0.4rem 0.85rem' }}
+                        style={{ fontSize: '0.75rem', padding: '0.4rem 0.65rem' }}
                       >
-                        <MessageSquare size={14} /> Review & Comments ({task.comments?.length || 0})
+                        <MessageSquare size={14} /> Review ({task.comments?.length || 0})
+                      </button>
+
+                      <button
+                        onClick={() => handleOpenRescheduleModal(task)}
+                        className="btn btn-secondary"
+                        style={{ fontSize: '0.75rem', padding: '0.4rem 0.5rem', color: '#b45309' }}
+                        title="Reschedule Task Timeline"
+                      >
+                        <Calendar size={14} />
+                      </button>
+
+                      <button
+                        onClick={() => handleOpenEditModal(task)}
+                        className="btn btn-secondary"
+                        style={{ fontSize: '0.75rem', padding: '0.4rem 0.5rem', color: '#10529d' }}
+                        title="Edit Task Details"
+                      >
+                        <Edit3 size={14} />
                       </button>
 
                       <button
                         onClick={() => setDeletingTaskId(task._id)}
                         className="btn btn-secondary"
-                        style={{ fontSize: '0.75rem', padding: '0.4rem 0.6rem', color: '#dc2626', borderColor: '#fecaca' }}
+                        style={{ fontSize: '0.75rem', padding: '0.4rem 0.5rem', color: '#dc2626', borderColor: '#fecaca' }}
                         title="Delete Task"
                       >
                         <Trash2 size={14} />
@@ -559,6 +673,139 @@ export const Tasks = () => {
           >
             {PRIORITIES.map(pr => <option key={pr} value={pr}>{pr}</option>)}
           </FormField>
+        </form>
+      </Modal>
+
+      {/* Edit Task Modal */}
+      <Modal
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        title="Edit Task Assignment"
+        footer={
+          <>
+            <button className="btn btn-secondary" onClick={() => setIsEditModalOpen(false)}>Cancel</button>
+            <button className="btn btn-primary" onClick={handleUpdateTask}>Update Task</button>
+          </>
+        }
+      >
+        <form onSubmit={handleUpdateTask} noValidate>
+          <FormField
+            label="Task Title"
+            name="taskName"
+            placeholder="e.g. 3D Exterior Lighting & Texturing"
+            value={newTask.taskName}
+            onChange={(e) => setNewTask({ ...newTask, taskName: e.target.value })}
+            error={formErrors.taskName}
+            required
+          />
+          <FormField
+            label="Project Entity"
+            name="project"
+            type="select"
+            value={newTask.project}
+            onChange={(e) => setNewTask({ ...newTask, project: e.target.value })}
+          >
+            <option value="">Select Project</option>
+            {projectsList.map(p => <option key={p._id} value={p._id}>{p.projectName}</option>)}
+          </FormField>
+          <FormField
+            label="Assignee (Artist / Specialist)"
+            name="assignee"
+            type="select"
+            value={newTask.assignee}
+            onChange={(e) => setNewTask({ ...newTask, assignee: e.target.value })}
+          >
+            {usersList.map(u => <option key={u._id} value={u._id}>{u.name} ({typeof u.role === 'object' ? u.role?.name : u.role})</option>)}
+          </FormField>
+          <FormField
+            label="Reviewer (Lead / PM)"
+            name="reviewer"
+            type="select"
+            value={newTask.reviewer}
+            onChange={(e) => setNewTask({ ...newTask, reviewer: e.target.value })}
+          >
+            {usersList.map(u => <option key={u._id} value={u._id}>{u.name} (Reviewer)</option>)}
+          </FormField>
+          <FormField
+            label="Estimated Hours"
+            name="estimatedHours"
+            type="number"
+            placeholder="e.g. 40"
+            value={newTask.estimatedHours}
+            onChange={(e) => setNewTask({ ...newTask, estimatedHours: e.target.value })}
+          />
+          <FormField
+            label="Start Date"
+            name="startDate"
+            type="date"
+            value={newTask.startDate}
+            onChange={(e) => setNewTask({ ...newTask, startDate: e.target.value })}
+          />
+          <FormField
+            label="End Date"
+            name="endDate"
+            type="date"
+            value={newTask.endDate}
+            onChange={(e) => setNewTask({ ...newTask, endDate: e.target.value })}
+          />
+          <FormField
+            label="Task Status"
+            name="status"
+            type="select"
+            value={newTask.status}
+            onChange={(e) => setNewTask({ ...newTask, status: e.target.value })}
+          >
+            {TASK_STATUSES.map(st => <option key={st} value={st}>{st}</option>)}
+          </FormField>
+          <FormField
+            label="Priority"
+            name="priority"
+            type="select"
+            value={newTask.priority}
+            onChange={(e) => setNewTask({ ...newTask, priority: e.target.value })}
+          >
+            {PRIORITIES.map(pr => <option key={pr} value={pr}>{pr}</option>)}
+          </FormField>
+        </form>
+      </Modal>
+
+      {/* Reschedule Task Timeline Modal */}
+      <Modal
+        isOpen={isRescheduleModalOpen}
+        onClose={() => setIsRescheduleModalOpen(false)}
+        title="Reschedule Task Timeline (Logged Action)"
+        footer={
+          <>
+            <button className="btn btn-secondary" onClick={() => setIsRescheduleModalOpen(false)}>Cancel</button>
+            <button className="btn btn-primary" onClick={handleRescheduleTask}>Save Reschedule Log</button>
+          </>
+        }
+      >
+        <form onSubmit={handleRescheduleTask} noValidate>
+          <FormField
+            label="New Start Date"
+            name="newStartDate"
+            type="date"
+            value={rescheduleData.newStartDate}
+            onChange={(e) => setRescheduleData({ ...rescheduleData, newStartDate: e.target.value })}
+            required
+          />
+          <FormField
+            label="New End Date"
+            name="newEndDate"
+            type="date"
+            value={rescheduleData.newEndDate}
+            onChange={(e) => setRescheduleData({ ...rescheduleData, newEndDate: e.target.value })}
+            required
+          />
+          <FormField
+            label="Reason for Rescheduling"
+            name="reason"
+            type="textarea"
+            placeholder="Explain why the task schedule was shifted..."
+            value={rescheduleData.reason}
+            onChange={(e) => setRescheduleData({ ...rescheduleData, reason: e.target.value })}
+          />
         </form>
       </Modal>
 

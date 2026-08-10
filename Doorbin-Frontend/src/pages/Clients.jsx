@@ -5,7 +5,7 @@ import { FormField } from '../components/FormField';
 import { Toast } from '../components/Toast';
 import { Loader } from '../components/Loader';
 import { validators, focusFirstErrorField } from '../utils/validation';
-import { Plus, Search, Building2, Phone, Mail, MessageSquare, Trash2, UserPlus } from 'lucide-react';
+import { Plus, Search, Building2, Phone, Mail, MessageSquare, Trash2, UserPlus, Edit3 } from 'lucide-react';
 import './Dashboard.css';
 
 export const Clients = () => {
@@ -15,6 +15,8 @@ export const Clients = () => {
 
   // Modals & Active Client State
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingClient, setEditingClient] = useState(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [selectedClient, setSelectedClient] = useState(null);
 
@@ -115,6 +117,63 @@ export const Clients = () => {
       setIsCreateModalOpen(false);
     } catch (err) {
       setToast({ message: err.message || 'Failed to create client', type: 'error' });
+    }
+  };
+
+  const handleOpenEditModal = (client) => {
+    setEditingClient(client);
+    setNewClient({
+      companyName: client.companyName || '',
+      clientName: client.clientName || '',
+      email: client.email || '',
+      phone: client.phone || '',
+      address: client.address || '',
+      gstDetails: client.gstDetails || '',
+      industry: client.industry || 'Real Estate & Infrastructure',
+      notes: client.notes || '',
+      status: client.status || 'Active'
+    });
+    setFormErrors({});
+    setIsEditModalOpen(true);
+  };
+
+  const handleUpdateClient = async (e) => {
+    e.preventDefault();
+    if (!editingClient) return;
+
+    const errors = {};
+    const compErr = validators.required(newClient.companyName, 'Company Name');
+    if (compErr) errors.companyName = compErr;
+
+    const nameErr = validators.required(newClient.clientName, 'Primary Contact Name');
+    if (nameErr) errors.clientName = nameErr;
+
+    const emailErr = validators.email(newClient.email);
+    if (emailErr) errors.email = emailErr;
+
+    const phoneErr = validators.required(newClient.phone, 'Phone Number');
+    if (phoneErr) errors.phone = phoneErr;
+
+    setFormErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      focusFirstErrorField(errors);
+      return;
+    }
+
+    try {
+      const response = await clientService.updateClient(editingClient._id, newClient);
+      const updatedItem = response.client || response;
+
+      setClients(clients.map(c => c._id === editingClient._id ? { ...c, ...updatedItem, ...newClient } : c));
+      if (selectedClient && selectedClient._id === editingClient._id) {
+        setSelectedClient({ ...selectedClient, ...newClient });
+      }
+
+      setToast({ message: 'Client record updated successfully!', type: 'success' });
+      setIsEditModalOpen(false);
+      setEditingClient(null);
+    } catch (err) {
+      setToast({ message: err.message || 'Failed to update client record', type: 'error' });
     }
   };
 
@@ -267,13 +326,22 @@ export const Clients = () => {
                     <MessageSquare size={14} /> CRM Logs & Contacts ({client.communicationLog?.length || 0})
                   </button>
 
-                  <button
-                    onClick={() => setDeletingClientId(client._id)}
-                    style={{ background: 'none', border: 'none', color: '#c7452e', cursor: 'pointer', padding: '0.35rem' }}
-                    title="Deactivate Client"
-                  >
-                    <Trash2 size={16} />
-                  </button>
+                  <div style={{ display: 'flex', gap: '0.35rem' }}>
+                    <button
+                      onClick={() => handleOpenEditModal(client)}
+                      style={{ background: 'none', border: 'none', color: '#10529d', cursor: 'pointer', padding: '0.35rem' }}
+                      title="Edit Client Record"
+                    >
+                      <Edit3 size={16} />
+                    </button>
+                    <button
+                      onClick={() => setDeletingClientId(client._id)}
+                      style={{ background: 'none', border: 'none', color: '#c7452e', cursor: 'pointer', padding: '0.35rem' }}
+                      title="Deactivate Client"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
@@ -338,6 +406,104 @@ export const Clients = () => {
             value={newClient.industry}
             onChange={(e) => setNewClient({ ...newClient, industry: e.target.value })}
           />
+          <FormField
+            label="GSTIN Details"
+            name="gstDetails"
+            placeholder="e.g. 24AAAAA0000A1Z5"
+            value={newClient.gstDetails}
+            onChange={(e) => setNewClient({ ...newClient, gstDetails: e.target.value })}
+          />
+          <FormField
+            label="Address"
+            name="address"
+            placeholder="e.g. 401 Vistara Tower, SG Highway"
+            value={newClient.address}
+            onChange={(e) => setNewClient({ ...newClient, address: e.target.value })}
+          />
+          <FormField
+            label="Internal Notes"
+            name="notes"
+            type="textarea"
+            placeholder="Important client references or project scope notes..."
+            value={newClient.notes}
+            onChange={(e) => setNewClient({ ...newClient, notes: e.target.value })}
+          />
+        </form>
+      </Modal>
+
+      {/* Edit Client Modal */}
+      <Modal
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        title="Edit Client Record"
+        footer={
+          <>
+            <button className="btn btn-secondary" onClick={() => setIsEditModalOpen(false)}>Cancel</button>
+            <button className="btn btn-primary" onClick={handleUpdateClient}>Update Client</button>
+          </>
+        }
+      >
+        <form onSubmit={handleUpdateClient} noValidate>
+          <FormField
+            label="Company Name"
+            name="companyName"
+            placeholder="e.g. Vistara Developers Ltd"
+            value={newClient.companyName}
+            onChange={(e) => setNewClient({ ...newClient, companyName: e.target.value })}
+            error={formErrors.companyName}
+            required
+          />
+          <FormField
+            label="Primary Contact Person"
+            name="clientName"
+            placeholder="e.g. Rahul Sharma"
+            value={newClient.clientName}
+            onChange={(e) => setNewClient({ ...newClient, clientName: e.target.value })}
+            error={formErrors.clientName}
+            required
+          />
+          <FormField
+            label="Email Address"
+            name="email"
+            type="email"
+            placeholder="e.g. rahul@vistaradevelopers.com"
+            value={newClient.email}
+            onChange={(e) => setNewClient({ ...newClient, email: e.target.value })}
+            error={formErrors.email}
+          />
+          <FormField
+            label="Phone Number"
+            name="phone"
+            placeholder="e.g. +91 98765 43210"
+            value={newClient.phone}
+            onChange={(e) => setNewClient({ ...newClient, phone: e.target.value })}
+            error={formErrors.phone}
+            required
+          />
+          <FormField
+            label="Industry Sector"
+            name="industry"
+            type="select"
+            value={newClient.industry}
+            onChange={(e) => setNewClient({ ...newClient, industry: e.target.value })}
+          >
+            <option value="Real Estate & Infrastructure">Real Estate & Infrastructure</option>
+            <option value="Architectural Visualization">Architectural Visualization</option>
+            <option value="Film & VFX Studio">Film & VFX Studio</option>
+            <option value="Product Design">Product Design</option>
+            <option value="Gaming & Interactive">Gaming & Interactive</option>
+            <option value="Corporate & Advertising">Corporate & Advertising</option>
+          </FormField>
+          <FormField
+            label="Status"
+            name="status"
+            type="select"
+            value={newClient.status}
+            onChange={(e) => setNewClient({ ...newClient, status: e.target.value })}
+          >
+            <option value="Active">Active</option>
+            <option value="Inactive">Inactive</option>
+          </FormField>
           <FormField
             label="GSTIN Details"
             name="gstDetails"

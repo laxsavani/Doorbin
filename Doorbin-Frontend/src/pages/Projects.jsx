@@ -8,7 +8,7 @@ import { Toast } from '../components/Toast';
 import { Loader } from '../components/Loader';
 import { validators, focusFirstErrorField } from '../utils/validation';
 import { formatDate } from '../utils/dateUtils';
-import { Plus, Search, FolderKanban, CheckCircle2, Clock, Trash2, ShieldCheck, UserCheck, Calendar, DollarSign, Layers } from 'lucide-react';
+import { Plus, Search, FolderKanban, CheckCircle2, Clock, Trash2, ShieldCheck, UserCheck, Calendar, DollarSign, Layers, Edit3 } from 'lucide-react';
 import './Dashboard.css';
 
 const CATEGORIES = ['Architecture', 'Interior Design', 'Animation'];
@@ -27,6 +27,8 @@ export const Projects = () => {
 
   // Modals & Active Project Drawer
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingProject, setEditingProject] = useState(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [selectedProject, setSelectedProject] = useState(null);
   const [deletingProjectId, setDeletingProjectId] = useState(null);
@@ -146,6 +148,86 @@ export const Projects = () => {
       setIsCreateModalOpen(false);
     } catch (err) {
       setToast({ message: err.message || 'Failed to create project', type: 'error' });
+    }
+  };
+
+  const handleOpenEditModal = (proj) => {
+    setEditingProject(proj);
+    setNewProject({
+      projectName: proj.projectName || '',
+      client: typeof proj.client === 'object' ? (proj.client?._id || '') : (proj.client || ''),
+      projectCategory: proj.projectCategory || 'Architecture',
+      projectSubType: proj.projectSubType || '',
+      priority: proj.priority || 'Medium',
+      budget: proj.budget || '',
+      startDate: proj.startDate ? proj.startDate.split('T')[0] : '',
+      endDate: proj.endDate ? proj.endDate.split('T')[0] : '',
+      billingParty: proj.billingParty || '',
+      productionManager: typeof proj.productionManager === 'object' ? (proj.productionManager?._id || '') : (proj.productionManager || ''),
+      assignedTeam: Array.isArray(proj.assignedTeam) ? proj.assignedTeam.map(t => typeof t === 'object' ? t._id : t) : [],
+      status: proj.status || 'Not Started'
+    });
+    setFormErrors({});
+    setIsEditModalOpen(true);
+  };
+
+  const handleUpdateProject = async (e) => {
+    e.preventDefault();
+    if (!editingProject) return;
+
+    const errors = {};
+    const nameErr = validators.required(newProject.projectName, 'Project Name');
+    if (nameErr) errors.projectName = nameErr;
+
+    const clientErr = validators.required(newProject.client, 'Client');
+    if (clientErr) errors.client = clientErr;
+
+    const startErr = validators.required(newProject.startDate, 'Start Date');
+    if (startErr) errors.startDate = startErr;
+
+    const endErr = validators.required(newProject.endDate, 'End Date');
+    if (endErr) errors.endDate = endErr;
+
+    setFormErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      focusFirstErrorField(errors);
+      return;
+    }
+
+    try {
+      const updatePayload = {
+        ...newProject,
+        budget: Number(newProject.budget || 0)
+      };
+
+      const response = await projectService.updateProject(editingProject._id, updatePayload);
+      const updatedItem = response.project || response;
+
+      const matchedClient = clientsList.find(c => c._id === newProject.client);
+      const matchedPM = usersList.find(u => u._id === newProject.productionManager);
+
+      setProjects(projects.map(p => p._id === editingProject._id ? {
+        ...p,
+        ...updatedItem,
+        ...newProject,
+        client: matchedClient || p.client,
+        productionManager: matchedPM || p.productionManager
+      } : p));
+
+      if (selectedProject && selectedProject._id === editingProject._id) {
+        setSelectedProject(prev => ({
+          ...prev,
+          ...newProject,
+          client: matchedClient || prev.client,
+          productionManager: matchedPM || prev.productionManager
+        }));
+      }
+
+      setToast({ message: 'Project details updated successfully!', type: 'success' });
+      setIsEditModalOpen(false);
+      setEditingProject(null);
+    } catch (err) {
+      setToast({ message: err.message || 'Failed to update project', type: 'error' });
     }
   };
 
@@ -320,13 +402,22 @@ export const Projects = () => {
                       <Layers size={14} /> Workflow Stages & Approval ({proj.stages?.length || 0})
                     </button>
 
-                    <button
-                      onClick={() => setDeletingProjectId(proj._id)}
-                      style={{ background: 'none', border: 'none', color: '#c7452e', cursor: 'pointer', padding: '0.35rem' }}
-                      title="Delete Project"
-                    >
-                      <Trash2 size={16} />
-                    </button>
+                    <div style={{ display: 'flex', gap: '0.35rem' }}>
+                      <button
+                        onClick={() => handleOpenEditModal(proj)}
+                        style={{ background: 'none', border: 'none', color: '#10529d', cursor: 'pointer', padding: '0.35rem' }}
+                        title="Edit Project Details"
+                      >
+                        <Edit3 size={16} />
+                      </button>
+                      <button
+                        onClick={() => setDeletingProjectId(proj._id)}
+                        style={{ background: 'none', border: 'none', color: '#c7452e', cursor: 'pointer', padding: '0.35rem' }}
+                        title="Delete Project"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
                   </div>
                 </div>
               );
@@ -401,6 +492,114 @@ export const Projects = () => {
             name="budget"
             type="number"
             placeholder="e.g. 1850000"
+            value={newProject.budget}
+            onChange={(e) => setNewProject({ ...newProject, budget: e.target.value })}
+          />
+          <FormField
+            label="Start Date"
+            name="startDate"
+            type="date"
+            value={newProject.startDate}
+            onChange={(e) => setNewProject({ ...newProject, startDate: e.target.value })}
+            error={formErrors.startDate}
+            required
+          />
+          <FormField
+            label="End Date"
+            name="endDate"
+            type="date"
+            value={newProject.endDate}
+            onChange={(e) => setNewProject({ ...newProject, endDate: e.target.value })}
+            error={formErrors.endDate}
+            required
+          />
+          <FormField
+            label="Priority Level"
+            name="priority"
+            type="select"
+            value={newProject.priority}
+            onChange={(e) => setNewProject({ ...newProject, priority: e.target.value })}
+          >
+            {PRIORITIES.map(pr => <option key={pr} value={pr}>{pr}</option>)}
+          </FormField>
+        </form>
+      </Modal>
+
+      {/* Modal for Editing Project Details */}
+      <Modal
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        title="Edit Visualization Project Details"
+        footer={
+          <>
+            <button className="btn btn-secondary" onClick={() => setIsEditModalOpen(false)}>Cancel</button>
+            <button className="btn btn-primary" onClick={handleUpdateProject}>Update Project</button>
+          </>
+        }
+      >
+        <form onSubmit={handleUpdateProject} noValidate>
+          <FormField
+            label="Project Name"
+            name="projectName"
+            placeholder="e.g. Skyline Residency 3D Architectural Renderings"
+            value={newProject.projectName}
+            onChange={(e) => setNewProject({ ...newProject, projectName: e.target.value })}
+            error={formErrors.projectName}
+            required
+          />
+          <FormField
+            label="Client (Company / Entity)"
+            name="client"
+            type="select"
+            value={newProject.client}
+            onChange={(e) => setNewProject({ ...newProject, client: e.target.value })}
+            error={formErrors.client}
+            required
+          >
+            <option value="">Select Client Entity</option>
+            {clientsList.map(c => (
+              <option key={c._id} value={c._id}>
+                {c.companyName} ({c.clientName})
+              </option>
+            ))}
+          </FormField>
+          <FormField
+            label="Production Manager (PM)"
+            name="productionManager"
+            type="select"
+            value={newProject.productionManager}
+            onChange={(e) => setNewProject({ ...newProject, productionManager: e.target.value })}
+          >
+            <option value="">Select PM</option>
+            {usersList.map(u => (
+              <option key={u._id} value={u._id}>
+                {u.name} ({typeof u.role === 'object' ? u.role?.name : u.role})
+              </option>
+            ))}
+          </FormField>
+          <FormField
+            label="Project Category"
+            name="projectCategory"
+            type="select"
+            value={newProject.projectCategory}
+            onChange={(e) => setNewProject({ ...newProject, projectCategory: e.target.value })}
+          >
+            {CATEGORIES.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+          </FormField>
+          <FormField
+            label="Project Status"
+            name="status"
+            type="select"
+            value={newProject.status}
+            onChange={(e) => setNewProject({ ...newProject, status: e.target.value })}
+          >
+            {PROJECT_STATUSES.map(st => <option key={st} value={st}>{st}</option>)}
+          </FormField>
+          <FormField
+            label="Budget (₹ INR)"
+            name="budget"
+            type="number"
+            placeholder="e.g. 150000"
             value={newProject.budget}
             onChange={(e) => setNewProject({ ...newProject, budget: e.target.value })}
           />

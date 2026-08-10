@@ -175,6 +175,28 @@ export const Hrm = () => {
     }
   };
 
+  const handleDeleteEmployee = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this employee record?')) return;
+    try {
+      await hrService.deleteEmployee(id);
+      setEmployees(prev => prev.filter(e => e._id !== id));
+      setToast({ message: 'Employee record deleted', type: 'success' });
+    } catch (err) {
+      setToast({ message: err.message || 'Failed to delete employee', type: 'error' });
+    }
+  };
+
+  const handleDeleteHoliday = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this holiday?')) return;
+    try {
+      await hrService.deleteHoliday(id);
+      setHolidays(prev => prev.filter(h => h._id !== id));
+      setToast({ message: 'Holiday deleted', type: 'success' });
+    } catch (err) {
+      setToast({ message: err.message || 'Failed to delete holiday', type: 'error' });
+    }
+  };
+
   if (loading) {
     return <Loader message="Loading Module 10: Human Resource Management..." />;
   }
@@ -282,6 +304,7 @@ export const Hrm = () => {
                 <th>CONTACT EMAIL</th>
                 <th>SALARY (₹)</th>
                 <th>STATUS</th>
+                <th>ACTIONS</th>
               </tr>
             </thead>
             <tbody>
@@ -294,6 +317,16 @@ export const Hrm = () => {
                   <td>{emp.email}</td>
                   <td>₹{emp.monthlySalary?.toLocaleString('en-IN') || '75,000'}</td>
                   <td><span className="badge badge-success">{emp.status}</span></td>
+                  <td>
+                    <button
+                      className="btn btn-secondary"
+                      style={{ padding: '0.35rem 0.5rem', fontSize: '0.75rem', color: '#dc2626', borderColor: '#fecaca' }}
+                      onClick={() => handleDeleteEmployee(emp._id)}
+                      title="Delete Employee Record"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
