@@ -1,0 +1,460 @@
+/* Full-Screen 2-Column Split Layout for Doorbin Interior Design Software */
+
+.login-page-wrapper {
+  width: 100vw;
+  height: 100vh;
+  min-height: 100vh;
+  overflow: hidden;
+  display: flex;
+  background-color: #0b0b0c;
+}
+
+.login-card-container {
+  width: 100%;
+  height: 100vh;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  padding: 0;
+  margin: 0;
+  border-radius: 0;
+  box-shadow: none;
+  border: none;
+  background-color: transparent;
+  overflow: hidden;
+}
+
+/* LEFT COLUMN - INTERIOR DESIGN GALLERY WALL (50% VIEWPORT) */
+.login-showcase-section {
+  background-color: #0c0d0f;
+  border-radius: 0;
+  padding: 2rem 2.25rem 1.5rem 2.25rem;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  color: #ffffff;
+  height: 100vh;
+  border-right: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.login-showcase-glow {
+  position: absolute;
+  top: -10%;
+  left: 20%;
+  width: 500px;
+  height: 500px;
+  background: radial-gradient(circle, rgba(175, 95, 52, 0.22) 0%, rgba(90, 45, 20, 0.08) 50%, transparent 70%);
+  filter: blur(70px);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Centered Logo Header */
+.showcase-header-centered {
+  text-align: center;
+  position: relative;
+  z-index: 5;
+  margin-bottom: 1.25rem;
+}
+
+.showcase-logo-img {
+  height: 48px;
+  width: auto;
+  object-fit: contain;
+  margin: 0 auto;
+  display: block;
+  filter: drop-shadow(0 4px 14px rgba(0, 0, 0, 0.5));
+}
+
+/* Masonry Gallery Wall Container */
+.masonry-gallery-wrapper {
+  position: relative;
+  z-index: 2;
+  flex: 1;
+  overflow: hidden;
+  margin: 0.25rem 0 1rem 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.masonry-grid {
+  column-count: 3;
+  column-gap: 0.75rem;
+  width: 100%;
+}
+
+.masonry-item {
+  break-inside: avoid;
+  margin-bottom: 0.75rem;
+  border-radius: 14px;
+  overflow: hidden;
+  position: relative;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: transform 350ms cubic-bezier(0.16, 1, 0.3, 1), border-color 350ms ease, box-shadow 350ms ease;
+  background-color: #141518;
+}
+
+.masonry-item:hover {
+  border-color: rgba(175, 95, 52, 0.4);
+}
+
+.masonry-img {
+  width: 100%;
+  height: auto;
+  display: block;
+  object-fit: cover;
+}
+
+.masonry-tag {
+  position: absolute;
+  bottom: 0.45rem;
+  left: 0.45rem;
+  background: rgba(12, 13, 15, 0.8);
+  backdrop-filter: blur(8px);
+  padding: 0.2rem 0.55rem;
+  border-radius: 9999px;
+  font-size: 0.6rem;
+  font-weight: 600;
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  letter-spacing: 0.02em;
+}
+
+/* Showcase Footer */
+.showcase-footer-text {
+  position: relative;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.95rem;
+  color: #e8e4dc;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  text-align: center;
+}
+
+/* RIGHT COLUMN - FORM SECTION (50% VIEWPORT, ZERO SCROLL) */
+.login-form-section {
+  background-color: #f8f6f2;
+  padding: 2.5rem 4rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.login-form-content-body {
+  max-width: 420px;
+  width: 100%;
+  margin: auto 0;
+  align-self: center;
+}
+
+.login-header-text h1 {
+  font-size: 2.1rem;
+  font-weight: 800;
+  color: #1a1918;
+  letter-spacing: -0.02em;
+  margin-bottom: 0.35rem;
+}
+
+.login-header-text p {
+  font-size: 0.875rem;
+  color: #88837a;
+  line-height: 1.45;
+  margin-bottom: 1.5rem;
+}
+
+/* Google Button */
+.btn-google {
+  width: 100%;
+  background-color: #ffffff;
+  color: #1a1918;
+  border: 1px solid #e6e2d8;
+  border-radius: 9999px;
+  padding: 0.8rem 1.25rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
+  transition: all 200ms ease;
+}
+
+.btn-google:hover {
+  background-color: #fcfcfb;
+  border-color: #d8d3c7;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+}
+
+.google-icon {
+  width: 18px;
+  height: 18px;
+}
+
+/* Divider */
+.login-divider {
+  display: flex;
+  align-items: center;
+  margin: 1.15rem 0;
+  color: #b0aaa0;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.login-divider::before,
+.login-divider::after {
+  content: '';
+  flex: 1;
+  border-bottom: 1px solid #e6e2d8;
+}
+
+.login-divider span {
+  padding: 0 0.75rem;
+}
+
+/* Pill Input Group */
+.pill-input-group {
+  margin-bottom: 1rem;
+  position: relative;
+}
+
+.pill-input-label {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #2c2a27;
+  margin-bottom: 0.35rem;
+  margin-left: 0.75rem;
+}
+
+.pill-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.pill-input {
+  width: 100%;
+  background-color: #ffffff;
+  border: 1px solid #e5e0d5;
+  border-radius: 9999px;
+  padding: 0.8rem 1.25rem;
+  font-size: 0.875rem;
+  color: #1a1918;
+  outline: none;
+  font-family: inherit;
+  transition: border-color 200ms ease, box-shadow 200ms ease;
+}
+
+.pill-input:focus {
+  border-color: #aa653e;
+  box-shadow: 0 0 0 3.5px rgba(170, 101, 62, 0.14);
+}
+
+.pill-input.is-invalid {
+  border-color: #ef4444 !important;
+  background-color: #fff8f8;
+}
+
+.password-toggle-btn {
+  position: absolute;
+  right: 1.25rem;
+  background: none;
+  border: none;
+  color: #999388;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.password-toggle-btn:hover {
+  color: #33312e;
+}
+
+/* Checkbox & Forgot Password row */
+.login-options-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0.4rem 0.5rem 1.35rem 0.5rem;
+  font-size: 0.8rem;
+}
+
+.remember-me-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #2c2a27;
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+}
+
+.remember-checkbox {
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  background-color: #b56e47;
+  border: 1px solid #a8623b;
+  cursor: pointer;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.remember-checkbox:checked {
+  background-color: #a8623b;
+}
+
+.remember-checkbox:checked::after {
+  content: '✓';
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.forgot-password-link {
+  color: #999388;
+  text-decoration: none;
+  font-weight: 500;
+  transition: color 150ms ease;
+}
+
+.forgot-password-link:hover {
+  color: #1a1918;
+}
+
+/* Bronze Gradient Submit Button */
+.btn-login-submit {
+  width: 100%;
+  background: linear-gradient(135deg, #aa653e 0%, #763b1a 100%);
+  color: #ffffff;
+  border: none;
+  border-radius: 9999px;
+  padding: 0.9rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 8px 22px rgba(170, 101, 62, 0.35);
+  transition: transform 150ms ease, box-shadow 150ms ease, opacity 150ms ease;
+}
+
+.btn-login-submit:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 28px rgba(170, 101, 62, 0.45);
+}
+
+.btn-login-submit:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.login-form-footer {
+  font-size: 0.75rem;
+  color: #999388;
+  text-align: center;
+  margin-top: 1rem;
+}
+
+/* Responsive Mobile Layout */
+@media (max-width: 992px) {
+  .login-card-container {
+    grid-template-columns: 1fr;
+  }
+
+  .login-form-section {
+    padding: 2.5rem 1.5rem;
+    overflow-y: auto;
+  }
+
+  .login-showcase-section {
+    display: none;
+  }
+}
+
+/* Inline Login Success Card inside Right Form Column */
+.login-inline-success-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 2.5rem 1.5rem;
+  width: 100%;
+  animation: inlineFadeIn 350ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.login-inline-check-circle {
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #15803d 0%, #22c55e 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 10px 30px rgba(34, 197, 94, 0.35);
+  margin-bottom: 1.5rem;
+  animation: checkPopIn 450ms cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.login-inline-success-title {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: 2.3rem;
+  font-weight: 700;
+  color: #1a1918;
+  margin: 0 0 0.4rem 0;
+  letter-spacing: -0.01em;
+}
+
+.login-inline-success-subtitle {
+  font-size: 0.925rem;
+  font-weight: 500;
+  color: #78746d;
+  margin: 0;
+}
+
+.login-inline-loader-bar {
+  width: 160px;
+  height: 4px;
+  background: #e6e2d8;
+  border-radius: 9999px;
+  overflow: hidden;
+  margin-top: 1.75rem;
+}
+
+.login-inline-loader-progress {
+  height: 100%;
+  width: 100%;
+  background: linear-gradient(90deg, #aa653e, #22c55e);
+  border-radius: 9999px;
+  animation: progressFill 1200ms linear forwards;
+}
+
+@keyframes inlineFadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes checkPopIn {
+  0% { transform: scale(0); opacity: 0; }
+  70% { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes progressFill {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
