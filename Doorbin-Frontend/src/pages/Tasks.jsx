@@ -8,7 +8,8 @@ import { Toast } from '../components/Toast';
 import { Loader } from '../components/Loader';
 import { validators, focusFirstErrorField } from '../utils/validation';
 import { formatDate } from '../utils/dateUtils';
-import { Plus, Search, CheckSquare, Clock, UserCheck, MessageSquare, AlertCircle, FileText, CheckCircle2, ShieldCheck, Trash2, Edit3, Calendar } from 'lucide-react';
+import { Plus, Search, CheckSquare, Clock, UserCheck, MessageSquare, AlertCircle, FileText, CheckCircle2, ShieldCheck, Trash2, Edit3, Calendar, LayoutGrid, List } from 'lucide-react';
+import { useViewMode } from '../hooks/useViewMode';
 import './Dashboard.css';
 
 const TASK_STATUSES = ['Pending', 'Assigned', 'In Progress', 'Under Review', 'Completed', 'Revision Required', 'Approved'];
@@ -19,6 +20,7 @@ export const Tasks = () => {
   const [projectsList, setProjectsList] = useState([]);
   const [usersList, setUsersList] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [viewMode, setViewMode] = useViewMode();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStatusFilter, setSelectedStatusFilter] = useState('All');
@@ -331,14 +333,33 @@ export const Tasks = () => {
       <Toast message={toast.message} type={toast.type} onClose={() => setToast({ message: '', type: 'info' })} />
 
       {/* Header */}
-      <div className="dashboard-hero-section" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div>
+      <div className="page-header-responsive">
+        <div className="page-header-title-block">
           <h1 className="hero-serif-title">Task Management</h1>
           <p className="hero-sub-summary">Manage 3D visualization subtasks, assignee reviews, revisions and audit history</p>
         </div>
-        <button onClick={() => setIsCreateModalOpen(true)} className="btn-new-task">
-          <Plus size={16} /> New Task
-        </button>
+
+        <div className="page-header-actions">
+          {/* Dual View Toggle */}
+          <div className="view-toggle-container">
+            <button
+              className={`view-toggle-btn ${viewMode === 'stripe' ? 'active' : ''}`}
+              onClick={() => setViewMode('stripe')}
+            >
+              <List size={14} /> Stripe View
+            </button>
+            <button
+              className={`view-toggle-btn ${viewMode === 'card' ? 'active' : ''}`}
+              onClick={() => setViewMode('card')}
+            >
+              <LayoutGrid size={14} /> Card View
+            </button>
+          </div>
+
+          <button onClick={() => setIsCreateModalOpen(true)} className="btn-new-task">
+            <Plus size={16} /> New Task
+          </button>
+        </div>
       </div>
 
       {loading ? (
@@ -359,7 +380,8 @@ export const Tasks = () => {
               />
             </div>
 
-            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', overflowX: 'auto' }}>
+            {/* Desktop Status Filter Pills */}
+            <div className="desktop-tabs-container" style={{ alignItems: 'center' }}>
               <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#8c8882' }}>STATUS:</span>
               <button
                 onClick={() => setSelectedStatusFilter('All')}
@@ -399,10 +421,75 @@ export const Tasks = () => {
                 );
               })}
             </div>
+
+            {/* Mobile Select Dropdown for Task Status */}
+            <select
+              className="mobile-filter-select"
+              value={selectedStatusFilter}
+              onChange={(e) => setSelectedStatusFilter(e.target.value)}
+            >
+              <option value="All">All Statuses ({tasks.length})</option>
+              {TASK_STATUSES.map(st => (
+                <option key={st} value={st}>
+                  {st} ({tasks.filter(t => t.status === st).length})
+                </option>
+              ))}
+            </select>
           </div>
 
-          {/* Tasks Grid */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '1.25rem' }}>
+          {/* DUAL VIEW RENDER: STRIPE TABLE OR CARD GRID */}
+          {viewMode === 'stripe' ? (
+            <div className="team-widget-card" style={{ padding: 0, overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem', whiteSpace: 'nowrap' }}>
+                <thead>
+                  <tr style={{ backgroundColor: '#faf9f6', borderBottom: '1px solid #eeeae3', color: '#8c8882', textTransform: 'uppercase', fontSize: '0.68rem', letterSpacing: '0.05em' }}>
+                    <th style={{ padding: '1rem 1.25rem' }}>Task Name</th>
+                    <th style={{ padding: '1rem 1.25rem' }}>Project & Assignee</th>
+                    <th style={{ padding: '1rem 1.25rem' }}>Due Date</th>
+                    <th style={{ padding: '1rem 1.25rem' }}>Priority</th>
+                    <th style={{ padding: '1rem 1.25rem' }}>Status</th>
+                    <th style={{ padding: '1rem 1.25rem', textAlign: 'right' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredTasks.map((task) => {
+                    const projName = typeof task.project === 'object' ? (task.project?.projectName || 'Project') : (task.project || 'Project');
+                    let assigneeName = typeof task.assignee === 'object' ? (task.assignee?.name || 'Artist') : (task.assignee || 'Artist');
+
+                    return (
+                      <tr key={task._id} style={{ borderBottom: '1px solid #f2ece4' }}>
+                        <td style={{ padding: '1rem 1.25rem' }}>
+                          <div style={{ fontWeight: 700, color: '#1a1918' }}>{task.taskName}</div>
+                        </td>
+                        <td style={{ padding: '1rem 1.25rem', fontWeight: 600, color: '#4a4742' }}>
+                          <div>{projName}</div>
+                          <div style={{ fontSize: '0.75rem', color: '#8c8882' }}>Assignee: {assigneeName}</div>
+                        </td>
+                        <td style={{ padding: '1rem 1.25rem' }}>{formatDate(task.dueDate)}</td>
+                        <td style={{ padding: '1rem 1.25rem' }}>
+                          <span style={{ fontSize: '0.75rem', fontWeight: 700, color: task.priority === 'High' ? '#dc2626' : '#16a34a' }}>{task.priority}</span>
+                        </td>
+                        <td style={{ padding: '1rem 1.25rem' }}>
+                          <span className="status-badge-pill badge-on-track">{task.status}</span>
+                        </td>
+                        <td style={{ padding: '1rem 1.25rem', textAlign: 'right' }}>
+                          <div style={{ display: 'inline-flex', gap: '0.5rem' }}>
+                            <button onClick={() => { setSelectedTask(task); setIsDetailModalOpen(true); }} className="btn btn-secondary" style={{ padding: '0.35rem 0.65rem', fontSize: '0.75rem' }}>
+                              Details
+                            </button>
+                            <button onClick={() => handleOpenEditModal(task)} className="btn btn-secondary" style={{ padding: '0.35rem 0.65rem' }}>
+                              <Edit3 size={14} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="responsive-cards-grid">
             {filteredTasks.map((task) => {
               const projName = typeof task.project === 'object' ? (task.project?.projectName || 'Project') : (task.project || 'Project');
 
@@ -586,8 +673,9 @@ export const Tasks = () => {
               );
             })}
           </div>
-        </>
-      )}
+        )}
+      </>
+    )}
 
       {/* Modal for Creating Task */}
       <Modal

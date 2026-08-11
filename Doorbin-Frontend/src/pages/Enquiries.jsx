@@ -6,7 +6,8 @@ import { FormField } from '../components/FormField';
 import { Toast } from '../components/Toast';
 import { Loader } from '../components/Loader';
 import { validators, focusFirstErrorField } from '../utils/validation';
-import { Plus, Search, PhoneCall, TrendingUp, UserCheck, DollarSign, Calendar, MessageSquare, ArrowRight, ShieldCheck, Trash2, Briefcase, Tag, AlertTriangle, Award, Edit3 } from 'lucide-react';
+import { Plus, Search, PhoneCall, TrendingUp, UserCheck, DollarSign, Calendar, MessageSquare, ArrowRight, ShieldCheck, Trash2, Briefcase, Tag, AlertTriangle, Award, Edit3, LayoutGrid, List } from 'lucide-react';
+import { useViewMode } from '../hooks/useViewMode';
 import './Dashboard.css';
 
 const PROJECT_TYPES = ['Architecture', 'Interior Design', 'Animation'];
@@ -19,6 +20,7 @@ export const Enquiries = () => {
   const [executives, setExecutives] = useState([]);
   const [summaryReport, setSummaryReport] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [viewMode, setViewMode] = useViewMode();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStageFilter, setSelectedStageFilter] = useState('All');
@@ -283,14 +285,33 @@ export const Enquiries = () => {
       <Toast message={toast.message} type={toast.type} onClose={() => setToast({ message: '', type: 'info' })} />
 
       {/* Header */}
-      <div className="dashboard-hero-section" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div>
+      <div className="page-header-responsive">
+        <div className="page-header-title-block">
           <h1 className="hero-serif-title">Business Development & CRM</h1>
           <p className="hero-sub-summary">Manage lead pipeline, project enquiries, stage conversions and executive activities</p>
         </div>
-        <button onClick={() => setIsCreateModalOpen(true)} className="btn-new-task">
-          <Plus size={16} /> New Enquiry
-        </button>
+
+        <div className="page-header-actions">
+          {/* Dual View Toggle */}
+          <div className="view-toggle-container">
+            <button
+              className={`view-toggle-btn ${viewMode === 'stripe' ? 'active' : ''}`}
+              onClick={() => setViewMode('stripe')}
+            >
+              <List size={14} /> Stripe View
+            </button>
+            <button
+              className={`view-toggle-btn ${viewMode === 'card' ? 'active' : ''}`}
+              onClick={() => setViewMode('card')}
+            >
+              <LayoutGrid size={14} /> Card View
+            </button>
+          </div>
+
+          <button onClick={() => setIsCreateModalOpen(true)} className="btn-new-task">
+            <Plus size={16} /> New Enquiry
+          </button>
+        </div>
       </div>
 
       {loading ? (
@@ -344,7 +365,8 @@ export const Enquiries = () => {
               />
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', overflowX: 'auto', paddingBottom: '0.25rem' }}>
+            {/* Desktop Stage Filter Pills */}
+            <div className="desktop-tabs-container" style={{ alignItems: 'center' }}>
               <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#8c8882' }}>STAGE:</span>
               <button
                 onClick={() => setSelectedStageFilter('All')}
@@ -384,10 +406,77 @@ export const Enquiries = () => {
                 );
               })}
             </div>
+
+            {/* Mobile Select Dropdown for Stage Filters */}
+            <select
+              className="mobile-filter-select"
+              value={selectedStageFilter}
+              onChange={(e) => setSelectedStageFilter(e.target.value)}
+            >
+              <option value="All">All Stages ({enquiries.length})</option>
+              {STAGES.map((stg) => (
+                <option key={stg} value={stg}>
+                  {stg} ({enquiries.filter(e => e.status === stg).length})
+                </option>
+              ))}
+            </select>
           </div>
 
-          {/* Enquiries Grid */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '1.25rem' }}>
+          {/* DUAL VIEW RENDER: STRIPE TABLE OR CARD GRID */}
+          {viewMode === 'stripe' ? (
+            <div className="team-widget-card" style={{ padding: 0, overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem', whiteSpace: 'nowrap' }}>
+                <thead>
+                  <tr style={{ backgroundColor: '#faf9f6', borderBottom: '1px solid #eeeae3', color: '#8c8882', textTransform: 'uppercase', fontSize: '0.68rem', letterSpacing: '0.05em' }}>
+                    <th style={{ padding: '1rem 1.25rem' }}>Project & Client</th>
+                    <th style={{ padding: '1rem 1.25rem' }}>Type & Priority</th>
+                    <th style={{ padding: '1rem 1.25rem' }}>Estimated Value</th>
+                    <th style={{ padding: '1rem 1.25rem' }}>BD Executive</th>
+                    <th style={{ padding: '1rem 1.25rem' }}>Stage Status</th>
+                    <th style={{ padding: '1rem 1.25rem', textAlign: 'right' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredEnquiries.map((enq) => {
+                    const execName = typeof enq.assignedExecutive === 'object'
+                      ? (enq.assignedExecutive?.name || 'BD Executive')
+                      : (executives.find(u => u._id === enq.assignedExecutive)?.name || 'BD Executive');
+
+                    return (
+                      <tr key={enq._id} style={{ borderBottom: '1px solid #f2ece4' }}>
+                        <td style={{ padding: '1rem 1.25rem' }}>
+                          <div style={{ fontWeight: 700, color: '#1a1918' }}>{enq.projectName}</div>
+                          <div style={{ fontSize: '0.78rem', color: '#8c8882' }}>Client: {enq.clientName}</div>
+                        </td>
+                        <td style={{ padding: '1rem 1.25rem' }}>
+                          <span className="task-status-blue" style={{ fontSize: '0.68rem', marginRight: '0.5rem' }}>{enq.projectType}</span>
+                          <span style={{ fontSize: '0.7rem', fontWeight: 700, color: enq.priority === 'High' ? '#dc2626' : '#16a34a' }}>{enq.priority}</span>
+                        </td>
+                        <td style={{ padding: '1rem 1.25rem', fontWeight: 700, color: '#15803d' }}>
+                          ₹{Number(enq.estimatedValue || 0).toLocaleString()}
+                        </td>
+                        <td style={{ padding: '1rem 1.25rem', fontWeight: 600 }}>{execName}</td>
+                        <td style={{ padding: '1rem 1.25rem' }}>
+                          <span className="status-badge-pill badge-on-track">{enq.status}</span>
+                        </td>
+                        <td style={{ padding: '1rem 1.25rem', textAlign: 'right' }}>
+                          <div style={{ display: 'inline-flex', gap: '0.5rem' }}>
+                            <button onClick={() => { setSelectedEnquiry(enq); setIsDetailModalOpen(true); }} className="btn btn-secondary" style={{ padding: '0.35rem 0.65rem', fontSize: '0.75rem' }}>
+                              Details
+                            </button>
+                            <button onClick={() => handleOpenEditModal(enq)} className="btn btn-secondary" style={{ padding: '0.35rem 0.65rem' }}>
+                              <Edit3 size={14} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="responsive-cards-grid">
             {filteredEnquiries.map((enq) => {
               const execName = typeof enq.assignedExecutive === 'object'
                 ? (enq.assignedExecutive?.name || 'BD Executive')
@@ -498,8 +587,9 @@ export const Enquiries = () => {
               );
             })}
           </div>
-        </>
-      )}
+        )}
+      </>
+    )}
 
       {/* Modal for Creating New Enquiry */}
       <Modal

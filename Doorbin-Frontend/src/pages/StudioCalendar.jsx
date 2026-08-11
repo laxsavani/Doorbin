@@ -17,6 +17,7 @@ export const StudioCalendar = () => {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedEvent, setSelectedEvent] = useState(null);
+  const [selectedDayDetails, setSelectedDayDetails] = useState(null);
   const [isAddEventModalOpen, setIsAddEventModalOpen] = useState(false);
 
   const [newEvent, setNewEvent] = useState({
@@ -194,21 +195,23 @@ export const StudioCalendar = () => {
       <Toast message={toast.message} type={toast.type} onClose={() => setToast({ message: '', type: 'info' })} />
 
       {/* Hero Header */}
-      <div className="dashboard-hero-section" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div>
+      <div className="page-header-responsive">
+        <div className="page-header-title-block">
           <h1 className="hero-serif-title">Studio Master Calendar</h1>
           <p className="hero-sub-summary">Studio-wide aggregated schedule, milestone deliveries, client pitches and rendering deadlines</p>
         </div>
 
-        <button onClick={() => setIsAddEventModalOpen(true)} className="btn-new-task">
-          <Plus size={16} /> Add Calendar Event
-        </button>
+        <div className="page-header-actions">
+          <button onClick={() => setIsAddEventModalOpen(true)} className="btn-new-task">
+            <Plus size={16} /> Add Calendar Event
+          </button>
+        </div>
       </div>
 
       {loading ? (
         <Loader text="Generating studio calendar schedule..." />
       ) : (
-        <div className="team-widget-card" style={{ padding: '1.5rem', backgroundColor: '#ffffff' }}>
+        <div className="team-widget-card" style={{ padding: '1.5rem', backgroundColor: '#ffffff', overflowX: 'auto' }}>
           {/* Controls Bar */}
           <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', marginBottom: '1.25rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
@@ -312,6 +315,7 @@ export const StudioCalendar = () => {
                   return (
                     <div
                       key={idx}
+                      onClick={() => setSelectedDayDetails({ dateStr: cell.dateStr, events: dayEvents })}
                       style={{
                         backgroundColor: cell.isCurrentMonth ? (isToday ? '#fffbf5' : '#ffffff') : '#fbfaf8',
                         height: '115px',
@@ -321,7 +325,9 @@ export const StudioCalendar = () => {
                         flexDirection: 'column',
                         justifyContent: 'space-between',
                         overflow: 'hidden',
-                        boxSizing: 'border-box'
+                        boxSizing: 'border-box',
+                        cursor: 'pointer',
+                        transition: 'backgroundColor 150ms ease'
                       }}
                     >
                       {/* Cell Day Number Header */}
@@ -504,6 +510,86 @@ export const StudioCalendar = () => {
               <div style={{ fontSize: '0.85rem', color: '#4a4742' }}>
                 <strong>Scheduled Time:</strong> {selectedEvent.time}
               </div>
+            )}
+          </div>
+        </Modal>
+      )}
+
+      {/* Pop-up Modal for Day Details */}
+      {selectedDayDetails && (
+        <Modal
+          isOpen={!!selectedDayDetails}
+          onClose={() => setSelectedDayDetails(null)}
+          title={`Scheduled Events for ${selectedDayDetails.dateStr}`}
+          footer={
+            <>
+              <button
+                className="btn btn-secondary"
+                onClick={() => setSelectedDayDetails(null)}
+              >
+                Close
+              </button>
+              <button
+                className="btn btn-primary"
+                onClick={() => {
+                  setNewEvent({ ...newEvent, date: selectedDayDetails.dateStr });
+                  setSelectedDayDetails(null);
+                  setIsAddEventModalOpen(true);
+                }}
+              >
+                + Add Event for This Date
+              </button>
+            </>
+          }
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            {selectedDayDetails.events.length === 0 ? (
+              <div style={{ padding: '1.5rem', textAlign: 'center', color: '#78746d' }}>
+                No studio events scheduled for this day. Click below to add one!
+              </div>
+            ) : (
+              selectedDayDetails.events.map((evt) => {
+                const badge = getBadgeStyle(evt.type);
+                const IconComp = badge.icon;
+                return (
+                  <div
+                    key={evt.id}
+                    style={{
+                      padding: '1rem',
+                      borderRadius: '12px',
+                      backgroundColor: '#faf9f6',
+                      border: `1px solid ${badge.border}`,
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'flex-start',
+                      gap: '0.75rem'
+                    }}
+                  >
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                        <span
+                          style={{
+                            fontSize: '0.7rem',
+                            padding: '0.15rem 0.5rem',
+                            borderRadius: '9999px',
+                            backgroundColor: badge.bg,
+                            color: badge.color,
+                            fontWeight: 700,
+                            border: `1px solid ${badge.border}`
+                          }}
+                        >
+                          {evt.type}
+                        </span>
+                        <span style={{ fontSize: '0.75rem', color: '#8c8882', fontWeight: 600 }}>{evt.time}</span>
+                      </div>
+                      <div style={{ fontSize: '0.95rem', fontWeight: 700, color: '#1F1F1F' }}>{evt.title}</div>
+                      <div style={{ fontSize: '0.8rem', color: '#78746d', marginTop: '0.25rem' }}>
+                        Project: <strong>{evt.project}</strong> | Lead: <strong>{evt.assignedTo}</strong>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
             )}
           </div>
         </Modal>

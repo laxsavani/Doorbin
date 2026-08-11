@@ -8,7 +8,8 @@ import { FormField } from '../components/FormField';
 import { Toast } from '../components/Toast';
 import { Loader } from '../components/Loader';
 import { validators, focusFirstErrorField } from '../utils/validation';
-import { Search, UserPlus } from 'lucide-react';
+import { Search, UserPlus, LayoutGrid, List } from 'lucide-react';
+import { useViewMode } from '../hooks/useViewMode';
 import './Dashboard.css';
 
 export const Users = () => {
@@ -18,6 +19,7 @@ export const Users = () => {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [viewMode, setViewMode] = useViewMode();
 
   const [newUser, setNewUser] = useState({
     name: '',
@@ -171,14 +173,33 @@ export const Users = () => {
       <Toast message={toast.message} type={toast.type} onClose={() => setToast({ message: '', type: 'info' })} />
 
       {/* Header */}
-      <div className="dashboard-hero-section" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div>
+      <div className="page-header-responsive">
+        <div className="page-header-title-block">
           <h1 className="hero-serif-title">User Management</h1>
           <p className="hero-sub-summary">Manage system users, status activation/deactivation and role reassignments</p>
         </div>
-        <button onClick={() => setIsModalOpen(true)} className="btn-new-task">
-          <UserPlus size={16} /> Add User
-        </button>
+
+        <div className="page-header-actions">
+          {/* Dual View Toggle */}
+          <div className="view-toggle-container">
+            <button
+              className={`view-toggle-btn ${viewMode === 'stripe' ? 'active' : ''}`}
+              onClick={() => setViewMode('stripe')}
+            >
+              <List size={14} /> Stripe View
+            </button>
+            <button
+              className={`view-toggle-btn ${viewMode === 'card' ? 'active' : ''}`}
+              onClick={() => setViewMode('card')}
+            >
+              <LayoutGrid size={14} /> Card View
+            </button>
+          </div>
+
+          <button onClick={() => setIsModalOpen(true)} className="btn-new-task">
+            <UserPlus size={16} /> Add User
+          </button>
+        </div>
       </div>
 
       {loading ? (
@@ -200,35 +221,32 @@ export const Users = () => {
             </div>
           </div>
 
-          {/* Users List Table Card */}
-          <div className="team-widget-card" style={{ padding: 0, overflow: 'hidden' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
-              <thead>
-                <tr style={{ backgroundColor: '#faf9f6', borderBottom: '1px solid #eeeae3', color: '#8c8882', textTransform: 'uppercase', fontSize: '0.68rem', letterSpacing: '0.05em' }}>
-                  <th style={{ padding: '1rem 1.25rem' }}>User Info</th>
-                  <th style={{ padding: '1rem 1.25rem' }}>Department</th>
-                  <th style={{ padding: '1rem 1.25rem' }}>Role Assignment</th>
-                  <th style={{ padding: '1rem 1.25rem' }}>Status</th>
-                  <th style={{ padding: '1rem 1.25rem', textAlign: 'right' }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredUsers.map((user) => {
-                  const roleId = typeof user.role === 'object' ? user.role?._id : user.role;
-                  const roleName = typeof user.role === 'object' ? user.role?.name : user.role;
-                  const deptName = typeof user.department === 'object' ? user.department?.name : (user.department || 'General');
+          {/* DUAL VIEW CONDITIONAL RENDER */}
+          {viewMode === 'card' ? (
+            /* CARD VIEW (DEFAULT ON MOBILE) */
+            <div className="responsive-cards-grid">
+              {filteredUsers.map((user) => {
+                const roleId = typeof user.role === 'object' ? user.role?._id : user.role;
+                const roleName = typeof user.role === 'object' ? user.role?.name : user.role;
+                const deptName = typeof user.department === 'object' ? user.department?.name : (user.department || 'General');
 
-                  return (
-                    <tr key={user._id} style={{ borderBottom: '1px solid #f2ece4' }}>
-                      <td style={{ padding: '1rem 1.25rem' }}>
-                        <div style={{ fontWeight: 700, color: '#1a1918' }}>{user.name}</div>
-                        <div style={{ fontSize: '0.78rem', color: '#8c8882' }}>{user.email}</div>
-                        {user.phone && <div style={{ fontSize: '0.725rem', color: '#8c8882' }}>{user.phone}</div>}
-                      </td>
-                      <td style={{ padding: '1rem 1.25rem', color: '#4a4742', fontWeight: 600 }}>
-                        {deptName}
-                      </td>
-                      <td style={{ padding: '1rem 1.25rem' }}>
+                return (
+                  <div key={user._id} className="responsive-card-item">
+                    <div className="responsive-card-header">
+                      <div>
+                        <div className="responsive-card-title">{user.name}</div>
+                        <div className="responsive-card-subtitle">{user.email}</div>
+                        {user.phone && <div style={{ fontSize: '0.75rem', color: '#8c8882', marginTop: '0.2rem' }}>{user.phone}</div>}
+                      </div>
+                      <span className={`status-badge-pill ${user.status === 'Active' ? 'badge-on-track' : 'badge-at-risk'}`}>
+                        {user.status || 'Active'}
+                      </span>
+                    </div>
+
+                    <div className="responsive-card-body">
+                      <div><strong>Department:</strong> {deptName}</div>
+                      <div style={{ marginTop: '0.25rem' }}>
+                        <strong style={{ display: 'block', marginBottom: '0.25rem' }}>Role Assignment:</strong>
                         <select
                           value={roleId || roleName}
                           onChange={(e) => handleRoleChange(user._id, e.target.value)}
@@ -238,7 +256,8 @@ export const Users = () => {
                             border: '1px solid #d8d4cb',
                             fontSize: '0.78rem',
                             fontWeight: 600,
-                            backgroundColor: '#ffffff'
+                            backgroundColor: '#ffffff',
+                            width: '100%'
                           }}
                         >
                           {rolesList.map((r) => (
@@ -247,27 +266,92 @@ export const Users = () => {
                             </option>
                           ))}
                         </select>
-                      </td>
-                      <td style={{ padding: '1rem 1.25rem' }}>
-                        <span className={`status-badge-pill ${user.status === 'Active' ? 'badge-on-track' : 'badge-at-risk'}`}>
-                          {user.status || 'Active'}
-                        </span>
-                      </td>
-                      <td style={{ padding: '1rem 1.25rem', textAlign: 'right' }}>
-                        <button
-                          onClick={() => handleStatusToggle(user._id, user.status || 'Active')}
-                          className="btn btn-secondary"
-                          style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem' }}
-                        >
-                          {user.status === 'Active' ? 'Deactivate' : 'Activate'}
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                      </div>
+                    </div>
+
+                    <div className="responsive-card-footer">
+                      <button
+                        onClick={() => handleStatusToggle(user._id, user.status || 'Active')}
+                        className="btn btn-secondary"
+                        style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem', width: '100%', justifyContent: 'center' }}
+                      >
+                        {user.status === 'Active' ? 'Deactivate User' : 'Activate User'}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            /* STRIPE / TABLE VIEW (DEFAULT ON DESKTOP) */
+            <div className="team-widget-card" style={{ padding: 0, overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem', whiteSpace: 'nowrap' }}>
+                <thead>
+                  <tr style={{ backgroundColor: '#faf9f6', borderBottom: '1px solid #eeeae3', color: '#8c8882', textTransform: 'uppercase', fontSize: '0.68rem', letterSpacing: '0.05em' }}>
+                    <th style={{ padding: '1rem 1.25rem' }}>User Info</th>
+                    <th style={{ padding: '1rem 1.25rem' }}>Department</th>
+                    <th style={{ padding: '1rem 1.25rem' }}>Role Assignment</th>
+                    <th style={{ padding: '1rem 1.25rem' }}>Status</th>
+                    <th style={{ padding: '1rem 1.25rem', textAlign: 'right' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredUsers.map((user) => {
+                    const roleId = typeof user.role === 'object' ? user.role?._id : user.role;
+                    const roleName = typeof user.role === 'object' ? user.role?.name : user.role;
+                    const deptName = typeof user.department === 'object' ? user.department?.name : (user.department || 'General');
+
+                    return (
+                      <tr key={user._id} style={{ borderBottom: '1px solid #f2ece4' }}>
+                        <td style={{ padding: '1rem 1.25rem' }}>
+                          <div style={{ fontWeight: 700, color: '#1a1918' }}>{user.name}</div>
+                          <div style={{ fontSize: '0.78rem', color: '#8c8882' }}>{user.email}</div>
+                          {user.phone && <div style={{ fontSize: '0.725rem', color: '#8c8882' }}>{user.phone}</div>}
+                        </td>
+                        <td style={{ padding: '1rem 1.25rem', color: '#4a4742', fontWeight: 600 }}>
+                          {deptName}
+                        </td>
+                        <td style={{ padding: '1rem 1.25rem' }}>
+                          <select
+                            value={roleId || roleName}
+                            onChange={(e) => handleRoleChange(user._id, e.target.value)}
+                            style={{
+                              padding: '0.35rem 0.65rem',
+                              borderRadius: '8px',
+                              border: '1px solid #d8d4cb',
+                              fontSize: '0.78rem',
+                              fontWeight: 600,
+                              backgroundColor: '#ffffff'
+                            }}
+                          >
+                            {rolesList.map((r) => (
+                              <option key={r._id} value={r._id}>
+                                {r.name}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                        <td style={{ padding: '1rem 1.25rem' }}>
+                          <span className={`status-badge-pill ${user.status === 'Active' ? 'badge-on-track' : 'badge-at-risk'}`}>
+                            {user.status || 'Active'}
+                          </span>
+                        </td>
+                        <td style={{ padding: '1rem 1.25rem', textAlign: 'right' }}>
+                          <button
+                            onClick={() => handleStatusToggle(user._id, user.status || 'Active')}
+                            className="btn btn-secondary"
+                            style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem' }}
+                          >
+                            {user.status === 'Active' ? 'Deactivate' : 'Activate'}
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </>
       )}
 

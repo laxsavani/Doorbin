@@ -115,13 +115,13 @@ export const WorkflowTemplates = () => {
       <Toast message={toast.message} type={toast.type} onClose={() => setToast({ message: '', type: 'info' })} />
 
       {/* Header */}
-      <div className="dashboard-hero-section" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div>
+      <div className="page-header-responsive">
+        <div className="page-header-title-block">
           <h1 className="hero-serif-title">Workflow Templates</h1>
           <p className="hero-sub-summary">Configure stage blueprints, repeatable sub-stages and approval rules for 3D visualization categories</p>
         </div>
 
-        <div style={{ display: 'flex', gap: '0.75rem' }}>
+        <div className="page-header-actions">
           <button onClick={handleDeleteTemplate} className="btn btn-secondary" style={{ fontSize: '0.8rem', padding: '0.55rem 0.95rem', color: '#dc2626', borderColor: '#fecaca' }}>
             <Trash2 size={15} /> Delete Template
           </button>
@@ -140,28 +140,42 @@ export const WorkflowTemplates = () => {
         <Loader text="Loading category workflow blueprints..." />
       ) : (
         <>
-          {/* Category Tabs */}
-          <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.5rem', borderBottom: '1px solid #f2ece4', paddingBottom: '0.75rem' }}>
-            {CATEGORIES.map(cat => (
-              <button
-                key={cat}
-                onClick={() => setSelectedCategory(cat)}
-                style={{
-                  padding: '0.55rem 1.15rem',
-                  borderRadius: '12px',
-                  border: `1px solid ${selectedCategory === cat ? '#B68D40' : '#e9e5dc'}`,
-                  backgroundColor: selectedCategory === cat ? '#1F1F1F' : '#ffffff',
-                  color: selectedCategory === cat ? '#ffffff' : '#78746d',
-                  fontSize: '0.85rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  transition: 'all 150ms ease'
-                }}
-              >
-                {cat} Workflow Template
-              </button>
-            ))}
+          {/* Category Tabs & Filter */}
+          <div className="responsive-filter-bar">
+            {/* Desktop Category Tabs */}
+            <div className="desktop-tabs-container">
+              {CATEGORIES.map(cat => (
+                <button
+                  key={cat}
+                  onClick={() => setSelectedCategory(cat)}
+                  style={{
+                    padding: '0.55rem 1.15rem',
+                    borderRadius: '8px',
+                    border: 'none',
+                    borderBottom: selectedCategory === cat ? '3px solid #B68D40' : 'none',
+                    fontWeight: selectedCategory === cat ? 700 : 500,
+                    backgroundColor: 'transparent',
+                    color: selectedCategory === cat ? '#B68D40' : '#78746d',
+                    cursor: 'pointer'
+                  }}
+                >
+                  {cat} Blueprint
+                </button>
+              ))}
+            </div>
+
+            {/* Mobile Category Select */}
+            <select
+              className="mobile-filter-select"
+              value={selectedCategory}
+              onChange={(e) => setSelectedCategory(e.target.value)}
+            >
+              {CATEGORIES.map(cat => (
+                <option key={cat} value={cat}>{cat} Blueprint</option>
+              ))}
+            </select>
           </div>
+
 
           {/* Active Category Stages Blueprint */}
           {activeTemplate && (

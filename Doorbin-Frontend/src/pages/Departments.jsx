@@ -6,7 +6,8 @@ import { FormField } from '../components/FormField';
 import { Toast } from '../components/Toast';
 import { Loader } from '../components/Loader';
 import { validators, focusFirstErrorField } from '../utils/validation';
-import { Plus, Users as UsersIcon, Trash2, Building, Award, Edit3 } from 'lucide-react';
+import { Plus, Users as UsersIcon, Trash2, Building, Award, Edit3, LayoutGrid, List } from 'lucide-react';
+import { useViewMode } from '../hooks/useViewMode';
 import './Dashboard.css';
 
 export const Departments = () => {
@@ -14,6 +15,7 @@ export const Departments = () => {
   const [usersList, setUsersList] = useState([]);
   const [strengthReport, setStrengthReport] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [viewMode, setViewMode] = useViewMode();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -166,14 +168,34 @@ export const Departments = () => {
       <Toast message={toast.message} type={toast.type} onClose={() => setToast({ message: '', type: 'info' })} />
 
       {/* Header */}
-      <div className="dashboard-hero-section" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div>
+      {/* Header */}
+      <div className="page-header-responsive">
+        <div className="page-header-title-block">
           <h1 className="hero-serif-title">Organization Departments</h1>
           <p className="hero-sub-summary">Manage organizational hierarchy, employee roster and strength reports</p>
         </div>
-        <button onClick={() => setIsModalOpen(true)} className="btn-new-task">
-          <Plus size={16} /> Add Department
-        </button>
+
+        <div className="page-header-actions">
+          {/* Dual View Toggle */}
+          <div className="view-toggle-container">
+            <button
+              className={`view-toggle-btn ${viewMode === 'stripe' ? 'active' : ''}`}
+              onClick={() => setViewMode('stripe')}
+            >
+              <List size={14} /> Stripe View
+            </button>
+            <button
+              className={`view-toggle-btn ${viewMode === 'card' ? 'active' : ''}`}
+              onClick={() => setViewMode('card')}
+            >
+              <LayoutGrid size={14} /> Card View
+            </button>
+          </div>
+
+          <button onClick={() => setIsModalOpen(true)} className="btn-new-task">
+            <Plus size={16} /> Add Department
+          </button>
+        </div>
       </div>
 
       {loading ? (
@@ -181,7 +203,7 @@ export const Departments = () => {
       ) : (
         <>
           {/* Strength Overview Metrics */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', marginBottom: '2rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
             <div className="project-card">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span className="project-category-text">TOTAL DEPARTMENTS</span>
@@ -213,8 +235,59 @@ export const Departments = () => {
             </div>
           </div>
 
-          {/* Departments Grid List */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1.25rem' }}>
+          {/* DUAL VIEW RENDER: CARD GRID OR STRIPE TABLE */}
+          {viewMode === 'stripe' ? (
+            <div className="team-widget-card" style={{ padding: 0, overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem', whiteSpace: 'nowrap' }}>
+                <thead>
+                  <tr style={{ backgroundColor: '#faf9f6', borderBottom: '1px solid #eeeae3', color: '#8c8882', textTransform: 'uppercase', fontSize: '0.68rem', letterSpacing: '0.05em' }}>
+                    <th style={{ padding: '1rem 1.25rem' }}>Department</th>
+                    <th style={{ padding: '1rem 1.25rem' }}>Head</th>
+                    <th style={{ padding: '1rem 1.25rem' }}>Roster Count</th>
+                    <th style={{ padding: '1rem 1.25rem' }}>Status</th>
+                    <th style={{ padding: '1rem 1.25rem', textAlign: 'right' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {departments.map((dept, index) => {
+                    const headDisplay = typeof dept.head === 'object'
+                      ? (dept.head?.name || dept.head?.email || 'Unassigned')
+                      : (dept.head ? usersList.find(u => u._id === dept.head)?.name || 'Assigned' : 'Unassigned');
+                    const employeesList = Array.isArray(dept.employees)
+                      ? dept.employees
+                      : (Array.isArray(dept.members) ? dept.members : []);
+
+                    return (
+                      <tr key={dept._id || index} style={{ borderBottom: '1px solid #f2ece4' }}>
+                        <td style={{ padding: '1rem 1.25rem' }}>
+                          <div style={{ fontWeight: 700, color: '#1a1918' }}>{dept.name}</div>
+                          <div style={{ fontSize: '0.78rem', color: '#8c8882' }}>{dept.description}</div>
+                        </td>
+                        <td style={{ padding: '1rem 1.25rem', color: '#4a4742', fontWeight: 600 }}>{headDisplay}</td>
+                        <td style={{ padding: '1rem 1.25rem' }}>{employeesList.length} Members</td>
+                        <td style={{ padding: '1rem 1.25rem' }}>
+                          <span className={`status-badge-pill ${dept.status === 'Active' ? 'badge-on-track' : 'badge-at-risk'}`}>
+                            {dept.status || 'Active'}
+                          </span>
+                        </td>
+                        <td style={{ padding: '1rem 1.25rem', textAlign: 'right' }}>
+                          <div style={{ display: 'inline-flex', gap: '0.5rem' }}>
+                            <button onClick={() => handleOpenEditModal(dept)} className="btn btn-secondary" style={{ padding: '0.35rem 0.65rem' }}>
+                              <Edit3 size={14} />
+                            </button>
+                            <button onClick={() => setDeletingDeptId(dept._id)} className="btn btn-secondary" style={{ padding: '0.35rem 0.65rem', color: '#c7452e' }}>
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="responsive-cards-grid">
             {departments.map((dept, index) => {
               const headDisplay = typeof dept.head === 'object'
                 ? (dept.head?.name || dept.head?.email || 'Unassigned')
@@ -291,8 +364,9 @@ export const Departments = () => {
               );
             })}
           </div>
-        </>
-      )}
+        )}
+      </>
+    )}
 
       {/* Modal for Creating Department */}
       <Modal

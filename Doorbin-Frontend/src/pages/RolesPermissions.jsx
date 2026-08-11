@@ -127,14 +127,16 @@ export const RolesPermissions = () => {
       <Toast message={toast.message} type={toast.type} onClose={() => setToast({ message: '', type: 'info' })} />
 
       {/* Header */}
-      <div className="dashboard-hero-section" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-        <div>
+      <div className="page-header-responsive">
+        <div className="page-header-title-block">
           <h1 className="hero-serif-title">Role & Permission Management</h1>
           <p className="hero-sub-summary">Manage granular access control matrix across system roles and custom roles</p>
         </div>
-        <button onClick={() => setIsCreateModalOpen(true)} className="btn-new-task">
-          <Plus size={16} /> Create Custom Role
-        </button>
+        <div className="page-header-actions">
+          <button onClick={() => setIsCreateModalOpen(true)} className="btn-new-task">
+            <Plus size={16} /> Create Custom Role
+          </button>
+        </div>
       </div>
 
       {loading ? (
@@ -163,8 +165,8 @@ export const RolesPermissions = () => {
                 }}
               >
                 {/* Role Header */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1.25rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', flexWrap: 'wrap', flex: 1, minWidth: '220px' }}>
                     <div
                       style={{
                         width: '44px',
@@ -181,7 +183,7 @@ export const RolesPermissions = () => {
                       <Shield size={20} color="#B68D40" style={{ display: 'block', margin: 'auto' }} />
                     </div>
                     <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                         <span style={{ fontSize: '1.25rem', fontWeight: 700, color: '#1F1F1F' }}>{role.name}</span>
                         <span
                           style={{

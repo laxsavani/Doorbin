@@ -15,15 +15,19 @@ import {
   CheckCircle2,
   XCircle,
   FileText,
-  Trash2
+  Trash2,
+  LayoutGrid,
+  List
 } from 'lucide-react';
 import { ClockInOutWidget } from '../components/ClockInOutWidget';
+import { useViewMode } from '../hooks/useViewMode';
 import './Dashboard.css';
 
 export const Hrm = () => {
   const [activeTab, setActiveTab] = useState('employees'); // 'employees' | 'attendance' | 'leave' | 'holidays' | 'reviews'
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState(null);
+  const [viewMode, setViewMode] = useViewMode();
 
   // Data states
   const [employees, setEmployees] = useState([]);
@@ -206,8 +210,8 @@ export const Hrm = () => {
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
       {/* HEADER BAR */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
-        <div>
+      <div className="page-header-responsive">
+        <div className="page-header-title-block">
           <h1 style={{ fontSize: '2rem', color: 'var(--color-secondary)', margin: 0 }}>
             Human Resource Management (HRM)
           </h1>
@@ -216,7 +220,7 @@ export const Hrm = () => {
           </p>
         </div>
 
-        <div style={{ display: 'flex', gap: '0.75rem' }}>
+        <div className="page-header-actions">
           <button className="btn btn-secondary" onClick={() => setIsLeaveModalOpen(true)}>
             <Calendar size={16} /> Apply Leave
           </button>
@@ -269,69 +273,133 @@ export const Hrm = () => {
         </div>
       </div>
 
-      {/* NAVIGATION TABS */}
-      <div style={{ display: 'flex', gap: '0.5rem', borderBottom: '2px solid var(--color-border)', marginBottom: '1.5rem' }}>
-        {['employees', 'attendance', 'leave', 'holidays', 'reviews'].map(tabKey => (
+      {/* NAVIGATION TABS & VIEW MODE TOGGLE */}
+      <div className="responsive-filter-bar">
+        {/* Desktop horizontal tabs */}
+        <div className="desktop-tabs-container">
+          {['employees', 'attendance', 'leave', 'holidays', 'reviews'].map(tabKey => (
+            <button
+              key={tabKey}
+              onClick={() => setActiveTab(tabKey)}
+              style={{
+                padding: '0.75rem 1.25rem',
+                background: 'none',
+                border: 'none',
+                borderBottom: activeTab === tabKey ? '3px solid var(--color-primary)' : 'none',
+                fontWeight: activeTab === tabKey ? '600' : '400',
+                color: activeTab === tabKey ? 'var(--color-primary)' : 'var(--color-text-muted)',
+                cursor: 'pointer',
+                textTransform: 'capitalize'
+              }}
+            >
+              {tabKey === 'reviews' ? 'Performance Reviews' : tabKey}
+            </button>
+          ))}
+        </div>
+
+        {/* Mobile Filter Select Dropdown */}
+        <select
+          className="mobile-filter-select"
+          value={activeTab}
+          onChange={(e) => setActiveTab(e.target.value)}
+        >
+          <option value="employees">Employees Roster</option>
+          <option value="attendance">Daily Attendance Logs</option>
+          <option value="leave">Leave Applications</option>
+          <option value="holidays">Studio Holidays</option>
+          <option value="reviews">Performance Reviews</option>
+        </select>
+
+        {/* Dual View Toggle */}
+        <div className="view-toggle-container">
           <button
-            key={tabKey}
-            onClick={() => setActiveTab(tabKey)}
-            style={{
-              padding: '0.75rem 1.25rem',
-              background: 'none',
-              border: 'none',
-              borderBottom: activeTab === tabKey ? '3px solid var(--color-primary)' : 'none',
-              fontWeight: activeTab === tabKey ? '600' : '400',
-              color: activeTab === tabKey ? 'var(--color-primary)' : 'var(--color-text-muted)',
-              cursor: 'pointer',
-              textTransform: 'capitalize'
-            }}
+            className={`view-toggle-btn ${viewMode === 'stripe' ? 'active' : ''}`}
+            onClick={() => setViewMode('stripe')}
           >
-            {tabKey === 'reviews' ? 'Performance Reviews' : tabKey}
+            <List size={14} /> Stripe View
           </button>
-        ))}
+          <button
+            className={`view-toggle-btn ${viewMode === 'card' ? 'active' : ''}`}
+            onClick={() => setViewMode('card')}
+          >
+            <LayoutGrid size={14} /> Card View
+          </button>
+        </div>
       </div>
 
       {/* TAB 1: EMPLOYEES ROSTER */}
       {activeTab === 'employees' && (
-        <div className="table-responsive">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>CODE</th>
-                <th>EMPLOYEE NAME</th>
-                <th>DESIGNATION</th>
-                <th>SYSTEM ROLE</th>
-                <th>CONTACT EMAIL</th>
-                <th>SALARY (₹)</th>
-                <th>STATUS</th>
-                <th>ACTIONS</th>
-              </tr>
-            </thead>
-            <tbody>
-              {employees.map(emp => (
-                <tr key={emp._id}>
-                  <td style={{ fontWeight: '600', color: 'var(--color-primary)' }}>{emp.employeeCode}</td>
-                  <td style={{ fontWeight: '600' }}>{emp.name}</td>
-                  <td>{emp.designation}</td>
-                  <td><span className="badge badge-secondary">{emp.role}</span></td>
-                  <td>{emp.email}</td>
-                  <td>₹{emp.monthlySalary?.toLocaleString('en-IN') || '75,000'}</td>
-                  <td><span className="badge badge-success">{emp.status}</span></td>
-                  <td>
-                    <button
-                      className="btn btn-secondary"
-                      style={{ padding: '0.35rem 0.5rem', fontSize: '0.75rem', color: '#dc2626', borderColor: '#fecaca' }}
-                      onClick={() => handleDeleteEmployee(emp._id)}
-                      title="Delete Employee Record"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </td>
+        viewMode === 'card' ? (
+          <div className="responsive-cards-grid">
+            {employees.map(emp => (
+              <div key={emp._id} className="responsive-card-item">
+                <div className="responsive-card-header">
+                  <div>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--color-primary)' }}>{emp.employeeCode}</span>
+                    <div className="responsive-card-title">{emp.name}</div>
+                    <div className="responsive-card-subtitle">{emp.designation} · <span className="badge badge-secondary">{emp.role}</span></div>
+                  </div>
+                  <span className="badge badge-success">{emp.status}</span>
+                </div>
+
+                <div className="responsive-card-body">
+                  <div><strong>Email:</strong> {emp.email}</div>
+                  <div><strong>Monthly Salary:</strong> ₹{emp.monthlySalary?.toLocaleString('en-IN') || '75,000'}</div>
+                </div>
+
+                <div className="responsive-card-footer">
+                  <button
+                    className="btn btn-secondary"
+                    style={{ padding: '0.35rem 0.5rem', fontSize: '0.75rem', color: '#dc2626', borderColor: '#fecaca', width: '100%', justifyContent: 'center' }}
+                    onClick={() => handleDeleteEmployee(emp._id)}
+                  >
+                    <Trash2 size={14} /> Remove Employee
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="table-responsive">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>CODE</th>
+                  <th>EMPLOYEE NAME</th>
+                  <th>DESIGNATION</th>
+                  <th>SYSTEM ROLE</th>
+                  <th>CONTACT EMAIL</th>
+                  <th>SALARY (₹)</th>
+                  <th>STATUS</th>
+                  <th>ACTIONS</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {employees.map(emp => (
+                  <tr key={emp._id}>
+                    <td style={{ fontWeight: '600', color: 'var(--color-primary)' }}>{emp.employeeCode}</td>
+                    <td style={{ fontWeight: '600' }}>{emp.name}</td>
+                    <td>{emp.designation}</td>
+                    <td><span className="badge badge-secondary">{emp.role}</span></td>
+                    <td>{emp.email}</td>
+                    <td>₹{emp.monthlySalary?.toLocaleString('en-IN') || '75,000'}</td>
+                    <td><span className="badge badge-success">{emp.status}</span></td>
+                    <td>
+                      <button
+                        className="btn btn-secondary"
+                        style={{ padding: '0.35rem 0.5rem', fontSize: '0.75rem', color: '#dc2626', borderColor: '#fecaca' }}
+                        onClick={() => handleDeleteEmployee(emp._id)}
+                        title="Delete Employee Record"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )
       )}
 
       {/* TAB 2: ATTENDANCE LOGS */}

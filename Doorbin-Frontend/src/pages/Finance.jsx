@@ -21,14 +21,18 @@ import {
   Search,
   Download,
   Trash2,
-  Edit
+  Edit,
+  LayoutGrid,
+  List
 } from 'lucide-react';
+import { useViewMode } from '../hooks/useViewMode';
 import './Dashboard.css';
 
 export const Finance = () => {
   const [activeTab, setActiveTab] = useState('quotations'); // 'quotations' | 'invoices' | 'payments' | 'ageing'
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState(null);
+  const [viewMode, setViewMode] = useViewMode();
 
   // Data states
   const [quotations, setQuotations] = useState([]);
@@ -250,8 +254,8 @@ export const Finance = () => {
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
       {/* HEADER BAR */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
-        <div>
+      <div className="page-header-responsive">
+        <div className="page-header-title-block">
           <h1 style={{ fontSize: '2rem', color: 'var(--color-secondary)', margin: 0 }}>
             Finance & Billing Management
           </h1>
@@ -260,7 +264,7 @@ export const Finance = () => {
           </p>
         </div>
 
-        <div style={{ display: 'flex', gap: '0.75rem' }}>
+        <div className="page-header-actions">
           <button className="btn btn-secondary" onClick={() => setIsQuotationModalOpen(true)}>
             <Plus size={16} /> New Quotation
           </button>
@@ -313,252 +317,425 @@ export const Finance = () => {
         </div>
       </div>
 
-      {/* NAVIGATION TABS */}
-      <div style={{ display: 'flex', gap: '0.5rem', borderBottom: '2px solid var(--color-border)', marginBottom: '1.5rem' }}>
-        <button
-          onClick={() => setActiveTab('quotations')}
-          style={{
-            padding: '0.75rem 1.25rem',
-            background: 'none',
-            border: 'none',
-            borderBottom: activeTab === 'quotations' ? '3px solid var(--color-primary)' : 'none',
-            fontWeight: activeTab === 'quotations' ? '600' : '400',
-            color: activeTab === 'quotations' ? 'var(--color-primary)' : 'var(--color-text-muted)',
-            cursor: 'pointer'
-          }}
-        >
-          Quotations ({safeQuotations.length})
-        </button>
+      {/* NAVIGATION TABS & DUAL VIEW TOGGLE */}
+      <div className="responsive-filter-bar">
+        {/* Desktop Tabs */}
+        <div className="desktop-tabs-container">
+          <button
+            onClick={() => setActiveTab('quotations')}
+            style={{
+              padding: '0.75rem 1.25rem',
+              background: 'none',
+              border: 'none',
+              borderBottom: activeTab === 'quotations' ? '3px solid var(--color-primary)' : 'none',
+              fontWeight: activeTab === 'quotations' ? '600' : '400',
+              color: activeTab === 'quotations' ? 'var(--color-primary)' : 'var(--color-text-muted)',
+              cursor: 'pointer'
+            }}
+          >
+            Quotations ({safeQuotations.length})
+          </button>
 
-        <button
-          onClick={() => setActiveTab('invoices')}
-          style={{
-            padding: '0.75rem 1.25rem',
-            background: 'none',
-            border: 'none',
-            borderBottom: activeTab === 'invoices' ? '3px solid var(--color-primary)' : 'none',
-            fontWeight: activeTab === 'invoices' ? '600' : '400',
-            color: activeTab === 'invoices' ? 'var(--color-primary)' : 'var(--color-text-muted)',
-            cursor: 'pointer'
-          }}
-        >
-          Invoices ({safeInvoices.length})
-        </button>
+          <button
+            onClick={() => setActiveTab('invoices')}
+            style={{
+              padding: '0.75rem 1.25rem',
+              background: 'none',
+              border: 'none',
+              borderBottom: activeTab === 'invoices' ? '3px solid var(--color-primary)' : 'none',
+              fontWeight: activeTab === 'invoices' ? '600' : '400',
+              color: activeTab === 'invoices' ? 'var(--color-primary)' : 'var(--color-text-muted)',
+              cursor: 'pointer'
+            }}
+          >
+            Invoices ({safeInvoices.length})
+          </button>
 
-        <button
-          onClick={() => setActiveTab('payments')}
-          style={{
-            padding: '0.75rem 1.25rem',
-            background: 'none',
-            border: 'none',
-            borderBottom: activeTab === 'payments' ? '3px solid var(--color-primary)' : 'none',
-            fontWeight: activeTab === 'payments' ? '600' : '400',
-            color: activeTab === 'payments' ? 'var(--color-primary)' : 'var(--color-text-muted)',
-            cursor: 'pointer'
-          }}
-        >
-          Payment Receipts ({safePayments.length})
-        </button>
+          <button
+            onClick={() => setActiveTab('payments')}
+            style={{
+              padding: '0.75rem 1.25rem',
+              background: 'none',
+              border: 'none',
+              borderBottom: activeTab === 'payments' ? '3px solid var(--color-primary)' : 'none',
+              fontWeight: activeTab === 'payments' ? '600' : '400',
+              color: activeTab === 'payments' ? 'var(--color-primary)' : 'var(--color-text-muted)',
+              cursor: 'pointer'
+            }}
+          >
+            Payments ({safePayments.length})
+          </button>
 
-        <button
-          onClick={() => setActiveTab('ageing')}
-          style={{
-            padding: '0.75rem 1.25rem',
-            background: 'none',
-            border: 'none',
-            borderBottom: activeTab === 'ageing' ? '3px solid var(--color-primary)' : 'none',
-            fontWeight: activeTab === 'ageing' ? '600' : '400',
-            color: activeTab === 'ageing' ? 'var(--color-primary)' : 'var(--color-text-muted)',
-            cursor: 'pointer'
-          }}
+          <button
+            onClick={() => setActiveTab('ageing')}
+            style={{
+              padding: '0.75rem 1.25rem',
+              background: 'none',
+              border: 'none',
+              borderBottom: activeTab === 'ageing' ? '3px solid var(--color-primary)' : 'none',
+              fontWeight: activeTab === 'ageing' ? '600' : '400',
+              color: activeTab === 'ageing' ? 'var(--color-primary)' : 'var(--color-text-muted)',
+              cursor: 'pointer'
+            }}
+          >
+            Ageing Analysis
+          </button>
+        </div>
+
+        {/* Mobile Filter Select Dropdown */}
+        <select
+          className="mobile-filter-select"
+          value={activeTab}
+          onChange={(e) => setActiveTab(e.target.value)}
         >
-          Receivables Ageing Analysis
-        </button>
+          <option value="quotations">Quotations ({safeQuotations.length})</option>
+          <option value="invoices">Invoices ({safeInvoices.length})</option>
+          <option value="payments">Payments ({safePayments.length})</option>
+          <option value="ageing">Receivables Ageing</option>
+        </select>
+
+        {/* Dual View Toggle */}
+        <div className="view-toggle-container">
+          <button
+            className={`view-toggle-btn ${viewMode === 'stripe' ? 'active' : ''}`}
+            onClick={() => setViewMode('stripe')}
+          >
+            <List size={14} /> Stripe View
+          </button>
+          <button
+            className={`view-toggle-btn ${viewMode === 'card' ? 'active' : ''}`}
+            onClick={() => setViewMode('card')}
+          >
+            <LayoutGrid size={14} /> Card View
+          </button>
+        </div>
       </div>
 
       {/* TAB CONTENT 1: QUOTATIONS */}
       {activeTab === 'quotations' && (
-        <div className="table-responsive">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>QUOTATION #</th>
-                <th>CLIENT NAME</th>
-                <th>PROJECT TITLE</th>
-                <th>SUBTOTAL</th>
-                <th>GST (18%)</th>
-                <th>TOTAL AMOUNT</th>
-                <th>STATUS</th>
-                <th>ACTIONS</th>
-              </tr>
-            </thead>
-            <tbody>
-              {safeQuotations.map(q => (
-                <tr key={q._id}>
-                  <td style={{ fontWeight: '600', color: 'var(--color-primary)' }}>{q.quotationNumber}</td>
-                  <td>{q.client?.companyName || q.client?.clientName}</td>
-                  <td>{q.projectTitle}</td>
-                  <td>₹{q.subtotal?.toLocaleString('en-IN')}</td>
-                  <td>₹{q.gstAmount?.toLocaleString('en-IN')}</td>
-                  <td style={{ fontWeight: '600' }}>₹{q.totalAmount?.toLocaleString('en-IN')}</td>
-                  <td>
-                    <span className={`badge ${q.status === 'Approved' ? 'badge-success' : q.status === 'Sent' ? 'badge-warning' : 'badge-secondary'}`}>
-                      {q.status}
-                    </span>
-                  </td>
-                  <td>
-                    <div style={{ display: 'flex', gap: '0.35rem' }}>
-                      <button
-                        className="btn btn-secondary"
-                        style={{ padding: '0.35rem 0.65rem', fontSize: '0.75rem' }}
-                        onClick={() => downloadPdfDocument({
-                          title: 'OFFICIAL QUOTATION',
-                          documentNumber: q.quotationNumber,
-                          clientName: q.client?.companyName || q.client?.clientName,
-                          projectTitle: q.projectTitle,
-                          date: formatDate(q.quotationDate),
-                          items: q.items,
-                          totalAmount: q.totalAmount,
-                          status: q.status
-                        })}
-                      >
-                        <Download size={12} /> PDF
-                      </button>
-                      <button
-                        className="btn btn-secondary"
-                        style={{ padding: '0.35rem 0.5rem', fontSize: '0.75rem', color: '#dc2626', borderColor: '#fecaca' }}
-                        onClick={() => handleDeleteQuotation(q._id)}
-                        title="Delete Quotation"
-                      >
-                        <Trash2 size={12} />
-                      </button>
-                    </div>
-                  </td>
+        viewMode === 'card' ? (
+          <div className="responsive-cards-grid">
+            {safeQuotations.map(q => (
+              <div key={q._id} className="responsive-card-item">
+                <div className="responsive-card-header">
+                  <div>
+                    <div className="responsive-card-title">{q.quotationNumber}</div>
+                    <div className="responsive-card-subtitle">{q.client?.companyName || q.client?.clientName}</div>
+                  </div>
+                  <span className={`badge ${q.status === 'Approved' ? 'badge-success' : q.status === 'Sent' ? 'badge-warning' : 'badge-secondary'}`}>
+                    {q.status}
+                  </span>
+                </div>
+                <div className="responsive-card-body">
+                  <div><strong>Project:</strong> {q.projectTitle}</div>
+                  <div><strong>Subtotal:</strong> ₹{q.subtotal?.toLocaleString('en-IN')}</div>
+                  <div><strong>GST (18%):</strong> ₹{q.gstAmount?.toLocaleString('en-IN')}</div>
+                  <div><strong>Total Amount:</strong> <span style={{ fontWeight: 700, color: 'var(--color-primary)' }}>₹{q.totalAmount?.toLocaleString('en-IN')}</span></div>
+                </div>
+                <div className="responsive-card-footer">
+                  <button
+                    className="btn btn-secondary"
+                    style={{ padding: '0.35rem 0.65rem', fontSize: '0.75rem' }}
+                    onClick={() => downloadPdfDocument({
+                      title: 'OFFICIAL QUOTATION',
+                      documentNumber: q.quotationNumber,
+                      clientName: q.client?.companyName || q.client?.clientName,
+                      projectTitle: q.projectTitle,
+                      date: formatDate(q.quotationDate),
+                      items: q.items,
+                      totalAmount: q.totalAmount,
+                      status: q.status
+                    })}
+                  >
+                    <Download size={12} /> Download PDF
+                  </button>
+                  <button
+                    className="btn btn-secondary"
+                    style={{ padding: '0.35rem 0.5rem', fontSize: '0.75rem', color: '#dc2626', borderColor: '#fecaca' }}
+                    onClick={() => handleDeleteQuotation(q._id)}
+                    title="Delete Quotation"
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="table-responsive">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>QUOTATION #</th>
+                  <th>CLIENT NAME</th>
+                  <th>PROJECT TITLE</th>
+                  <th>SUBTOTAL</th>
+                  <th>GST (18%)</th>
+                  <th>TOTAL AMOUNT</th>
+                  <th>STATUS</th>
+                  <th>ACTIONS</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {safeQuotations.map(q => (
+                  <tr key={q._id}>
+                    <td style={{ fontWeight: '600', color: 'var(--color-primary)' }}>{q.quotationNumber}</td>
+                    <td>{q.client?.companyName || q.client?.clientName}</td>
+                    <td>{q.projectTitle}</td>
+                    <td>₹{q.subtotal?.toLocaleString('en-IN')}</td>
+                    <td>₹{q.gstAmount?.toLocaleString('en-IN')}</td>
+                    <td style={{ fontWeight: '600' }}>₹{q.totalAmount?.toLocaleString('en-IN')}</td>
+                    <td>
+                      <span className={`badge ${q.status === 'Approved' ? 'badge-success' : q.status === 'Sent' ? 'badge-warning' : 'badge-secondary'}`}>
+                        {q.status}
+                      </span>
+                    </td>
+                    <td>
+                      <div style={{ display: 'flex', gap: '0.35rem' }}>
+                        <button
+                          className="btn btn-secondary"
+                          style={{ padding: '0.35rem 0.65rem', fontSize: '0.75rem' }}
+                          onClick={() => downloadPdfDocument({
+                            title: 'OFFICIAL QUOTATION',
+                            documentNumber: q.quotationNumber,
+                            clientName: q.client?.companyName || q.client?.clientName,
+                            projectTitle: q.projectTitle,
+                            date: formatDate(q.quotationDate),
+                            items: q.items,
+                            totalAmount: q.totalAmount,
+                            status: q.status
+                          })}
+                        >
+                          <Download size={12} /> PDF
+                        </button>
+                        <button
+                          className="btn btn-secondary"
+                          style={{ padding: '0.35rem 0.5rem', fontSize: '0.75rem', color: '#dc2626', borderColor: '#fecaca' }}
+                          onClick={() => handleDeleteQuotation(q._id)}
+                          title="Delete Quotation"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )
       )}
 
       {/* TAB CONTENT 2: INVOICES */}
       {activeTab === 'invoices' && (
-        <div className="table-responsive">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>INVOICE #</th>
-                <th>CLIENT</th>
-                <th>MILESTONE</th>
-                <th>DUE DATE</th>
-                <th>TOTAL INVOICED</th>
-                <th>PAID</th>
-                <th>DUE BALANCE</th>
-                <th>STATUS</th>
-                <th>ACTIONS</th>
-              </tr>
-            </thead>
-            <tbody>
-              {safeInvoices.map(inv => (
-                <tr key={inv._id}>
-                  <td style={{ fontWeight: '600', color: 'var(--color-secondary)' }}>{inv.invoiceNumber}</td>
-                  <td>{inv.client?.companyName || inv.client?.clientName}</td>
-                  <td>{inv.milestoneName}</td>
-                  <td>{formatDate(inv.dueDate)}</td>
-                  <td>₹{inv.totalAmount?.toLocaleString('en-IN')}</td>
-                  <td style={{ color: 'var(--color-success)' }}>₹{inv.paidAmount?.toLocaleString('en-IN')}</td>
-                  <td style={{ color: inv.dueBalance > 0 ? 'var(--color-danger)' : 'var(--color-text-muted)', fontWeight: '600' }}>
-                    ₹{inv.dueBalance?.toLocaleString('en-IN')}
-                  </td>
-                  <td>
-                    <span className={`badge ${inv.status === 'Paid' ? 'badge-success' : inv.status === 'Partially Paid' ? 'badge-warning' : 'badge-danger'}`}>
-                      {inv.status}
-                    </span>
-                  </td>
-                  <td>
-                    <div style={{ display: 'flex', gap: '0.35rem' }}>
-                      <button
-                        className="btn btn-secondary"
-                        style={{ padding: '0.35rem 0.65rem', fontSize: '0.75rem' }}
-                        onClick={() => downloadPdfDocument({
-                          title: 'TAX INVOICE',
-                          documentNumber: inv.invoiceNumber,
-                          clientName: inv.client?.companyName || inv.client?.clientName,
-                          projectTitle: inv.milestoneName,
-                          date: formatDate(inv.dueDate),
-                          items: [{ description: inv.milestoneName, qty: 1, rate: inv.totalAmount }],
-                          totalAmount: inv.totalAmount,
-                          status: inv.status
-                        })}
-                      >
-                        <Download size={12} /> PDF
-                      </button>
-                      <button
-                        className="btn btn-secondary"
-                        style={{ padding: '0.35rem 0.5rem', fontSize: '0.75rem', color: '#dc2626', borderColor: '#fecaca' }}
-                        onClick={() => handleDeleteInvoice(inv._id)}
-                        title="Delete Invoice"
-                      >
-                        <Trash2 size={12} />
-                      </button>
-                    </div>
-                  </td>
+        viewMode === 'card' ? (
+          <div className="responsive-cards-grid">
+            {safeInvoices.map(inv => (
+              <div key={inv._id} className="responsive-card-item">
+                <div className="responsive-card-header">
+                  <div>
+                    <div className="responsive-card-title">{inv.invoiceNumber}</div>
+                    <div className="responsive-card-subtitle">{inv.client?.companyName || inv.client?.clientName}</div>
+                  </div>
+                  <span className={`badge ${inv.status === 'Paid' ? 'badge-success' : inv.status === 'Partially Paid' ? 'badge-warning' : 'badge-danger'}`}>
+                    {inv.status}
+                  </span>
+                </div>
+                <div className="responsive-card-body">
+                  <div><strong>Milestone:</strong> {inv.milestoneName}</div>
+                  <div><strong>Due Date:</strong> {formatDate(inv.dueDate)}</div>
+                  <div><strong>Total Invoiced:</strong> ₹{inv.totalAmount?.toLocaleString('en-IN')}</div>
+                  <div><strong>Paid Amount:</strong> <span style={{ color: 'var(--color-success)' }}>₹{inv.paidAmount?.toLocaleString('en-IN')}</span></div>
+                  <div><strong>Due Balance:</strong> <span style={{ color: inv.dueBalance > 0 ? 'var(--color-danger)' : 'inherit', fontWeight: 700 }}>₹{inv.dueBalance?.toLocaleString('en-IN')}</span></div>
+                </div>
+                <div className="responsive-card-footer">
+                  <button
+                    className="btn btn-secondary"
+                    style={{ padding: '0.35rem 0.65rem', fontSize: '0.75rem' }}
+                    onClick={() => downloadPdfDocument({
+                      title: 'TAX INVOICE',
+                      documentNumber: inv.invoiceNumber,
+                      clientName: inv.client?.companyName || inv.client?.clientName,
+                      projectTitle: inv.milestoneName,
+                      date: formatDate(inv.dueDate),
+                      items: [{ description: inv.milestoneName, qty: 1, rate: inv.totalAmount }],
+                      totalAmount: inv.totalAmount,
+                      status: inv.status
+                    })}
+                  >
+                    <Download size={12} /> Download PDF
+                  </button>
+                  <button
+                    className="btn btn-secondary"
+                    style={{ padding: '0.35rem 0.5rem', fontSize: '0.75rem', color: '#dc2626', borderColor: '#fecaca' }}
+                    onClick={() => handleDeleteInvoice(inv._id)}
+                    title="Delete Invoice"
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="table-responsive">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>INVOICE #</th>
+                  <th>CLIENT</th>
+                  <th>MILESTONE</th>
+                  <th>DUE DATE</th>
+                  <th>TOTAL INVOICED</th>
+                  <th>PAID</th>
+                  <th>DUE BALANCE</th>
+                  <th>STATUS</th>
+                  <th>ACTIONS</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {safeInvoices.map(inv => (
+                  <tr key={inv._id}>
+                    <td style={{ fontWeight: '600', color: 'var(--color-secondary)' }}>{inv.invoiceNumber}</td>
+                    <td>{inv.client?.companyName || inv.client?.clientName}</td>
+                    <td>{inv.milestoneName}</td>
+                    <td>{formatDate(inv.dueDate)}</td>
+                    <td>₹{inv.totalAmount?.toLocaleString('en-IN')}</td>
+                    <td style={{ color: 'var(--color-success)' }}>₹{inv.paidAmount?.toLocaleString('en-IN')}</td>
+                    <td style={{ color: inv.dueBalance > 0 ? 'var(--color-danger)' : 'var(--color-text-muted)', fontWeight: '600' }}>
+                      ₹{inv.dueBalance?.toLocaleString('en-IN')}
+                    </td>
+                    <td>
+                      <span className={`badge ${inv.status === 'Paid' ? 'badge-success' : inv.status === 'Partially Paid' ? 'badge-warning' : 'badge-danger'}`}>
+                        {inv.status}
+                      </span>
+                    </td>
+                    <td>
+                      <div style={{ display: 'flex', gap: '0.35rem' }}>
+                        <button
+                          className="btn btn-secondary"
+                          style={{ padding: '0.35rem 0.65rem', fontSize: '0.75rem' }}
+                          onClick={() => downloadPdfDocument({
+                            title: 'TAX INVOICE',
+                            documentNumber: inv.invoiceNumber,
+                            clientName: inv.client?.companyName || inv.client?.clientName,
+                            projectTitle: inv.milestoneName,
+                            date: formatDate(inv.dueDate),
+                            items: [{ description: inv.milestoneName, qty: 1, rate: inv.totalAmount }],
+                            totalAmount: inv.totalAmount,
+                            status: inv.status
+                          })}
+                        >
+                          <Download size={12} /> PDF
+                        </button>
+                        <button
+                          className="btn btn-secondary"
+                          style={{ padding: '0.35rem 0.5rem', fontSize: '0.75rem', color: '#dc2626', borderColor: '#fecaca' }}
+                          onClick={() => handleDeleteInvoice(inv._id)}
+                          title="Delete Invoice"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )
       )}
 
       {/* TAB CONTENT 3: PAYMENTS */}
       {activeTab === 'payments' && (
-        <div className="table-responsive">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>RECEIPT #</th>
-                <th>INVOICE REF</th>
-                <th>CLIENT</th>
-                <th>PAYMENT DATE</th>
-                <th>MODE</th>
-                <th>REF NO.</th>
-                <th>AMOUNT PAID</th>
-                <th>ACTIONS</th>
-              </tr>
-            </thead>
-            <tbody>
-              {safePayments.map(p => (
-                <tr key={p._id}>
-                  <td style={{ fontWeight: '600', color: 'var(--color-primary)' }}>{p.receiptNumber}</td>
-                  <td>{p.invoice?.invoiceNumber}</td>
-                  <td>{p.client?.companyName}</td>
-                  <td>{formatDate(p.paymentDate)}</td>
-                  <td>{p.paymentMode}</td>
-                  <td>{p.transactionReference || 'N/A'}</td>
-                  <td style={{ fontWeight: '700', color: 'var(--color-success)' }}>₹{p.amountPaid?.toLocaleString('en-IN')}</td>
-                  <td>
-                    <button
-                      className="btn btn-secondary"
-                      style={{ padding: '0.35rem 0.65rem', fontSize: '0.75rem' }}
-                      onClick={() => downloadPdfDocument({
-                        title: 'PAYMENT RECEIPT',
-                        documentNumber: p.receiptNumber,
-                        clientName: p.client?.companyName,
-                        projectTitle: `Payment for Invoice ${p.invoice?.invoiceNumber || ''}`,
-                        date: formatDate(p.paymentDate),
-                        items: [{ description: `Payment Mode: ${p.paymentMode} (Ref: ${p.transactionReference || 'N/A'})`, qty: 1, rate: p.amountPaid }],
-                        totalAmount: p.amountPaid,
-                        status: 'COMPLETED'
-                      })}
-                    >
-                      <Download size={12} /> PDF
-                    </button>
-                  </td>
+        viewMode === 'card' ? (
+          <div className="responsive-cards-grid">
+            {safePayments.map(p => (
+              <div key={p._id} className="responsive-card-item">
+                <div className="responsive-card-header">
+                  <div>
+                    <div className="responsive-card-title">{p.receiptNumber}</div>
+                    <div className="responsive-card-subtitle">{p.client?.companyName}</div>
+                  </div>
+                  <span className="badge badge-success">COMPLETED</span>
+                </div>
+                <div className="responsive-card-body">
+                  <div><strong>Invoice Ref:</strong> {p.invoice?.invoiceNumber}</div>
+                  <div><strong>Payment Date:</strong> {formatDate(p.paymentDate)}</div>
+                  <div><strong>Payment Mode:</strong> {p.paymentMode}</div>
+                  <div><strong>Transaction Ref:</strong> {p.transactionReference || 'N/A'}</div>
+                  <div><strong>Amount Paid:</strong> <span style={{ fontWeight: 700, color: 'var(--color-success)' }}>₹{p.amountPaid?.toLocaleString('en-IN')}</span></div>
+                </div>
+                <div className="responsive-card-footer">
+                  <button
+                    className="btn btn-secondary"
+                    style={{ padding: '0.35rem 0.65rem', fontSize: '0.75rem' }}
+                    onClick={() => downloadPdfDocument({
+                      title: 'PAYMENT RECEIPT',
+                      documentNumber: p.receiptNumber,
+                      clientName: p.client?.companyName,
+                      projectTitle: `Payment for Invoice ${p.invoice?.invoiceNumber || ''}`,
+                      date: formatDate(p.paymentDate),
+                      items: [{ description: `Payment Mode: ${p.paymentMode} (Ref: ${p.transactionReference || 'N/A'})`, qty: 1, rate: p.amountPaid }],
+                      totalAmount: p.amountPaid,
+                      status: 'COMPLETED'
+                    })}
+                  >
+                    <Download size={12} /> Download PDF
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="table-responsive">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>RECEIPT #</th>
+                  <th>INVOICE REF</th>
+                  <th>CLIENT</th>
+                  <th>PAYMENT DATE</th>
+                  <th>MODE</th>
+                  <th>REF NO.</th>
+                  <th>AMOUNT PAID</th>
+                  <th>ACTIONS</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {safePayments.map(p => (
+                  <tr key={p._id}>
+                    <td style={{ fontWeight: '600', color: 'var(--color-primary)' }}>{p.receiptNumber}</td>
+                    <td>{p.invoice?.invoiceNumber}</td>
+                    <td>{p.client?.companyName}</td>
+                    <td>{formatDate(p.paymentDate)}</td>
+                    <td>{p.paymentMode}</td>
+                    <td>{p.transactionReference || 'N/A'}</td>
+                    <td style={{ fontWeight: '700', color: 'var(--color-success)' }}>₹{p.amountPaid?.toLocaleString('en-IN')}</td>
+                    <td>
+                      <button
+                        className="btn btn-secondary"
+                        style={{ padding: '0.35rem 0.65rem', fontSize: '0.75rem' }}
+                        onClick={() => downloadPdfDocument({
+                          title: 'PAYMENT RECEIPT',
+                          documentNumber: p.receiptNumber,
+                          clientName: p.client?.companyName,
+                          projectTitle: `Payment for Invoice ${p.invoice?.invoiceNumber || ''}`,
+                          date: formatDate(p.paymentDate),
+                          items: [{ description: `Payment Mode: ${p.paymentMode} (Ref: ${p.transactionReference || 'N/A'})`, qty: 1, rate: p.amountPaid }],
+                          totalAmount: p.amountPaid,
+                          status: 'COMPLETED'
+                        })}
+                      >
+                        <Download size={12} /> PDF
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )
       )}
 
       {/* TAB CONTENT 4: RECEIVABLES AGEING ANALYSIS */}

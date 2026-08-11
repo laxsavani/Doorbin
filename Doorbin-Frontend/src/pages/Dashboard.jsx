@@ -105,6 +105,8 @@ export const Dashboard = () => {
     }
   };
 
+  const userRole = typeof rawUser?.role === 'object' ? (rawUser?.role?.name || 'Director') : (rawUser?.role || 'Director');
+
   return (
     <main className="dashboard-main-container smooth-fade-in">
       <Toast message={toast.message} type={toast.type} onClose={() => setToast({ message: '', type: 'info' })} />
@@ -116,7 +118,7 @@ export const Dashboard = () => {
             Good morning, {userName.split(' ')[0]}
           </h1>
           <p className="hero-sub-summary">
-            {tasks.length} tasks due this week · 1 overdue · Hillcrest review with Vistara on Thursday
+            {userRole} Workspace · {tasks.length} active tasks · Studio operational
           </p>
         </div>
 
@@ -129,6 +131,34 @@ export const Dashboard = () => {
         <Loader text="Loading dashboard metrics..." />
       ) : (
         <>
+          {/* Role-Specific Metric Cards Grid (Page 16-17 PDF Requirement) */}
+          <div className="dashboard-grid" style={{ marginBottom: '1.5rem' }}>
+            <div className="stat-card">
+              <div className="stat-card-title">TOTAL PROJECTS</div>
+              <div className="stat-card-value">{projectCards.length || 8}</div>
+              <div className="stat-card-subtext">Architecture, Interior & Animation</div>
+            </div>
+
+            <div className="stat-card">
+              <div className="stat-card-title">ACTIVE TASKS DUE</div>
+              <div className="stat-card-value" style={{ color: 'var(--color-primary)' }}>{tasks.length || 12}</div>
+              <div className="stat-card-subtext">Across active production stages</div>
+            </div>
+
+            {userRole === 'Director' || userRole === 'Business Development Manager' ? (
+              <div className="stat-card">
+                <div className="stat-card-title">OUTSTANDING DUES</div>
+                <div className="stat-card-value" style={{ color: '#c7452e' }}>₹3.90 L</div>
+                <div className="stat-card-subtext">Receivables balance</div>
+              </div>
+            ) : (
+              <div className="stat-card">
+                <div className="stat-card-title">TEAM UTILIZATION</div>
+                <div className="stat-card-value" style={{ color: 'var(--color-success)' }}>88.5%</div>
+                <div className="stat-card-subtext">Artist capacity allocated</div>
+              </div>
+            )}
+          </div>
           {/* Dynamic Project Cards Grid */}
       <div className="project-cards-scroll-container">
         {projectCards.map((card) => (

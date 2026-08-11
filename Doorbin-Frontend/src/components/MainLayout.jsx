@@ -329,7 +329,7 @@ export const MainLayout = ({ children }) => {
               onClick={() => setIsMobileSidebarOpen(true)}
               aria-label="Open sidebar menu"
             >
-              <Menu size={20} color="#1F1F1F" />
+              <Menu size={18} />
             </button>
             <div className="top-bar-date">
               TODAY · {formatDate(new Date())}

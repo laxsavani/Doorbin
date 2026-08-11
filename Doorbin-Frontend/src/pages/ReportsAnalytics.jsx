@@ -125,9 +125,9 @@ export const ReportsAnalytics = () => {
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
       {/* HEADER BAR */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
-        <div>
-          <h1 style={{ fontSize: '2rem', color: 'var(--color-secondary)', margin: 0 }}>
+      <div className="page-header-responsive">
+        <div className="page-header-title-block">
+          <h1 className="hero-serif-title" style={{ color: 'var(--color-secondary)' }}>
             Executive Reporting & Analytics Engine
           </h1>
           <p style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem', marginTop: '0.25rem' }}>
@@ -135,7 +135,7 @@ export const ReportsAnalytics = () => {
           </p>
         </div>
 
-        <div style={{ display: 'flex', gap: '0.75rem' }}>
+        <div className="page-header-actions">
           <button className="btn btn-secondary" onClick={() => handleExport(activeTab, 'excel')}>
             <FileSpreadsheet size={16} /> Export Excel
           </button>
@@ -148,26 +148,41 @@ export const ReportsAnalytics = () => {
         </div>
       </div>
 
-      {/* NAVIGATION TABS */}
-      <div style={{ display: 'flex', gap: '0.5rem', borderBottom: '2px solid var(--color-border)', marginBottom: '1.5rem' }}>
-        {['projects', 'employees', 'finance', 'productivity', 'scheduled'].map(tabKey => (
-          <button
-            key={tabKey}
-            onClick={() => setActiveTab(tabKey)}
-            style={{
-              padding: '0.75rem 1.25rem',
-              background: 'none',
-              border: 'none',
-              borderBottom: activeTab === tabKey ? '3px solid var(--color-primary)' : 'none',
-              fontWeight: activeTab === tabKey ? '600' : '400',
-              color: activeTab === tabKey ? 'var(--color-primary)' : 'var(--color-text-muted)',
-              cursor: 'pointer',
-              textTransform: 'capitalize'
-            }}
-          >
-            {tabKey === 'scheduled' ? 'Scheduled Digests' : `${tabKey} Reports`}
-          </button>
-        ))}
+      {/* NAVIGATION TABS & MOBILE SELECT */}
+      <div className="responsive-filter-bar">
+        <div className="desktop-tabs-container">
+          {['projects', 'employees', 'finance', 'productivity', 'scheduled'].map(tabKey => (
+            <button
+              key={tabKey}
+              onClick={() => setActiveTab(tabKey)}
+              style={{
+                padding: '0.75rem 1.25rem',
+                background: 'none',
+                border: 'none',
+                borderBottom: activeTab === tabKey ? '3px solid var(--color-primary)' : 'none',
+                fontWeight: activeTab === tabKey ? '600' : '400',
+                color: activeTab === tabKey ? 'var(--color-primary)' : 'var(--color-text-muted)',
+                cursor: 'pointer',
+                textTransform: 'capitalize'
+              }}
+            >
+              {tabKey === 'scheduled' ? 'Scheduled Digests' : `${tabKey} Reports`}
+            </button>
+          ))}
+        </div>
+
+        {/* Mobile Filter Select Dropdown */}
+        <select
+          className="mobile-filter-select"
+          value={activeTab}
+          onChange={(e) => setActiveTab(e.target.value)}
+        >
+          <option value="projects">Projects Reports</option>
+          <option value="employees">Employees Reports</option>
+          <option value="finance">Finance Reports</option>
+          <option value="productivity">Productivity Reports</option>
+          <option value="scheduled">Scheduled Digests</option>
+        </select>
       </div>
 
       {/* TAB 1: PROJECT REPORTS */}

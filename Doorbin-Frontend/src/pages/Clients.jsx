@@ -5,13 +5,15 @@ import { FormField } from '../components/FormField';
 import { Toast } from '../components/Toast';
 import { Loader } from '../components/Loader';
 import { validators, focusFirstErrorField } from '../utils/validation';
-import { Plus, Search, Building2, Phone, Mail, MessageSquare, Trash2, UserPlus, Edit3 } from 'lucide-react';
+import { Plus, Search, Building2, Phone, Mail, MessageSquare, Trash2, UserPlus, Edit3, LayoutGrid, List } from 'lucide-react';
+import { useViewMode } from '../hooks/useViewMode';
 import './Dashboard.css';
 
 export const Clients = () => {
   const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [viewMode, setViewMode] = useViewMode();
 
   // Modals & Active Client State
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -251,14 +253,34 @@ export const Clients = () => {
       <Toast message={toast.message} type={toast.type} onClose={() => setToast({ message: '', type: 'info' })} />
 
       {/* Header */}
-      <div className="dashboard-hero-section" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div>
+      {/* Header */}
+      <div className="page-header-responsive">
+        <div className="page-header-title-block">
           <h1 className="hero-serif-title">Client Management & CRM</h1>
           <p className="hero-sub-summary">Manage client database, multi-contacts, communication logs and project statements</p>
         </div>
-        <button onClick={() => setIsCreateModalOpen(true)} className="btn-new-task">
-          <Plus size={16} /> Add New Client
-        </button>
+
+        <div className="page-header-actions">
+          {/* Dual View Toggle */}
+          <div className="view-toggle-container">
+            <button
+              className={`view-toggle-btn ${viewMode === 'stripe' ? 'active' : ''}`}
+              onClick={() => setViewMode('stripe')}
+            >
+              <List size={14} /> Stripe View
+            </button>
+            <button
+              className={`view-toggle-btn ${viewMode === 'card' ? 'active' : ''}`}
+              onClick={() => setViewMode('card')}
+            >
+              <LayoutGrid size={14} /> Card View
+            </button>
+          </div>
+
+          <button onClick={() => setIsCreateModalOpen(true)} className="btn-new-task">
+            <Plus size={16} /> Add New Client
+          </button>
+        </div>
       </div>
 
       {loading ? (
@@ -280,8 +302,58 @@ export const Clients = () => {
             </div>
           </div>
 
-          {/* Clients Cards Grid */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '1.25rem' }}>
+          {/* DUAL VIEW RENDER */}
+          {viewMode === 'stripe' ? (
+            <div className="team-widget-card" style={{ padding: 0, overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem', whiteSpace: 'nowrap' }}>
+                <thead>
+                  <tr style={{ backgroundColor: '#faf9f6', borderBottom: '1px solid #eeeae3', color: '#8c8882', textTransform: 'uppercase', fontSize: '0.68rem', letterSpacing: '0.05em' }}>
+                    <th style={{ padding: '1rem 1.25rem' }}>Company</th>
+                    <th style={{ padding: '1rem 1.25rem' }}>Primary Contact</th>
+                    <th style={{ padding: '1rem 1.25rem' }}>Email & Phone</th>
+                    <th style={{ padding: '1rem 1.25rem' }}>Industry</th>
+                    <th style={{ padding: '1rem 1.25rem' }}>Status</th>
+                    <th style={{ padding: '1rem 1.25rem', textAlign: 'right' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredClients.map((client) => (
+                    <tr key={client._id} style={{ borderBottom: '1px solid #f2ece4' }}>
+                      <td style={{ padding: '1rem 1.25rem' }}>
+                        <div style={{ fontWeight: 700, color: '#1a1918' }}>{client.companyName}</div>
+                        {client.gstDetails && <div style={{ fontSize: '0.725rem', color: '#8c8882' }}>GSTIN: {client.gstDetails}</div>}
+                      </td>
+                      <td style={{ padding: '1rem 1.25rem', fontWeight: 600, color: '#4a4742' }}>{client.clientName}</td>
+                      <td style={{ padding: '1rem 1.25rem' }}>
+                        <div>{client.email}</div>
+                        <div style={{ fontSize: '0.75rem', color: '#8c8882' }}>{client.phone}</div>
+                      </td>
+                      <td style={{ padding: '1rem 1.25rem' }}>{client.industry || 'Real Estate'}</td>
+                      <td style={{ padding: '1rem 1.25rem' }}>
+                        <span className={`status-badge-pill ${client.status === 'Active' ? 'badge-on-track' : 'badge-at-risk'}`}>
+                          {client.status || 'Active'}
+                        </span>
+                      </td>
+                      <td style={{ padding: '1rem 1.25rem', textAlign: 'right' }}>
+                        <div style={{ display: 'inline-flex', gap: '0.5rem' }}>
+                          <button onClick={() => { setSelectedClient(client); setIsDetailModalOpen(true); }} className="btn btn-secondary" style={{ padding: '0.35rem 0.65rem', fontSize: '0.75rem' }}>
+                            <MessageSquare size={14} /> Logs ({client.communicationLog?.length || 0})
+                          </button>
+                          <button onClick={() => handleOpenEditModal(client)} className="btn btn-secondary" style={{ padding: '0.35rem 0.65rem' }}>
+                            <Edit3 size={14} />
+                          </button>
+                          <button onClick={() => setDeletingClientId(client._id)} className="btn btn-secondary" style={{ padding: '0.35rem 0.65rem', color: '#c7452e' }}>
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="responsive-cards-grid">
             {filteredClients.map((client) => (
               <div key={client._id} className="team-widget-card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                 <div>
@@ -346,8 +418,9 @@ export const Clients = () => {
               </div>
             ))}
           </div>
-        </>
-      )}
+        )}
+      </>
+    )}
 
       {/* Create New Client Modal */}
       <Modal

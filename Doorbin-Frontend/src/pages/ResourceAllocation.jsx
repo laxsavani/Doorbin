@@ -240,13 +240,13 @@ export const ResourceAllocation = () => {
       <Toast message={toast.message} type={toast.type} onClose={() => setToast({ message: '', type: 'info' })} />
 
       {/* Header */}
-      <div className="dashboard-hero-section" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div>
+      <div className="page-header-responsive">
+        <div className="page-header-title-block">
           <h1 className="hero-serif-title">Resource Allocation & Availability</h1>
           <p className="hero-sub-summary">Studio artist capacity management, workload distribution and over-allocation conflict alerts</p>
         </div>
 
-        <div style={{ display: 'flex', gap: '0.75rem' }}>
+        <div className="page-header-actions">
           <button onClick={handleViewForecast} className="btn btn-secondary" style={{ fontSize: '0.8rem', padding: '0.55rem 1rem' }}>
             <TrendingUp size={15} /> Demand Forecast
           </button>

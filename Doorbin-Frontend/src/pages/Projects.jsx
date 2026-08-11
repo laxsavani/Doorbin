@@ -8,7 +8,8 @@ import { Toast } from '../components/Toast';
 import { Loader } from '../components/Loader';
 import { validators, focusFirstErrorField } from '../utils/validation';
 import { formatDate } from '../utils/dateUtils';
-import { Plus, Search, FolderKanban, CheckCircle2, Clock, Trash2, ShieldCheck, UserCheck, Calendar, DollarSign, Layers, Edit3 } from 'lucide-react';
+import { Plus, Search, FolderKanban, CheckCircle2, Clock, Trash2, ShieldCheck, UserCheck, Calendar, DollarSign, Layers, Edit3, LayoutGrid, List } from 'lucide-react';
+import { useViewMode } from '../hooks/useViewMode';
 import './Dashboard.css';
 
 const CATEGORIES = ['Architecture', 'Interior Design', 'Animation'];
@@ -20,6 +21,7 @@ export const Projects = () => {
   const [clientsList, setClientsList] = useState([]);
   const [usersList, setUsersList] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [viewMode, setViewMode] = useViewMode();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState('All');
@@ -296,14 +298,33 @@ export const Projects = () => {
       <Toast message={toast.message} type={toast.type} onClose={() => setToast({ message: '', type: 'info' })} />
 
       {/* Header */}
-      <div className="dashboard-hero-section" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div>
+      <div className="page-header-responsive">
+        <div className="page-header-title-block">
           <h1 className="hero-serif-title">Project Management & Stages</h1>
           <p className="hero-sub-summary">Manage active 3D visualization projects, stage workflows, approvals and team assignments</p>
         </div>
-        <button onClick={() => setIsCreateModalOpen(true)} className="btn-new-task">
-          <Plus size={16} /> New Project
-        </button>
+
+        <div className="page-header-actions">
+          {/* Dual View Toggle */}
+          <div className="view-toggle-container">
+            <button
+              className={`view-toggle-btn ${viewMode === 'stripe' ? 'active' : ''}`}
+              onClick={() => setViewMode('stripe')}
+            >
+              <List size={14} /> Stripe View
+            </button>
+            <button
+              className={`view-toggle-btn ${viewMode === 'card' ? 'active' : ''}`}
+              onClick={() => setViewMode('card')}
+            >
+              <LayoutGrid size={14} /> Card View
+            </button>
+          </div>
+
+          <button onClick={() => setIsCreateModalOpen(true)} className="btn-new-task">
+            <Plus size={16} /> New Project
+          </button>
+        </div>
       </div>
 
       {loading ? (
@@ -345,8 +366,64 @@ export const Projects = () => {
             </div>
           </div>
 
-          {/* Projects Cards Grid */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '1.25rem' }}>
+          {/* DUAL VIEW RENDER: STRIPE TABLE OR CARD GRID */}
+          {viewMode === 'stripe' ? (
+            <div className="team-widget-card" style={{ padding: 0, overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem', whiteSpace: 'nowrap' }}>
+                <thead>
+                  <tr style={{ backgroundColor: '#faf9f6', borderBottom: '1px solid #eeeae3', color: '#8c8882', textTransform: 'uppercase', fontSize: '0.68rem', letterSpacing: '0.05em' }}>
+                    <th style={{ padding: '1rem 1.25rem' }}>Project Name</th>
+                    <th style={{ padding: '1rem 1.25rem' }}>Client & PM</th>
+                    <th style={{ padding: '1rem 1.25rem' }}>Progress</th>
+                    <th style={{ padding: '1rem 1.25rem' }}>Budget (₹)</th>
+                    <th style={{ padding: '1rem 1.25rem' }}>Status</th>
+                    <th style={{ padding: '1rem 1.25rem', textAlign: 'right' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredProjects.map((proj) => {
+                    const clientName = typeof proj.client === 'object' ? (proj.client?.companyName || proj.client?.clientName) : 'Client';
+                    const pmName = typeof proj.productionManager === 'object' ? (proj.productionManager?.name || 'PM') : 'PM';
+
+                    return (
+                      <tr key={proj._id} style={{ borderBottom: '1px solid #f2ece4' }}>
+                        <td style={{ padding: '1rem 1.25rem' }}>
+                          <div style={{ fontWeight: 700, color: '#1a1918' }}>{proj.projectName}</div>
+                          <span className="task-status-blue" style={{ fontSize: '0.65rem' }}>{proj.projectCategory}</span>
+                        </td>
+                        <td style={{ padding: '1rem 1.25rem', fontWeight: 600, color: '#4a4742' }}>
+                          <div>{clientName}</div>
+                          <div style={{ fontSize: '0.75rem', color: '#8c8882' }}>PM: {pmName}</div>
+                        </td>
+                        <td style={{ padding: '1rem 1.25rem', fontWeight: 700, color: '#B68D40' }}>
+                          {proj.progressPercentage || 0}%
+                        </td>
+                        <td style={{ padding: '1rem 1.25rem', fontWeight: 700, color: '#15803d' }}>
+                          ₹{Number(proj.budget || 0).toLocaleString()}
+                        </td>
+                        <td style={{ padding: '1rem 1.25rem' }}>
+                          <span className={`status-badge-pill ${proj.status === 'Completed' ? 'badge-on-track' : 'badge-at-risk'}`}>
+                            {proj.status}
+                          </span>
+                        </td>
+                        <td style={{ padding: '1rem 1.25rem', textAlign: 'right' }}>
+                          <div style={{ display: 'inline-flex', gap: '0.5rem' }}>
+                            <button onClick={() => { setSelectedProject(proj); setIsDetailModalOpen(true); }} className="btn btn-secondary" style={{ padding: '0.35rem 0.65rem', fontSize: '0.75rem' }}>
+                              Stages Drawer
+                            </button>
+                            <button onClick={() => handleOpenEditModal(proj)} className="btn btn-secondary" style={{ padding: '0.35rem 0.65rem' }}>
+                              <Edit3 size={14} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="responsive-cards-grid">
             {filteredProjects.map((proj) => {
               const clientName = typeof proj.client === 'object' ? (proj.client?.companyName || proj.client?.clientName) : 'Client';
               const pmName = typeof proj.productionManager === 'object' ? (proj.productionManager?.name || 'PM') : 'PM';
@@ -423,8 +500,9 @@ export const Projects = () => {
               );
             })}
           </div>
-        </>
-      )}
+        )}
+      </>
+    )}
 
       {/* Modal for Creating Project */}
       <Modal
