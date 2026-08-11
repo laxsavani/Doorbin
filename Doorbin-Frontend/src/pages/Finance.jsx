@@ -10,7 +10,7 @@ import { formatDate } from '../utils/dateUtils';
 import { downloadPdfDocument } from '../utils/pdfGenerator';
 import {
   FileText,
-  DollarSign,
+  IndianRupee,
   Plus,
   CreditCard,
   TrendingUp,
@@ -294,7 +294,7 @@ export const Finance = () => {
           <div className="stat-card-header">
             <div className="stat-card-title">TOTAL COLLECTED</div>
             <div className="stat-card-icon" style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', color: 'var(--color-success)' }}>
-              <DollarSign size={20} />
+              <IndianRupee size={20} />
             </div>
           </div>
           <div className="stat-card-value" style={{ color: 'var(--color-success)' }}>
@@ -440,9 +440,13 @@ export const Finance = () => {
                       title: 'OFFICIAL QUOTATION',
                       documentNumber: q.quotationNumber,
                       clientName: q.client?.companyName || q.client?.clientName,
+                      clientGstin: q.client?.gstin || '24ABCDE1234F1Z2',
                       projectTitle: q.projectTitle,
-                      date: formatDate(q.quotationDate),
+                      date: formatDate(q.quotationDate || q.createdAt),
+                      dueDate: formatDate(q.validUntil),
                       items: q.items,
+                      subtotal: q.subtotal,
+                      gstAmount: q.gstAmount,
                       totalAmount: q.totalAmount,
                       status: q.status
                     })}
@@ -499,9 +503,13 @@ export const Finance = () => {
                             title: 'OFFICIAL QUOTATION',
                             documentNumber: q.quotationNumber,
                             clientName: q.client?.companyName || q.client?.clientName,
+                            clientGstin: q.client?.gstin || '24ABCDE1234F1Z2',
                             projectTitle: q.projectTitle,
-                            date: formatDate(q.quotationDate),
+                            date: formatDate(q.quotationDate || q.createdAt),
+                            dueDate: formatDate(q.validUntil),
                             items: q.items,
+                            subtotal: q.subtotal,
+                            gstAmount: q.gstAmount,
                             totalAmount: q.totalAmount,
                             status: q.status
                           })}
@@ -553,12 +561,16 @@ export const Finance = () => {
                     className="btn btn-secondary"
                     style={{ padding: '0.35rem 0.65rem', fontSize: '0.75rem' }}
                     onClick={() => downloadPdfDocument({
-                      title: 'TAX INVOICE',
+                      title: 'OFFICIAL TAX INVOICE',
                       documentNumber: inv.invoiceNumber,
                       clientName: inv.client?.companyName || inv.client?.clientName,
+                      clientGstin: inv.client?.gstin || '24ABCDE1234F1Z2',
                       projectTitle: inv.milestoneName,
-                      date: formatDate(inv.dueDate),
-                      items: [{ description: inv.milestoneName, qty: 1, rate: inv.totalAmount }],
+                      date: formatDate(inv.createdAt || new Date()),
+                      dueDate: formatDate(inv.dueDate),
+                      items: [{ description: inv.milestoneName, qty: 1, rate: Math.round(inv.totalAmount / 1.18) }],
+                      subtotal: Math.round(inv.totalAmount / 1.18),
+                      gstAmount: Math.round(inv.totalAmount - (inv.totalAmount / 1.18)),
                       totalAmount: inv.totalAmount,
                       status: inv.status
                     })}
@@ -616,12 +628,16 @@ export const Finance = () => {
                           className="btn btn-secondary"
                           style={{ padding: '0.35rem 0.65rem', fontSize: '0.75rem' }}
                           onClick={() => downloadPdfDocument({
-                            title: 'TAX INVOICE',
+                            title: 'OFFICIAL TAX INVOICE',
                             documentNumber: inv.invoiceNumber,
                             clientName: inv.client?.companyName || inv.client?.clientName,
+                            clientGstin: inv.client?.gstin || '24ABCDE1234F1Z2',
                             projectTitle: inv.milestoneName,
-                            date: formatDate(inv.dueDate),
-                            items: [{ description: inv.milestoneName, qty: 1, rate: inv.totalAmount }],
+                            date: formatDate(inv.createdAt || new Date()),
+                            dueDate: formatDate(inv.dueDate),
+                            items: [{ description: inv.milestoneName, qty: 1, rate: Math.round(inv.totalAmount / 1.18) }],
+                            subtotal: Math.round(inv.totalAmount / 1.18),
+                            gstAmount: Math.round(inv.totalAmount - (inv.totalAmount / 1.18)),
                             totalAmount: inv.totalAmount,
                             status: inv.status
                           })}

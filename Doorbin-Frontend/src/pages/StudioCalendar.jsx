@@ -10,7 +10,10 @@ const DAYS_OF_WEEK = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const EVENT_TYPES = ['All', 'Milestone', 'Delivery', 'Meeting'];
 
 export const StudioCalendar = () => {
-  const [currentDate, setCurrentDate] = useState(new Date(2026, 7, 10)); // August 10, 2026
+  const today = new Date();
+  const todayDateStr = `${today.getFullYear()}-${(today.getMonth() + 1).toString().padStart(2, '0')}-${today.getDate().toString().padStart(2, '0')}`;
+
+  const [currentDate, setCurrentDate] = useState(new Date()); // Live today date
   const [viewMode, setViewMode] = useState('month'); // 'month' | 'week' | 'day'
   const [selectedTypeFilter, setSelectedTypeFilter] = useState('All');
 
@@ -22,7 +25,7 @@ export const StudioCalendar = () => {
 
   const [newEvent, setNewEvent] = useState({
     title: '',
-    date: new Date().toISOString().split('T')[0],
+    date: todayDateStr,
     type: 'Milestone',
     project: 'Hillcrest Luxury Villa',
     time: '10:30 AM',
@@ -30,6 +33,13 @@ export const StudioCalendar = () => {
   });
 
   const [toast, setToast] = useState({ message: '', type: 'info' });
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   useEffect(() => {
     fetchCalendarEvents();
@@ -41,14 +51,17 @@ export const StudioCalendar = () => {
       const data = await timelineService.getStudioCalendar();
       let fetched = Array.isArray(data) ? data : [];
 
-      // Demo studio events for August 2026
+      const currYear = today.getFullYear();
+      const currMonth = (today.getMonth() + 1).toString().padStart(2, '0');
+
+      // Demo studio events for current live month
       const demoEvents = [
-        { id: 'cal_1', title: 'Hillcrest Facade 3D Render Review', date: '2026-08-10', type: 'Milestone', project: 'Hillcrest Luxury Villa', time: '10:30 AM', assignedTo: 'Sana Qureshi' },
-        { id: 'cal_2', title: 'Sun Penthouse Moodboard Pitch', date: '2026-08-14', type: 'Meeting', project: 'Sun Horizon Penthouse', time: '02:00 PM', assignedTo: 'Arjun Mehta' },
-        { id: 'cal_3', title: 'Prestige 3D Animatic First Draft', date: '2026-08-18', type: 'Delivery', project: 'Prestige City 3D Animation', time: '05:00 PM', assignedTo: 'Dev Patel' },
-        { id: 'cal_4', title: 'Lighting & Shaders Approval Gate', date: '2026-08-22', type: 'Milestone', project: 'Hillcrest Luxury Villa', time: '11:00 AM', assignedTo: 'Arjun Mehta' },
-        { id: 'cal_5', title: 'Client VR Walkthrough Session', date: '2026-08-25', type: 'Meeting', project: 'Sun Horizon Penthouse', time: '03:30 PM', assignedTo: 'Tara Nair' },
-        { id: 'cal_6', title: '4K Render Farm Sequence Export', date: '2026-08-28', type: 'Delivery', project: 'Prestige City 3D Animation', time: '06:00 PM', assignedTo: 'Dev Patel' }
+        { id: 'cal_1', title: 'Hillcrest Facade 3D Render Review', date: todayDateStr, type: 'Milestone', project: 'Hillcrest Luxury Villa', time: '10:30 AM', assignedTo: 'Sana Qureshi' },
+        { id: 'cal_2', title: 'Sun Penthouse Moodboard Pitch', date: `${currYear}-${currMonth}-14`, type: 'Meeting', project: 'Sun Horizon Penthouse', time: '02:00 PM', assignedTo: 'Arjun Mehta' },
+        { id: 'cal_3', title: 'Prestige 3D Animatic First Draft', date: `${currYear}-${currMonth}-18`, type: 'Delivery', project: 'Prestige City 3D Animation', time: '05:00 PM', assignedTo: 'Dev Patel' },
+        { id: 'cal_4', title: 'Lighting & Shaders Approval Gate', date: `${currYear}-${currMonth}-22`, type: 'Milestone', project: 'Hillcrest Luxury Villa', time: '11:00 AM', assignedTo: 'Arjun Mehta' },
+        { id: 'cal_5', title: 'Client VR Walkthrough Session', date: `${currYear}-${currMonth}-25`, type: 'Meeting', project: 'Sun Horizon Penthouse', time: '03:30 PM', assignedTo: 'Tara Nair' },
+        { id: 'cal_6', title: '4K Render Farm Sequence Export', date: `${currYear}-${currMonth}-28`, type: 'Delivery', project: 'Prestige City 3D Animation', time: '06:00 PM', assignedTo: 'Dev Patel' }
       ];
 
       const combined = [...fetched];
@@ -308,7 +321,7 @@ export const StudioCalendar = () => {
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', backgroundColor: '#e9e5dc', gap: '1px' }}>
                 {calendarDays.map((cell, idx) => {
                   const dayEvents = filteredEvents.filter(e => e.date === cell.dateStr);
-                  const isToday = cell.dateStr === '2026-08-10';
+                  const isToday = cell.dateStr === todayDateStr;
                   const displayEvents = dayEvents.slice(0, 2);
                   const extraCount = dayEvents.length - 2;
 
@@ -318,12 +331,13 @@ export const StudioCalendar = () => {
                       onClick={() => setSelectedDayDetails({ dateStr: cell.dateStr, events: dayEvents })}
                       style={{
                         backgroundColor: cell.isCurrentMonth ? (isToday ? '#fffbf5' : '#ffffff') : '#fbfaf8',
-                        height: '115px',
-                        maxHeight: '115px',
-                        padding: '0.5rem',
+                        height: isMobile ? '52px' : '115px',
+                        maxHeight: isMobile ? '52px' : '115px',
+                        padding: isMobile ? '0.25rem' : '0.5rem',
                         display: 'flex',
                         flexDirection: 'column',
-                        justifyContent: 'space-between',
+                        alignItems: isMobile ? 'center' : 'stretch',
+                        justifyContent: isMobile ? 'center' : 'space-between',
                         overflow: 'hidden',
                         boxSizing: 'border-box',
                         cursor: 'pointer',
@@ -331,13 +345,13 @@ export const StudioCalendar = () => {
                       }}
                     >
                       {/* Cell Day Number Header */}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
+                      <div style={{ display: 'flex', justifyContent: isMobile ? 'center' : 'space-between', alignItems: 'center', width: '100%', marginBottom: isMobile ? 0 : '0.25rem' }}>
                         <span
                           style={{
-                            fontWeight: 800,
-                            fontSize: '0.85rem',
-                            width: '24px',
-                            height: '24px',
+                            fontWeight: 700,
+                            fontSize: isMobile ? '0.8rem' : '0.85rem',
+                            width: isMobile ? '22px' : '24px',
+                            height: isMobile ? '22px' : '24px',
                             borderRadius: '50%',
                             display: 'flex',
                             alignItems: 'center',
@@ -349,59 +363,66 @@ export const StudioCalendar = () => {
                           {cell.dayNumber}
                         </span>
 
-                        {dayEvents.length > 0 && (
+                        {!isMobile && dayEvents.length > 0 && (
                           <span style={{ fontSize: '0.625rem', fontWeight: 700, color: '#8c8882' }}>
                             {dayEvents.length} event{dayEvents.length > 1 ? 's' : ''}
                           </span>
                         )}
                       </div>
 
-                      {/* Events List in Day Cell */}
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', overflow: 'hidden', flex: 1 }}>
-                        {displayEvents.map((evt) => {
-                          const badge = getBadgeStyle(evt.type);
-                          const IconComp = badge.icon;
+                      {/* Mobile Subtle Dot Indicator */}
+                      {isMobile && dayEvents.length > 0 && (
+                        <div style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: '#B68D40', marginTop: '2px' }} />
+                      )}
 
-                          return (
+                      {/* Desktop Events List in Day Cell */}
+                      {!isMobile && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', overflow: 'hidden', flex: 1 }}>
+                          {displayEvents.map((evt) => {
+                            const badge = getBadgeStyle(evt.type);
+                            const IconComp = badge.icon;
+
+                            return (
+                              <div
+                                key={evt.id}
+                                onClick={(e) => { e.stopPropagation(); setSelectedEvent(evt); }}
+                                style={{
+                                  backgroundColor: badge.bg,
+                                  border: `1px solid ${badge.border}`,
+                                  color: badge.color,
+                                  borderRadius: '6px',
+                                  padding: '0.25rem 0.45rem',
+                                  fontSize: '0.7rem',
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '0.3rem',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  whiteSpace: 'nowrap',
+                                  minWidth: 0
+                                }}
+                                title={`${evt.title} (${evt.project})`}
+                              >
+                                <IconComp size={12} style={{ flexShrink: 0 }} />
+                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  {evt.title}
+                                </span>
+                              </div>
+                            );
+                          })}
+
+                          {extraCount > 0 && (
                             <div
-                              key={evt.id}
-                              onClick={() => setSelectedEvent(evt)}
-                              style={{
-                                backgroundColor: badge.bg,
-                                border: `1px solid ${badge.border}`,
-                                color: badge.color,
-                                borderRadius: '6px',
-                                padding: '0.25rem 0.45rem',
-                                fontSize: '0.7rem',
-                                fontWeight: 700,
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '0.3rem',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                whiteSpace: 'nowrap',
-                                minWidth: 0
-                              }}
-                              title={`${evt.title} (${evt.project})`}
+                              onClick={(e) => { e.stopPropagation(); setSelectedEvent(dayEvents[2]); }}
+                              style={{ fontSize: '0.65rem', color: '#8c8882', fontWeight: 700, paddingLeft: '0.25rem' }}
                             >
-                              <IconComp size={12} style={{ flexShrink: 0 }} />
-                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                {evt.title}
-                              </span>
+                              +{extraCount} more
                             </div>
-                          );
-                        })}
-
-                        {extraCount > 0 && (
-                          <div
-                            onClick={() => setSelectedEvent(dayEvents[2])}
-                            style={{ fontSize: '0.65rem', fontWeight: 700, color: '#B68D40', cursor: 'pointer', textAlign: 'center', padding: '0.1rem' }}
-                          >
-                            + {extraCount} more...
-                          </div>
-                        )}
-                      </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   );
                 })}

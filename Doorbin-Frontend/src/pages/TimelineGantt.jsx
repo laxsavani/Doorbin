@@ -118,7 +118,7 @@ export const TimelineGantt = () => {
           <select
             value={selectedProjectId}
             onChange={(e) => setSelectedProjectId(e.target.value)}
-            style={{ width: '100%', padding: '0.6rem 1.15rem', borderRadius: '12px', border: '1px solid #dcd8cf', fontSize: '0.85rem', fontWeight: 800, backgroundColor: '#ffffff', cursor: 'pointer' }}
+            style={{ width: '100%', padding: '0.6rem 1.15rem', borderRadius: '12px', border: '1px solid #dcd8cf', fontSize: '0.85rem', fontWeight: 500, backgroundColor: '#ffffff', cursor: 'pointer' }}
           >
             {projects.map(p => <option key={p._id} value={p._id}>{p.projectName}</option>)}
           </select>

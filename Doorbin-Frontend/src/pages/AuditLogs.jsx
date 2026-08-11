@@ -77,15 +77,15 @@ export const AuditLogs = () => {
         <>
           {/* Search & Filter */}
           <div style={{ marginBottom: '1.5rem', display: 'flex', gap: '1rem', alignItems: 'center' }}>
-            <div style={{ position: 'relative', flex: 1, maxWidth: '380px' }}>
-              <Search size={16} color="#8c8882" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
+            <div className="search-input-wrapper" style={{ flex: 1, maxWidth: '380px' }}>
+              <Search size={16} color="#8c8882" />
               <input
                 type="text"
                 placeholder="Search audit trail by user, action or IP..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="top-bar-search-input"
-                style={{ width: '100%', paddingLeft: '2.25rem' }}
+                className="top-bar-search-input search-input-with-icon"
+                style={{ width: '100%', paddingLeft: '2.5rem' }}
               />
             </div>
           </div>
