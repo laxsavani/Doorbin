@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { timelineService } from '../services/timelineService';
+import { hrService } from '../services/hrService';
 import { authService } from '../services/authService';
 import { Modal } from '../components/Modal';
 import { Toast } from '../components/Toast';
@@ -56,40 +57,114 @@ export const StudioCalendar = () => {
     fetchCalendarEvents();
   }, [currentDate]);
 
+  const formatEventDateStr = (rawDate) => {
+    if (!rawDate) return '';
+    if (typeof rawDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(rawDate)) return rawDate;
+    const d = new Date(rawDate);
+    if (isNaN(d.getTime())) return String(rawDate).slice(0, 10);
+    return `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, '0')}-${d.getDate().toString().padStart(2, '0')}`;
+  };
+
+  const parseLocalDateStr = (rawDate) => {
+    if (!rawDate) return null;
+    if (rawDate instanceof Date) {
+      return new Date(rawDate.getFullYear(), rawDate.getMonth(), rawDate.getDate());
+    }
+    const str = String(rawDate).trim();
+    if (/^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4}/.test(str)) {
+      const parts = str.split(/[\/\-]/);
+      return new Date(parseInt(parts[2], 10), parseInt(parts[1], 10) - 1, parseInt(parts[0], 10));
+    }
+    if (/^\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2}/.test(str)) {
+      const parts = str.split('T')[0].split(/[\/\-]/);
+      return new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+    }
+    const d = new Date(str);
+    return isNaN(d.getTime()) ? null : new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  };
+
   const fetchCalendarEvents = async () => {
     setLoading(true);
     try {
       const dateStr = `${currentDate.getFullYear()}-${(currentDate.getMonth() + 1).toString().padStart(2, '0')}-${currentDate.getDate().toString().padStart(2, '0')}`;
-      const data = await timelineService.getStudioCalendar({ view: viewMode, date: dateStr });
+
+      const [data, holidayList, leaveList] = await Promise.all([
+        timelineService.getStudioCalendar({ view: viewMode, date: dateStr }).catch(() => null),
+        hrService.getHolidays().catch(() => []),
+        hrService.getLeaveRequests().catch(() => [])
+      ]);
+
       let fetched = [];
-      if (data && Array.isArray(data.events)) {
-        fetched = data.events.map(e => ({
-          ...e,
-          date: e.date || e.dateStr || (e.startDate ? new Date(e.startDate).toISOString().split('T')[0] : todayDateStr)
-        }));
-      } else if (Array.isArray(data)) {
-        fetched = data.map(e => ({
-          ...e,
-          date: e.date || e.dateStr || (e.startDate ? new Date(e.startDate).toISOString().split('T')[0] : todayDateStr)
-        }));
+      if (Array.isArray(data)) {
+        fetched = data;
+      } else if (data && Array.isArray(data.events)) {
+        fetched = data.events;
       }
 
-      if (fetched.length > 0) {
-        setEvents(fetched);
-      } else {
-        const currYear = today.getFullYear();
-        const currMonth = (today.getMonth() + 1).toString().padStart(2, '0');
+      fetched = fetched.map(e => ({
+        ...e,
+        dateStr: formatEventDateStr(e.dateStr || e.date || e.startDate),
+        date: formatEventDateStr(e.date || e.dateStr || e.startDate)
+      }));
 
-        const demoEvents = [
-          { id: 'cal_1', title: 'Hillcrest Facade 3D Render Review', date: todayDateStr, type: 'Milestone', project: 'Hillcrest Luxury Villa', time: '10:30 AM', assignedTo: 'Sana Qureshi' },
-          { id: 'cal_2', title: 'Sun Penthouse Moodboard Pitch', date: `${currYear}-${currMonth}-14`, type: 'Meeting', project: 'Sun Horizon Penthouse', time: '02:00 PM', assignedTo: 'Arjun Mehta' },
-          { id: 'cal_3', title: 'Prestige 3D Animatic First Draft', date: `${currYear}-${currMonth}-18`, type: 'Followup', project: 'Prestige City 3D Animation', time: '05:00 PM', assignedTo: 'Dev Patel' },
-          { id: 'cal_4', title: 'Lighting & Shaders Approval Gate', date: `${currYear}-${currMonth}-22`, type: 'Task', project: 'Hillcrest Luxury Villa', time: '11:00 AM', assignedTo: 'Arjun Mehta' },
-          { id: 'cal_5', title: 'Client VR Walkthrough Session', date: `${currYear}-${currMonth}-25`, type: 'Meeting', project: 'Sun Horizon Penthouse', time: '03:30 PM', assignedTo: 'Tara Nair' },
-          { id: 'cal_6', title: 'Annual Studio Hackathon Holiday', date: `${currYear}-${currMonth}-28`, type: 'Holiday', project: 'Studio Holiday', time: 'All Day', assignedTo: 'All Team' }
-        ];
-        setEvents(demoEvents);
-      }
+      const holidayEvents = (holidayList || []).map(h => {
+        const dStr = formatEventDateStr(h.date || h.dateStr);
+        return {
+          id: `hol_${h._id || h.id}`,
+          title: `Holiday: ${h.name || h.holidayName}`,
+          date: dStr,
+          dateStr: dStr,
+          type: 'Holiday',
+          category: h.type || h.category || 'Festival',
+          project: 'Studio Holiday',
+          time: 'All Day',
+          assignedTo: 'All Staff'
+        };
+      });
+
+      // Expand leaves for every single day in the leave range
+      const leaveEvents = [];
+      (leaveList || []).forEach(l => {
+        if (['Approved', 'Pending'].includes(l.status)) {
+          const empName = typeof l.employee === 'object' ? (l.employee?.name || l.employee?.email) : (l.employee || 'Staff');
+          const empId = typeof l.employee === 'object' ? (l.employee?._id || '') : (l.employee || '');
+
+          const startD = parseLocalDateStr(l.fromDate || l.fromDateFormatted || l.startDate);
+          const endD = parseLocalDateStr(l.toDate || l.toDateFormatted || l.endDate) || startD;
+
+          if (startD) {
+            const cur = new Date(startD);
+            const stop = endD ? new Date(endD) : new Date(startD);
+
+            while (cur <= stop) {
+              const dStr = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, '0')}-${String(cur.getDate()).padStart(2, '0')}`;
+              leaveEvents.push({
+                id: `leave_${l._id || l.id}_${dStr}`,
+                title: `Leave: ${empName} (${l.leaveType || 'Leave'})`,
+                date: dStr,
+                dateStr: dStr,
+                type: 'Leave',
+                project: 'HR Leave',
+                time: 'All Day',
+                assignedTo: empName,
+                assignedId: empId
+              });
+              cur.setDate(cur.getDate() + 1);
+            }
+          }
+        }
+      });
+
+      const combined = [...fetched, ...holidayEvents, ...leaveEvents];
+      const uniqueEventsMap = new Map();
+      combined.forEach(item => {
+        const key = item.id ? String(item.id) : `${item.type}_${item.title}_${item.dateStr}`;
+        if (!uniqueEventsMap.has(key)) {
+          uniqueEventsMap.set(key, item);
+        }
+      });
+
+      setEvents(Array.from(uniqueEventsMap.values()));
     } catch (err) {
       setToast({ message: err.message || 'Failed to load calendar events', type: 'error' });
     } finally {
@@ -228,7 +303,7 @@ export const StudioCalendar = () => {
     if (!matchesType) return false;
 
     if (isDirector) return true;
-    if (e.type === 'Holiday') return true;
+    if (e.type === 'Holiday' || e.type === 'Leave') return true;
 
     const assigned = e.assignedTo || e.assignee || e.user;
     if (!assigned) return true;

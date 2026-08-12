@@ -657,47 +657,127 @@ const getStudioCalendar = async (req, res) => {
       date: { $gte: fromDate, $lte: toDate }
     }).sort({ date: 1 });
 
-    holidaysList = hDocs.map(h => ({
-      id: `hol_${h._id}`,
-      holidayId: h._id,
-      title: `Holiday: ${h.name}`,
-      name: h.name,
-      type: 'Holiday',
-      project: 'Studio Holiday',
-      dateFormatted: formatDDMMYYYY(h.date),
-      date: h.date,
-      dateStr: new Date(h.date).toISOString().split('T')[0]
-    }));
+    holidaysList = hDocs.map(h => {
+      const d = new Date(h.date);
+      const yearStr = d.getFullYear();
+      const monthStr = String(d.getMonth() + 1).padStart(2, '0');
+      const dayStr = String(d.getDate()).padStart(2, '0');
+      const localDateStr = `${yearStr}-${monthStr}-${dayStr}`;
 
-    // 5. Approved Leaves
+      return {
+        id: `hol_${h._id}`,
+        holidayId: h._id,
+        title: `Holiday: ${h.name}`,
+        name: h.name,
+        type: 'Holiday',
+        category: h.type || h.category || 'Festival',
+        project: 'Studio Holiday',
+        dateFormatted: formatDDMMYYYY(h.date),
+        date: h.date,
+        dateStr: localDateStr
+      };
+    });
+
+    // 5. Approved / Pending Leaves & Attendance On-Leave Logs (Studio Wide for All Roles)
     const leaveQuery = {
-      status: 'Approved',
+      status: { $in: ['Approved', 'Pending'] },
       fromDate: { $lte: toDate },
       toDate: { $gte: fromDate }
     };
-
-    if (userRole === 'Artist') {
-      leaveQuery.employee = req.user._id;
-    }
 
     const lDocs = await Leave.find(leaveQuery)
       .populate('employee', 'name email department')
       .sort({ fromDate: 1 });
 
-    leavesList = lDocs.map(l => ({
-      id: `leave_${l._id}`,
-      leaveId: l._id,
-      title: `Leave: ${l.employee?.name || 'Staff'} (${l.leaveType})`,
-      employee: l.employee,
-      type: 'Leave',
-      project: 'HR Leave',
-      fromDateFormatted: formatDDMMYYYY(l.fromDate),
-      toDateFormatted: formatDDMMYYYY(l.toDate),
-      fromDate: l.fromDate,
-      toDate: l.toDate,
-      dateStr: new Date(l.fromDate).toISOString().split('T')[0],
-      reason: l.reason
-    }));
+    const parseLocalDateOnly = (dateInput) => {
+      if (!dateInput) return null;
+      if (dateInput instanceof Date) {
+        return new Date(dateInput.getFullYear(), dateInput.getMonth(), dateInput.getDate());
+      }
+      const str = String(dateInput).split('T')[0];
+      const parts = str.split('-');
+      if (parts.length === 3) {
+        return new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+      }
+      const d = new Date(dateInput);
+      return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    };
+
+    leavesList = [];
+    const uniqueLeaveKeys = new Set();
+
+    lDocs.forEach(l => {
+      const cur = parseLocalDateOnly(l.fromDate);
+      const end = parseLocalDateOnly(l.toDate);
+      if (!cur || !end) return;
+
+      const fromBoundary = parseLocalDateOnly(fromDate);
+      const toBoundary = parseLocalDateOnly(toDate);
+
+      while (cur <= end) {
+        if (cur >= fromBoundary && cur <= toBoundary) {
+          const yearStr = cur.getFullYear();
+          const monthStr = String(cur.getMonth() + 1).padStart(2, '0');
+          const dayStr = String(cur.getDate()).padStart(2, '0');
+          const localDateStr = `${yearStr}-${monthStr}-${dayStr}`;
+          const empId = l.employee?._id ? l.employee._id.toString() : String(l.employee);
+          const key = `${empId}_${localDateStr}`;
+
+          if (!uniqueLeaveKeys.has(key)) {
+            uniqueLeaveKeys.add(key);
+            leavesList.push({
+              id: `leave_${l._id}_${localDateStr}`,
+              leaveId: l._id,
+              title: `Leave: ${l.employee?.name || 'Staff'} (${l.leaveType})`,
+              employee: l.employee,
+              type: 'Leave',
+              project: 'HR Leave',
+              fromDateFormatted: formatDDMMYYYY(l.fromDate),
+              toDateFormatted: formatDDMMYYYY(l.toDate),
+              fromDate: l.fromDate,
+              toDate: l.toDate,
+              dateStr: localDateStr,
+              date: localDateStr,
+              reason: l.reason
+            });
+          }
+        }
+        cur.setDate(cur.getDate() + 1);
+      }
+    });
+
+    // Also include Attendance records marked as 'On Leave' (Studio-wide)
+    const attQuery = {
+      status: new RegExp('leave', 'i'),
+      date: { $gte: fromDate, $lte: toDate }
+    };
+
+    const attLeaveDocs = await Attendance.find(attQuery).populate('employee', 'name email department');
+    attLeaveDocs.forEach(att => {
+      const d = parseLocalDateOnly(att.date);
+      if (!d) return;
+      const yearStr = d.getFullYear();
+      const monthStr = String(d.getMonth() + 1).padStart(2, '0');
+      const dayStr = String(d.getDate()).padStart(2, '0');
+      const localDateStr = `${yearStr}-${monthStr}-${dayStr}`;
+      const empId = att.employee?._id ? att.employee._id.toString() : String(att.employee);
+      const key = `${empId}_${localDateStr}`;
+
+      if (!uniqueLeaveKeys.has(key)) {
+        uniqueLeaveKeys.add(key);
+        leavesList.push({
+          id: `att_leave_${att._id}_${localDateStr}`,
+          title: `Leave: ${att.employee?.name || 'Staff'} (On Leave)`,
+          employee: att.employee,
+          type: 'Leave',
+          project: 'HR Leave',
+          dateFormatted: formatDDMMYYYY(att.date),
+          date: localDateStr,
+          dateStr: localDateStr,
+          reason: 'On Leave'
+        });
+      }
+    });
 
     // Unified events collection for frontend calendar aggregation
     const unifiedEvents = [

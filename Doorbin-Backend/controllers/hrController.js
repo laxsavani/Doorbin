@@ -601,9 +601,12 @@ const createHoliday = async (req, res) => {
       return res.status(400).json({ message: `Holiday already exists for date ${formatDDMMYYYY(hDate)} (${existing.name})` });
     }
 
+    const holidayType = type || req.body.category || 'Festival';
     const holiday = await Holiday.create({
       name: nameVal.trim(),
-      date: hDate
+      date: hDate,
+      type: holidayType,
+      category: holidayType
     });
 
     await logActivity({

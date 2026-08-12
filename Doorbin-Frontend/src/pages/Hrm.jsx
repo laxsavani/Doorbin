@@ -202,13 +202,19 @@ export const Hrm = () => {
     }
 
     try {
-      const newHol = await hrService.addHoliday(holidayForm);
-      setHolidays(prev => [...prev, newHol]);
+      const payload = {
+        name: holidayForm.holidayName,
+        holidayName: holidayForm.holidayName,
+        date: holidayForm.date,
+        type: holidayForm.type || 'Festival'
+      };
+      const newHol = await hrService.addHoliday(payload);
+      setHolidays(prev => [newHol, ...prev]);
       setIsHolidayModalOpen(false);
-      setToast({ message: 'Studio holiday added!', type: 'success' });
+      setToast({ message: `Studio holiday "${newHol.name || holidayForm.holidayName}" added!`, type: 'success' });
       setHolidayForm({ holidayName: '', date: '', type: 'Festival' });
     } catch (err) {
-      setToast({ message: 'Failed to add holiday', type: 'error' });
+      setToast({ message: err.message || 'Failed to add holiday', type: 'error' });
     }
   };
 
@@ -696,7 +702,7 @@ export const Hrm = () => {
                   <tr key={h._id || h.id}>
                     <td style={{ fontWeight: '600' }}>{h.name || h.holidayName}</td>
                     <td style={{ fontWeight: '600' }}>{h.dateFormatted || (h.date ? new Date(h.date).toLocaleDateString('en-GB') : h.date)}</td>
-                    <td><span className="badge badge-warning">{h.type || 'Studio Holiday'}</span></td>
+                    <td><span className="badge badge-warning">{h.type || h.category || 'Festival'}</span></td>
                     {isDirectorOrHR && (
                       <td>
                         <button className="btn btn-secondary" style={{ padding: '0.25rem 0.5rem', color: 'var(--color-danger)' }} onClick={() => handleDeleteHoliday(h._id || h.id)}>
@@ -835,6 +841,46 @@ export const Hrm = () => {
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1rem' }}>
               <button type="button" className="btn btn-secondary" onClick={() => setIsReviewModalOpen(false)}>Cancel</button>
               <button type="submit" className="btn btn-primary">Save Review</button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* ADD HOLIDAY MODAL */}
+      {isHolidayModalOpen && (
+        <Modal isOpen={isHolidayModalOpen} title="Add Studio Holiday" onClose={() => setIsHolidayModalOpen(false)}>
+          <form onSubmit={handleAddHoliday}>
+            <FormField
+              label="Holiday Name"
+              name="holidayName"
+              value={holidayForm.holidayName}
+              onChange={e => setHolidayForm({ ...holidayForm, holidayName: e.target.value })}
+              placeholder="e.g. Diwali, Independence Day, Eid"
+              required
+            />
+            <FormField
+              label="Holiday Date"
+              name="date"
+              type="date"
+              value={holidayForm.date}
+              onChange={e => setHolidayForm({ ...holidayForm, date: e.target.value })}
+              required
+            />
+            <FormField
+              label="Category / Type"
+              name="type"
+              type="select"
+              value={holidayForm.type}
+              onChange={e => setHolidayForm({ ...holidayForm, type: e.target.value })}
+            >
+              <option value="Festival">Festival</option>
+              <option value="National Holiday">National Holiday</option>
+              <option value="Studio Break">Studio Break</option>
+            </FormField>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1rem' }}>
+              <button type="button" className="btn btn-secondary" onClick={() => setIsHolidayModalOpen(false)}>Cancel</button>
+              <button type="submit" className="btn btn-primary">Save Holiday</button>
             </div>
           </form>
         </Modal>
