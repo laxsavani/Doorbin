@@ -5,13 +5,22 @@
 export const formatDate = (dateInput) => {
   if (!dateInput) return '-';
   
+  const strVal = String(dateInput).trim();
+  if (strVal === 'Invalid Date') return '-';
+
   // If string is already in DD/MM/YYYY format
-  if (typeof dateInput === 'string' && /^\d{2}\/\d{2}\/\d{4}$/.test(dateInput.trim())) {
-    return dateInput.trim();
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(strVal)) {
+    return strVal;
+  }
+
+  // Handle DD-MM-YYYY format
+  if (/^\d{2}-\d{2}-\d{4}$/.test(strVal)) {
+    const [dd, mm, yyyy] = strVal.split('-');
+    return `${dd}/${mm}/${yyyy}`;
   }
 
   const d = new Date(dateInput);
-  if (isNaN(d.getTime())) return String(dateInput);
+  if (isNaN(d.getTime())) return strVal !== 'Invalid Date' ? strVal : '-';
 
   const day = d.getDate().toString().padStart(2, '0');
   const month = (d.getMonth() + 1).toString().padStart(2, '0');

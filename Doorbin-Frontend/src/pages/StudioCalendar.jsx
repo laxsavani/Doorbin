@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { timelineService } from '../services/timelineService';
+import { authService } from '../services/authService';
 import { Modal } from '../components/Modal';
 import { Toast } from '../components/Toast';
 import { Loader } from '../components/Loader';
@@ -10,6 +11,16 @@ const DAYS_OF_WEEK = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const EVENT_TYPES = ['All', 'Task', 'Milestone', 'Meeting', 'Followup', 'Leave', 'Holiday'];
 
 export const StudioCalendar = () => {
+  const currentUser = authService.getCurrentUser();
+  const currentUserId = currentUser?._id || currentUser?.id;
+  const currentUserName = typeof currentUser?.name === 'string'
+    ? currentUser.name
+    : (currentUser?.name?.name || currentUser?.email || '');
+  const userRoleName = typeof currentUser?.role === 'object'
+    ? (currentUser?.role?.name || 'Artist')
+    : (currentUser?.role || 'Artist');
+  const isDirector = userRoleName.toLowerCase() === 'director';
+
   const today = new Date();
   const todayDateStr = `${today.getFullYear()}-${(today.getMonth() + 1).toString().padStart(2, '0')}-${today.getDate().toString().padStart(2, '0')}`;
 
@@ -211,8 +222,20 @@ export const StudioCalendar = () => {
   const calendarDays = getCalendarDays();
   const weekDays = getWeekDays();
 
-  // Filter events by selected type
-  const filteredEvents = events.filter(e => selectedTypeFilter === 'All' || e.type === selectedTypeFilter);
+  // Filter events by selected type AND user role assignment
+  const filteredEvents = events.filter(e => {
+    const matchesType = selectedTypeFilter === 'All' || e.type === selectedTypeFilter;
+    if (!matchesType) return false;
+
+    if (isDirector) return true;
+    if (e.type === 'Holiday') return true;
+
+    const assigned = e.assignedTo || e.assignee || e.user;
+    if (!assigned) return true;
+
+    const assignedStr = typeof assigned === 'object' ? (assigned.name || assigned._id || '') : String(assigned);
+    return assignedStr.toLowerCase().includes(currentUserName.toLowerCase()) || assignedStr === currentUserId;
+  });
 
   const selectedDayStr = `${currentDate.getFullYear()}-${(currentDate.getMonth() + 1).toString().padStart(2, '0')}-${currentDate.getDate().toString().padStart(2, '0')}`;
   const dayViewEvents = filteredEvents.filter(e => e.date === selectedDayStr);
