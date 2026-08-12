@@ -2,10 +2,37 @@ const Task = require('../models/Task');
 const Project = require('../models/Project');
 const Stage = require('../models/Stage');
 const User = require('../models/User');
+const Holiday = require('../models/Holiday');
 const logActivity = require('../utils/activityLogger');
 const { recalculateProjectProgress } = require('./projectController');
 const { formatDDMMYYYY, parseDateString, calculateWorkingDays } = require('../utils/dateFormatter');
 const mongoose = require('mongoose');
+
+// Helper: Check if a date falls on Sunday or an active Studio Holiday
+const checkIsSundayOrHoliday = async (dateInput) => {
+  if (!dateInput) return null;
+  const d = parseDateString(dateInput);
+  if (!d) return null;
+
+  if (d.getDay() === 0) {
+    return { isBlocked: true, name: 'Sunday (Weekly Off)' };
+  }
+
+  const startOfDay = new Date(d);
+  startOfDay.setHours(0, 0, 0, 0);
+  const endOfDay = new Date(d);
+  endOfDay.setHours(23, 59, 59, 999);
+
+  const holiday = await Holiday.findOne({
+    date: { $gte: startOfDay, $lte: endOfDay }
+  });
+
+  if (holiday) {
+    return { isBlocked: true, name: holiday.name };
+  }
+
+  return { isBlocked: false };
+};
 
 // Helper: Status Adjacency Map
 const STATUS_TRANSITIONS = {
@@ -119,6 +146,21 @@ const createTask = async (req, res) => {
 
     const parsedStart = parseDateString(startDate);
     const parsedEnd = parseDateString(endDate, true);
+
+    if (startDate) {
+      const startCheck = await checkIsSundayOrHoliday(startDate);
+      if (startCheck?.isBlocked) {
+        return res.status(400).json({ message: `Cannot schedule task start date on a non-working day (${startCheck.name}). Please select a working business day.` });
+      }
+    }
+
+    if (endDate) {
+      const endCheck = await checkIsSundayOrHoliday(endDate);
+      if (endCheck?.isBlocked) {
+        return res.status(400).json({ message: `Cannot schedule task due date on a non-working day (${endCheck.name}). Please select a working business day.` });
+      }
+    }
+
     const workingDays = await calculateWorkingDays(parsedStart, parsedEnd);
     const initialStatus = assignee ? 'Assigned' : 'Pending';
 
@@ -379,6 +421,20 @@ const updateTask = async (req, res) => {
       const isReviewer = task.reviewer && task.reviewer.toString() === req.user._id.toString();
       if (!isAssignee && !isReviewer) {
         return res.status(403).json({ message: 'Access denied. You can only update tasks assigned to or reviewed by you.' });
+      }
+    }
+
+    if (startDate) {
+      const startCheck = await checkIsSundayOrHoliday(startDate);
+      if (startCheck?.isBlocked) {
+        return res.status(400).json({ message: `Cannot set task start date on a non-working day (${startCheck.name}). Please select a working business day.` });
+      }
+    }
+
+    if (endDate) {
+      const endCheck = await checkIsSundayOrHoliday(endDate);
+      if (endCheck?.isBlocked) {
+        return res.status(400).json({ message: `Cannot set task due date on a non-working day (${endCheck.name}). Please select a working business day.` });
       }
     }
 

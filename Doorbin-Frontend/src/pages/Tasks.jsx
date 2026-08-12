@@ -140,6 +140,15 @@ export const Tasks = () => {
       return;
     }
 
+    if (newTask.startDate && new Date(newTask.startDate).getDay() === 0) {
+      setToast({ message: 'Cannot set task start date on a Sunday (Weekly Off). Please select a working day.', type: 'error' });
+      return;
+    }
+    if (newTask.endDate && new Date(newTask.endDate).getDay() === 0) {
+      setToast({ message: 'Cannot set task due date on a Sunday (Weekly Off). Please select a working day.', type: 'error' });
+      return;
+    }
+
     try {
       const response = await taskService.createTask({
         ...newTask,
@@ -209,6 +218,15 @@ export const Tasks = () => {
     setFormErrors(errors);
     if (Object.keys(errors).length > 0) {
       focusFirstErrorField(errors);
+      return;
+    }
+
+    if (newTask.startDate && new Date(newTask.startDate).getDay() === 0) {
+      setToast({ message: 'Cannot set task start date on a Sunday (Weekly Off). Please select a working day.', type: 'error' });
+      return;
+    }
+    if (newTask.endDate && new Date(newTask.endDate).getDay() === 0) {
+      setToast({ message: 'Cannot set task due date on a Sunday (Weekly Off). Please select a working day.', type: 'error' });
       return;
     }
 

@@ -527,9 +527,8 @@ export const Hrm = () => {
       </div>
 
       {/* NAVIGATION TABS & VIEW MODE TOGGLE */}
-      <div className="responsive-filter-bar">
-        {/* Desktop horizontal tabs */}
-        <div className="desktop-tabs-container">
+      <div className="responsive-filter-bar" style={{ marginBottom: '1.25rem', borderBottom: '1px solid #e9e5dc', width: '100%', overflowX: 'auto' }}>
+        <div className="desktop-tabs-container" style={{ display: 'flex', gap: '0.5rem', width: '100%', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
           {['employees', 'attendance', 'leave', 'holidays', 'reviews'].map(tabKey => {
             const pendingLeavesCount = leaveRequests.filter(l => l.status === 'Pending').length;
             return (
@@ -537,17 +536,20 @@ export const Hrm = () => {
                 key={tabKey}
                 onClick={() => setActiveTab(tabKey)}
                 style={{
-                  padding: '0.75rem 1.25rem',
+                  padding: '0.75rem 1.15rem',
                   background: 'none',
                   border: 'none',
-                  borderBottom: activeTab === tabKey ? '3px solid var(--color-primary)' : 'none',
+                  borderBottom: activeTab === tabKey ? '3px solid var(--color-primary)' : '3px solid transparent',
                   fontWeight: activeTab === tabKey ? '600' : '400',
                   color: activeTab === tabKey ? 'var(--color-primary)' : 'var(--color-text-muted)',
                   cursor: 'pointer',
                   textTransform: 'capitalize',
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: '0.45rem'
+                  gap: '0.45rem',
+                  whiteSpace: 'nowrap',
+                  flexShrink: 0,
+                  fontSize: '0.875rem'
                 }}
               >
                 {tabKey === 'reviews' ? 'Performance Reviews' : (tabKey === 'leave' ? 'Leave' : tabKey)}
@@ -671,25 +673,42 @@ export const Hrm = () => {
 
       {/* TAB 4: HOLIDAYS */}
       {activeTab === 'holidays' && (
-        <div className="table-responsive">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>HOLIDAY NAME</th>
-                <th>DATE</th>
-                <th>CATEGORY</th>
-              </tr>
-            </thead>
-            <tbody>
-              {holidays.map(h => (
-                <tr key={h._id}>
-                  <td style={{ fontWeight: '600' }}>{h.holidayName}</td>
-                  <td>{h.date}</td>
-                  <td><span className="badge badge-secondary">{h.type || 'Holiday'}</span></td>
+        <div>
+          {isDirectorOrHR && (
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1rem' }}>
+              <button className="btn btn-primary" onClick={() => setIsHolidayModalOpen(true)}>
+                <Plus size={16} /> Add Studio Holiday
+              </button>
+            </div>
+          )}
+          <div className="table-responsive">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>HOLIDAY NAME</th>
+                  <th>DATE</th>
+                  <th>CATEGORY</th>
+                  {isDirectorOrHR && <th>ACTIONS</th>}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {holidays.map(h => (
+                  <tr key={h._id || h.id}>
+                    <td style={{ fontWeight: '600' }}>{h.name || h.holidayName}</td>
+                    <td style={{ fontWeight: '600' }}>{h.dateFormatted || (h.date ? new Date(h.date).toLocaleDateString('en-GB') : h.date)}</td>
+                    <td><span className="badge badge-warning">{h.type || 'Studio Holiday'}</span></td>
+                    {isDirectorOrHR && (
+                      <td>
+                        <button className="btn btn-secondary" style={{ padding: '0.25rem 0.5rem', color: 'var(--color-danger)' }} onClick={() => handleDeleteHoliday(h._id || h.id)}>
+                          <Trash2 size={14} />
+                        </button>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 

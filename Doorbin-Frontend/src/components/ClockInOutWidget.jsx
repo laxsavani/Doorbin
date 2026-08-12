@@ -141,7 +141,22 @@ export const ClockInOutWidget = ({ variant = 'topbar', onStatusChange }) => {
           onClose={() => setToast({ message: '', type: 'info' })}
         />
 
-        {isClockedIn ? (
+        {attendance?.isHoliday ? (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.4rem',
+            backgroundColor: '#fffbe6',
+            border: '1px solid #ffe58f',
+            padding: '0.35rem 0.75rem',
+            borderRadius: '20px',
+            color: '#d48806',
+            fontSize: '0.78rem',
+            fontWeight: 700
+          }}>
+            🏖️ Holiday ({attendance.holidayName || 'Weekly Off'})
+          </div>
+        ) : isClockedIn ? (
           <div style={{
             display: 'flex',
             alignItems: 'center',

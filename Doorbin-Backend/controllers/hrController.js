@@ -579,9 +579,10 @@ const approveLeave = async (req, res) => {
 // @route   POST /api/hr/holidays
 // @access  Private (hrAccess permission holder)
 const createHoliday = async (req, res) => {
-  const { name, date } = req.body;
+  const { name, holidayName, date, type } = req.body;
+  const nameVal = name || holidayName;
 
-  if (!name || !name.trim()) {
+  if (!nameVal || !nameVal.trim()) {
     return res.status(400).json({ message: 'Holiday name is required' });
   }
   if (!date) {
@@ -589,16 +590,19 @@ const createHoliday = async (req, res) => {
   }
 
   const hDate = parseDateString(date);
+  if (!hDate) {
+    return res.status(400).json({ message: 'Valid holiday date is required' });
+  }
   hDate.setHours(0, 0, 0, 0);
 
   try {
     const existing = await Holiday.findOne({ date: hDate });
     if (existing) {
-      return res.status(400).json({ message: `Holiday already exists for date ${formatDDMMYYYY(hDate)}` });
+      return res.status(400).json({ message: `Holiday already exists for date ${formatDDMMYYYY(hDate)} (${existing.name})` });
     }
 
     const holiday = await Holiday.create({
-      name: name.trim(),
+      name: nameVal.trim(),
       date: hDate
     });
 
@@ -613,6 +617,7 @@ const createHoliday = async (req, res) => {
 
     return res.status(201).json({
       ...holiday.toObject(),
+      holidayName: holiday.name,
       dateFormatted: formatDDMMYYYY(holiday.date)
     });
   } catch (error) {
