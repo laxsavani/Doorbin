@@ -502,10 +502,10 @@ const getLeaves = async (req, res) => {
 // @route   PUT /api/hr/leave/:id/approve
 // @access  Private (hrAccess permission holder)
 const approveLeave = async (req, res) => {
-  const { decision } = req.body;
+  const decision = req.body.decision || req.body.status;
 
   if (!decision || !['Approved', 'Rejected'].includes(decision)) {
-    return res.status(400).json({ message: "decision must be 'Approved' or 'Rejected'" });
+    return res.status(400).json({ message: "decision or status must be 'Approved' or 'Rejected'" });
   }
 
   try {

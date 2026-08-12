@@ -124,15 +124,16 @@ export const Hrm = () => {
       };
 
       const newLeave = await hrService.applyLeave({
-        employee: { _id: selectedEmp._id, name: selectedEmp.name, employeeCode: selectedEmp.employeeCode || 'EMP-SELF' },
         leaveType: leaveForm.leaveType,
+        fromDate: leaveForm.startDate,
+        toDate: leaveForm.endDate,
         startDate: leaveForm.startDate,
         endDate: leaveForm.endDate,
-        totalDays: 1,
         reason: leaveForm.reason
       });
 
-      setLeaveRequests(prev => [newLeave, ...prev]);
+      const updatedLeaves = await hrService.getLeaveRequests();
+      setLeaveRequests(updatedLeaves.length > 0 ? updatedLeaves : [newLeave]);
       setIsLeaveModalOpen(false);
       setToast({ message: 'Leave application submitted successfully!', type: 'success' });
       setLeaveForm({ employeeId: '', leaveType: 'Casual Leave', startDate: '', endDate: '', reason: '' });
@@ -144,11 +145,16 @@ export const Hrm = () => {
   // Approve / Reject Leave Handler
   const handleLeaveStatus = async (id, status) => {
     try {
-      const updated = await hrService.updateLeaveStatus(id, { status });
-      setLeaveRequests(prev => prev.map(l => l._id === id ? { ...l, status, approvedBy: { name: currentUserName } } : l));
+      await hrService.updateLeaveStatus(id, { decision: status, status });
+      const updatedLeaves = await hrService.getLeaveRequests();
+      if (updatedLeaves.length > 0) {
+        setLeaveRequests(updatedLeaves);
+      } else {
+        setLeaveRequests(prev => prev.map(l => l._id === id ? { ...l, status } : l));
+      }
       setToast({ message: `Leave application ${status.toLowerCase()}!`, type: 'success' });
     } catch (err) {
-      setToast({ message: 'Failed to update leave status', type: 'error' });
+      setToast({ message: err.message || 'Failed to update leave status', type: 'error' });
     }
   };
 
@@ -220,18 +226,83 @@ export const Hrm = () => {
     }
   };
 
-  const formatISTTimeStr = (dateVal) => {
-    if (!dateVal) return '--:--';
-    try {
-      return new Date(dateVal).toLocaleTimeString('en-IN', {
-        timeZone: 'Asia/Kolkata',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: true
-      });
-    } catch (e) {
-      return '--:--';
+  const formatISTTimeStr = (val) => {
+    if (!val) return '--:--';
+    if (typeof val === 'string') {
+      const s = val.trim();
+      if (s === 'Invalid Date' || !s) return '--:--';
+      if (/^\d{1,2}:\d{2}\s*(AM|PM|am|pm)$/i.test(s)) return s;
+      if (/^\d{1,2}:\d{2}$/.test(s)) {
+        const [h, m] = s.split(':').map(Number);
+        const ampm = h >= 12 ? 'PM' : 'AM';
+        const displayH = h % 12 || 12;
+        return `${displayH.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')} ${ampm}`;
+      }
     }
+    const d = new Date(val);
+    if (isNaN(d.getTime())) return (typeof val === 'string' && val.trim() && val !== 'Invalid Date') ? val : '--:--';
+    return d.toLocaleTimeString('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+  };
+
+  const parseTimeToMinutes = (timeVal) => {
+    if (!timeVal) return null;
+    if (typeof timeVal === 'string') {
+      const s = timeVal.trim();
+      const match = s.match(/^(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?$/i);
+      if (match) {
+        let hours = parseInt(match[1], 10);
+        const minutes = parseInt(match[2], 10);
+        const ampm = match[3] ? match[3].toUpperCase() : null;
+
+        if (ampm === 'PM' && hours < 12) hours += 12;
+        if (ampm === 'AM' && hours === 12) hours = 0;
+
+        return hours * 60 + minutes;
+      }
+    }
+
+    const d = new Date(timeVal);
+    if (!isNaN(d.getTime())) {
+      return d.getHours() * 60 + d.getMinutes();
+    }
+
+    return null;
+  };
+
+  const formatWorkedDuration = (checkInVal, checkOutVal, workingHoursNum) => {
+    let totalMinutes = 0;
+
+    const startMins = parseTimeToMinutes(checkInVal);
+    const endMins = parseTimeToMinutes(checkOutVal);
+
+    if (startMins !== null && endMins !== null && endMins >= startMins) {
+      totalMinutes = endMins - startMins;
+    } else if (checkInVal && checkOutVal) {
+      const startMs = new Date(checkInVal).getTime();
+      const endMs = new Date(checkOutVal).getTime();
+      if (!isNaN(startMs) && !isNaN(endMs) && endMs >= startMs) {
+        totalMinutes = Math.floor((endMs - startMs) / (1000 * 60));
+      }
+    }
+
+    if (totalMinutes === 0 && workingHoursNum && !isNaN(workingHoursNum) && Number(workingHoursNum) > 0) {
+      totalMinutes = Math.round(Number(workingHoursNum) * 60);
+    }
+
+    if (totalMinutes <= 0) return '00h 00m';
+
+    const h = Math.floor(totalMinutes / 60);
+    const m = totalMinutes % 60;
+
+    const hStr = h.toString().padStart(2, '0');
+    const mStr = m.toString().padStart(2, '0');
+
+    return `${hStr}h ${mStr}m`;
   };
 
   const renderAttendanceTab = () => (
@@ -248,20 +319,26 @@ export const Hrm = () => {
           </tr>
         </thead>
         <tbody>
-          {attendanceLogs.map(att => (
-            <tr key={att._id}>
-              <td style={{ fontWeight: '600' }}>{att.employee?.name || currentUserName}</td>
-              <td>{att.dateFormatted || (att.date ? new Date(att.date).toLocaleDateString() : 'Today')}</td>
-              <td>{att.checkIn ? formatISTTimeStr(att.checkIn) : (att.activeSession?.checkInFormatted || '--:--')}</td>
-              <td>{att.checkOut ? formatISTTimeStr(att.checkOut) : (att.activeSession?.checkOutFormatted || '--:--')}</td>
-              <td style={{ fontWeight: '600' }}>{att.workingHours || 0} hrs</td>
-              <td>
-                <span className={`badge ${att.status === 'Present' ? 'badge-success' : att.status === 'Late' ? 'badge-warning' : 'badge-danger'}`}>
-                  {att.status || 'Present'}
-                </span>
-              </td>
-            </tr>
-          ))}
+            {attendanceLogs.map(att => {
+              const checkInStr = att.checkIn ? formatISTTimeStr(att.checkIn) : (att.activeSession?.checkInFormatted || '--:--');
+              const checkOutStr = att.checkOut ? formatISTTimeStr(att.checkOut) : (att.activeSession?.checkOutFormatted || '--:--');
+              return (
+                <tr key={att._id}>
+                  <td style={{ fontWeight: '600' }}>{att.employee?.name || currentUserName}</td>
+                  <td>{att.dateFormatted || (att.date ? new Date(att.date).toLocaleDateString() : 'Today')}</td>
+                  <td>{checkInStr}</td>
+                  <td>{checkOutStr}</td>
+                  <td style={{ fontWeight: '600', color: 'var(--color-primary)' }}>
+                    {formatWorkedDuration(checkInStr, checkOutStr, att.workingHours)}
+                  </td>
+                  <td>
+                    <span className={`badge ${att.status === 'Present' ? 'badge-success' : att.status === 'Late' ? 'badge-warning' : 'badge-danger'}`}>
+                      {att.status || 'Present'}
+                    </span>
+                  </td>
+                </tr>
+              );
+            })}
         </tbody>
       </table>
     </div>
@@ -347,24 +424,43 @@ export const Hrm = () => {
       <div className="responsive-filter-bar">
         {/* Desktop horizontal tabs */}
         <div className="desktop-tabs-container">
-          {['employees', 'attendance', 'leave', 'holidays', 'reviews'].map(tabKey => (
-            <button
-              key={tabKey}
-              onClick={() => setActiveTab(tabKey)}
-              style={{
-                padding: '0.75rem 1.25rem',
-                background: 'none',
-                border: 'none',
-                borderBottom: activeTab === tabKey ? '3px solid var(--color-primary)' : 'none',
-                fontWeight: activeTab === tabKey ? '600' : '400',
-                color: activeTab === tabKey ? 'var(--color-primary)' : 'var(--color-text-muted)',
-                cursor: 'pointer',
-                textTransform: 'capitalize'
-              }}
-            >
-              {tabKey === 'reviews' ? 'Performance Reviews' : tabKey}
-            </button>
-          ))}
+          {['employees', 'attendance', 'leave', 'holidays', 'reviews'].map(tabKey => {
+            const pendingLeavesCount = leaveRequests.filter(l => l.status === 'Pending').length;
+            return (
+              <button
+                key={tabKey}
+                onClick={() => setActiveTab(tabKey)}
+                style={{
+                  padding: '0.75rem 1.25rem',
+                  background: 'none',
+                  border: 'none',
+                  borderBottom: activeTab === tabKey ? '3px solid var(--color-primary)' : 'none',
+                  fontWeight: activeTab === tabKey ? '600' : '400',
+                  color: activeTab === tabKey ? 'var(--color-primary)' : 'var(--color-text-muted)',
+                  cursor: 'pointer',
+                  textTransform: 'capitalize',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.45rem'
+                }}
+              >
+                {tabKey === 'reviews' ? 'Performance Reviews' : (tabKey === 'leave' ? 'Leave' : tabKey)}
+                {tabKey === 'leave' && (
+                  <span style={{
+                    backgroundColor: pendingLeavesCount > 0 ? '#f59e0b' : '#e5e7eb',
+                    color: pendingLeavesCount > 0 ? '#ffffff' : '#4b5563',
+                    fontSize: '0.7rem',
+                    fontWeight: 700,
+                    padding: '0.15rem 0.45rem',
+                    borderRadius: '9999px',
+                    lineHeight: 1
+                  }}>
+                    {pendingLeavesCount}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -429,34 +525,39 @@ export const Hrm = () => {
               </tr>
             </thead>
             <tbody>
-              {leaveRequests.map(l => (
-                <tr key={l._id}>
-                  <td style={{ fontWeight: '600' }}>{l.employee?.name}</td>
-                  <td>{l.leaveType}</td>
-                  <td>{formatDate(l.startDate)}</td>
-                  <td>{formatDate(l.endDate)}</td>
-                  <td>{l.reason}</td>
-                  <td>
-                    <span className={`badge ${l.status === 'Approved' ? 'badge-success' : l.status === 'Rejected' ? 'badge-danger' : 'badge-warning'}`}>
-                      {l.status}
-                    </span>
-                  </td>
-                  {isDirectorOrHR && (
+              {leaveRequests.map(l => {
+                const empName = typeof l.employee === 'object' ? (l.employee?.name || l.employee?.email) : (l.employee || currentUserName);
+                const startDateStr = l.fromDateFormatted || l.fromDate || l.startDate;
+                const endDateStr = l.toDateFormatted || l.toDate || l.endDate;
+                return (
+                  <tr key={l._id}>
+                    <td style={{ fontWeight: '600' }}>{empName}</td>
+                    <td>{l.leaveType}</td>
+                    <td>{formatDate(startDateStr)}</td>
+                    <td>{formatDate(endDateStr)}</td>
+                    <td>{l.reason}</td>
                     <td>
-                      {l.status === 'Pending' && (
-                        <div style={{ display: 'flex', gap: '0.35rem' }}>
-                          <button className="btn btn-secondary" style={{ padding: '0.25rem 0.5rem', color: 'var(--color-success)' }} onClick={() => handleLeaveStatus(l._id, 'Approved')}>
-                            <CheckCircle2 size={14} /> Approve
-                          </button>
-                          <button className="btn btn-secondary" style={{ padding: '0.25rem 0.5rem', color: 'var(--color-danger)' }} onClick={() => handleLeaveStatus(l._id, 'Rejected')}>
-                            <XCircle size={14} /> Reject
-                          </button>
-                        </div>
-                      )}
+                      <span className={`badge ${l.status === 'Approved' ? 'badge-success' : l.status === 'Rejected' ? 'badge-danger' : 'badge-warning'}`}>
+                        {l.status}
+                      </span>
                     </td>
-                  )}
-                </tr>
-              ))}
+                    {isDirectorOrHR && (
+                      <td>
+                        {l.status === 'Pending' && (
+                          <div style={{ display: 'flex', gap: '0.35rem' }}>
+                            <button className="btn btn-secondary" style={{ padding: '0.25rem 0.5rem', color: 'var(--color-success)' }} onClick={() => handleLeaveStatus(l._id, 'Approved')}>
+                              <CheckCircle2 size={14} /> Approve
+                            </button>
+                            <button className="btn btn-secondary" style={{ padding: '0.25rem 0.5rem', color: 'var(--color-danger)' }} onClick={() => handleLeaveStatus(l._id, 'Rejected')}>
+                              <XCircle size={14} /> Reject
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                    )}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -525,7 +626,7 @@ export const Hrm = () => {
             <FormField label="Full Name" name="name" value={empForm.name} onChange={e => setEmpForm({ ...empForm, name: e.target.value })} required />
             <FormField label="Email Address" name="email" type="email" value={empForm.email} onChange={e => setEmpForm({ ...empForm, email: e.target.value })} required />
             <FormField label="Designation Title" name="designation" value={empForm.designation} onChange={e => setEmpForm({ ...empForm, designation: e.target.value })} placeholder="3D Lighting Artist" required />
-            
+
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
               <FormField label="System Role" name="role" type="select" value={empForm.role} onChange={e => setEmpForm({ ...empForm, role: e.target.value })}>
                 <option value="Artist">Artist</option>

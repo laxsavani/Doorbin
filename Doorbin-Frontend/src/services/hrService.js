@@ -11,110 +11,11 @@ const extractArray = (resData, key) => {
   return [];
 };
 
-const DEFAULT_EMPLOYEES = [
-  {
-    _id: 'emp_101',
-    employeeCode: 'EMP-001',
-    name: 'Arjun Mehta',
-    email: 'arjun@doorbin.com',
-    phone: '+91 98250 11223',
-    department: '3D Visualization & VR',
-    designation: 'Senior Production Lead',
-    role: 'Production Manager',
-    monthlySalary: 125000,
-    status: 'Active'
-  },
-  {
-    _id: 'emp_102',
-    employeeCode: 'EMP-002',
-    name: 'Sana Qureshi',
-    email: 'sana@doorbin.com',
-    phone: '+91 98250 44556',
-    department: '3D Visualization & VR',
-    designation: '3D Exterior Lighting Specialist',
-    role: 'Artist',
-    monthlySalary: 75000,
-    status: 'Active'
-  },
-  {
-    _id: 'emp_103',
-    employeeCode: 'EMP-003',
-    name: 'Dev Patel',
-    email: 'dev@doorbin.com',
-    phone: '+91 98250 77889',
-    department: 'Interior & Modeling',
-    designation: '3D Interior Modeler',
-    role: 'Artist',
-    monthlySalary: 65000,
-    status: 'Active'
-  }
-];
-
-const DEFAULT_ATTENDANCE = [
-  {
-    _id: 'att_1',
-    employee: { _id: 'emp_101', name: 'Arjun Mehta', employeeCode: 'EMP-001' },
-    date: new Date().toLocaleDateString(),
-    checkIn: '09:15 AM',
-    checkOut: '06:45 PM',
-    status: 'Present',
-    workHours: 8.5
-  },
-  {
-    _id: 'att_2',
-    employee: { _id: 'emp_102', name: 'Sana Qureshi', employeeCode: 'EMP-002' },
-    date: new Date().toLocaleDateString(),
-    checkIn: '09:30 AM',
-    checkOut: '07:00 PM',
-    status: 'Present',
-    workHours: 8.5
-  },
-  {
-    _id: 'att_3',
-    employee: { _id: 'emp_103', name: 'Dev Patel', employeeCode: 'EMP-003' },
-    date: new Date().toLocaleDateString(),
-    checkIn: '--',
-    checkOut: '--',
-    status: 'On Leave',
-    workHours: 0
-  }
-];
-
-const DEFAULT_LEAVES = [
-  {
-    _id: 'lv_101',
-    employee: { _id: 'emp_103', name: 'Dev Patel', employeeCode: 'EMP-003' },
-    leaveType: 'Casual Leave',
-    startDate: '2026-08-10',
-    endDate: '2026-08-12',
-    totalDays: 3,
-    reason: 'Family function in hometown.',
-    status: 'Pending',
-    createdAt: new Date().toISOString()
-  }
-];
-
-const DEFAULT_HOLIDAYS = [
-  { _id: 'hol_1', holidayName: 'Independence Day', date: '2026-08-15', dayOfWeek: 'Saturday', type: 'National Holiday' },
-  { _id: 'hol_2', holidayName: 'Ganesh Chaturthi', date: '2026-09-14', dayOfWeek: 'Monday', type: 'Festival' },
-  { _id: 'hol_3', holidayName: 'Gandhi Jayanti', date: '2026-10-02', dayOfWeek: 'Friday', type: 'National Holiday' },
-  { _id: 'hol_4', holidayName: 'Diwali Studio Break', date: '2026-11-08', dayOfWeek: 'Sunday', type: 'Festival' }
-];
-
-const DEFAULT_REVIEWS = [
-  {
-    _id: 'rev_1',
-    employee: { _id: 'emp_102', name: 'Sana Qureshi' },
-    reviewPeriod: 'Q2 2026',
-    qualityScore: 9.2,
-    timelinessScore: 8.8,
-    teamworkScore: 9.5,
-    blendedOverallScore: 9.16,
-    feedback: 'Exceptional exterior lighting quality and PBR shader composition.',
-    reviewer: { name: 'Arjun Mehta' },
-    createdAt: '2026-07-01T00:00:00.000Z'
-  }
-];
+const DEFAULT_EMPLOYEES = [];
+const DEFAULT_ATTENDANCE = [];
+const DEFAULT_LEAVES = [];
+const DEFAULT_HOLIDAYS = [];
+const DEFAULT_REVIEWS = [];
 
 /**
  * Human Resource Management Service managing Module 10: Employees, Attendance, Leave, Holidays & Performance Reviews
@@ -279,14 +180,17 @@ export const hrService = {
   },
 
   updateLeaveStatus: async (id, statusData) => {
+    const statusVal = statusData.decision || statusData.status || 'Approved';
+    const payload = { decision: statusVal, status: statusVal };
     if (!id || !/^[0-9a-fA-F]{24}$/.test(id)) {
-      return { _id: id, ...statusData, status: statusData.status || 'Approved' };
+      return { _id: id, ...payload };
     }
     try {
-      const response = await apiClient.put(`/hr/leave/${id}/approve`, statusData);
+      const response = await apiClient.put(`/hr/leave/${id}/approve`, payload);
       return response.data?.data || response.data;
-    } catch {
-      return { _id: id, ...statusData };
+    } catch (err) {
+      console.warn('Error updating leave status:', err.message);
+      return { _id: id, ...payload };
     }
   },
 
