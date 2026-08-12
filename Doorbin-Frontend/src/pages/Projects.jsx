@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { projectService } from '../services/projectService';
 import { clientService } from '../services/clientService';
 import { userService } from '../services/userService';
+import { resourceService } from '../services/resourceService';
 import { authService } from '../services/authService';
 import { Modal } from '../components/Modal';
 import { FormField } from '../components/FormField';
@@ -27,6 +28,7 @@ export const Projects = () => {
   const [projects, setProjects] = useState([]);
   const [clientsList, setClientsList] = useState([]);
   const [usersList, setUsersList] = useState([]);
+  const [teamAvailabilityMap, setTeamAvailabilityMap] = useState({});
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useViewMode();
 
@@ -64,6 +66,32 @@ export const Projects = () => {
   useEffect(() => {
     fetchProjectsClientsUsers();
   }, []);
+
+  useEffect(() => {
+    if (newProject.startDate && newProject.endDate) {
+      fetchTeamAvailability(newProject.startDate, newProject.endDate);
+    }
+  }, [newProject.startDate, newProject.endDate]);
+
+  const fetchTeamAvailability = async (from, to) => {
+    try {
+      const data = await resourceService.getArtistAvailability({ from, to });
+      const artistsArr = Array.isArray(data) ? data : (data?.artists || []);
+      const map = {};
+      artistsArr.forEach(a => {
+        const id = (a.artistId || a._id || '').toString();
+        const isFullyBooked = a.dailySchedule ? a.dailySchedule.some(d => d.status === 'Fully Booked' || d.status === 'Over-Allocated') : false;
+        map[id] = {
+          name: a.name,
+          isFullyBooked,
+          statusText: isFullyBooked ? 'Unavailable' : 'Available'
+        };
+      });
+      setTeamAvailabilityMap(map);
+    } catch {
+      setTeamAvailabilityMap({});
+    }
+  };
 
   const fetchProjectsClientsUsers = async () => {
     setLoading(true);
@@ -452,9 +480,24 @@ export const Projects = () => {
                     <div className="task-title-bold" style={{ fontSize: '1.15rem', marginBottom: '0.25rem' }}>
                       {proj.projectName}
                     </div>
-                    <div className="task-subtitle-muted" style={{ marginBottom: '0.85rem' }}>
+                    <div className="task-subtitle-muted" style={{ marginBottom: '0.5rem' }}>
                       Client: {clientName} · PM: {pmName}
                     </div>
+
+                    {/* Assigned Team Members (1, 2, 3, 4+ Persons) */}
+                    {proj.assignedTeam && proj.assignedTeam.length > 0 && (
+                      <div style={{ marginBottom: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#8c8882' }}>TEAM ({proj.assignedTeam.length}):</span>
+                        {proj.assignedTeam.map((member, mIdx) => {
+                          const mName = typeof member === 'object' ? (member.name || 'Member') : (usersList.find(u => u._id === member)?.name || 'Member');
+                          return (
+                            <span key={mIdx} style={{ fontSize: '0.68rem', backgroundColor: '#f5efe6', border: '1px solid #e2ded8', borderRadius: '4px', padding: '0.15rem 0.45rem', color: '#1F1F1F', fontWeight: 600 }}>
+                              👤 {mName}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    )}
 
                     {/* Progress Bar */}
                     <div style={{ marginBottom: '1rem' }}>
@@ -609,6 +652,55 @@ export const Projects = () => {
           >
             {PRIORITIES.map(pr => <option key={pr} value={pr}>{pr}</option>)}
           </FormField>
+
+          {/* Project Team Members Assignment */}
+          <div style={{ marginBottom: '1.25rem' }}>
+            <label style={{ display: 'block', fontWeight: 700, fontSize: '0.85rem', marginBottom: '0.5rem', color: '#1F1F1F' }}>
+              Assign Project Team Members (Live Availability Check)
+            </label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: '160px', overflowY: 'auto', border: '1px solid #e2ded8', borderRadius: '8px', padding: '0.75rem', backgroundColor: '#faf8f5' }}>
+              {usersList.map(u => {
+                const uId = u._id.toString();
+                const isSelected = (newProject.assignedTeam || []).includes(uId);
+                const avail = teamAvailabilityMap[uId];
+                const isUnavailable = avail?.isFullyBooked;
+
+                return (
+                  <label key={uId} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.825rem', cursor: 'pointer', padding: '0.35rem 0.5rem', borderRadius: '6px', backgroundColor: isSelected ? '#f5efe6' : 'transparent' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={(e) => {
+                          const currentTeam = newProject.assignedTeam || [];
+                          if (e.target.checked) {
+                            if (isUnavailable) {
+                              setToast({ message: `${u.name} is currently fully booked / unavailable during selected project dates!`, type: 'error' });
+                            }
+                            setNewProject({ ...newProject, assignedTeam: [...currentTeam, uId] });
+                          } else {
+                            setNewProject({ ...newProject, assignedTeam: currentTeam.filter(id => id !== uId) });
+                          }
+                        }}
+                      />
+                      <span style={{ fontWeight: 600, color: '#1F1F1F' }}>{u.name} ({u.role?.name || 'Artist'})</span>
+                    </div>
+
+                    <span style={{
+                      fontSize: '0.7rem',
+                      fontWeight: 700,
+                      padding: '0.15rem 0.55rem',
+                      borderRadius: '9999px',
+                      backgroundColor: isUnavailable ? '#fef2f2' : '#f0fdf4',
+                      color: isUnavailable ? '#dc2626' : '#16a34a'
+                    }}>
+                      {isUnavailable ? '🔴 Unavailable (Fully Booked)' : '🟢 Available'}
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
         </form>
       </Modal>
 
@@ -717,6 +809,55 @@ export const Projects = () => {
           >
             {PRIORITIES.map(pr => <option key={pr} value={pr}>{pr}</option>)}
           </FormField>
+
+          {/* Project Team Members Assignment (Edit Mode) */}
+          <div style={{ marginBottom: '1.25rem' }}>
+            <label style={{ display: 'block', fontWeight: 700, fontSize: '0.85rem', marginBottom: '0.5rem', color: '#1F1F1F' }}>
+              Assign Project Team Members (1, 2, 3, 4+ Persons)
+            </label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: '160px', overflowY: 'auto', border: '1px solid #e2ded8', borderRadius: '8px', padding: '0.75rem', backgroundColor: '#faf8f5' }}>
+              {usersList.map(u => {
+                const uId = u._id.toString();
+                const isSelected = (newProject.assignedTeam || []).includes(uId);
+                const avail = teamAvailabilityMap[uId];
+                const isUnavailable = avail?.isFullyBooked;
+
+                return (
+                  <label key={uId} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.825rem', cursor: 'pointer', padding: '0.35rem 0.5rem', borderRadius: '6px', backgroundColor: isSelected ? '#f5efe6' : 'transparent' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={(e) => {
+                          const currentTeam = newProject.assignedTeam || [];
+                          if (e.target.checked) {
+                            if (isUnavailable) {
+                              setToast({ message: `${u.name} is currently fully booked / unavailable during selected project dates!`, type: 'error' });
+                            }
+                            setNewProject({ ...newProject, assignedTeam: [...currentTeam, uId] });
+                          } else {
+                            setNewProject({ ...newProject, assignedTeam: currentTeam.filter(id => id !== uId) });
+                          }
+                        }}
+                      />
+                      <span style={{ fontWeight: 600, color: '#1F1F1F' }}>{u.name} ({u.role?.name || 'Artist'})</span>
+                    </div>
+
+                    <span style={{
+                      fontSize: '0.7rem',
+                      fontWeight: 700,
+                      padding: '0.15rem 0.55rem',
+                      borderRadius: '9999px',
+                      backgroundColor: isUnavailable ? '#fef2f2' : '#f0fdf4',
+                      color: isUnavailable ? '#dc2626' : '#16a34a'
+                    }}>
+                      {isUnavailable ? '🔴 Unavailable (Fully Booked)' : '🟢 Available'}
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
         </form>
       </Modal>
 

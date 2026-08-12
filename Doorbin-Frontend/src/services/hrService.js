@@ -140,18 +140,16 @@ export const hrService = {
   },
 
   recordAttendance: async (attendanceData) => {
-    try {
-      const response = await apiClient.post('/hr/attendance', attendanceData);
-      return response.data?.data || response.data;
-    } catch {
-      return {
-        _id: `att_${Date.now()}`,
-        ...attendanceData,
-        date: new Date().toLocaleDateString(),
-        status: attendanceData.status || 'Present',
-        workHours: 8.5
-      };
-    }
+    const response = await apiClient.post('/hr/attendance', attendanceData);
+    return response.data?.data || response.data;
+  },
+
+  exportAttendanceReport: async (params = {}) => {
+    const response = await apiClient.get('/hr/attendance/export', {
+      params,
+      responseType: 'blob'
+    });
+    return response;
   },
 
   // LEAVE APPLICATIONS API

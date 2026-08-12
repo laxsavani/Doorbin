@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { taskService } from '../services/taskService';
 import { projectService } from '../services/projectService';
 import { userService } from '../services/userService';
+import { resourceService } from '../services/resourceService';
 import { Modal } from '../components/Modal';
 import { FormField } from '../components/FormField';
 import { Toast } from '../components/Toast';
@@ -19,6 +20,7 @@ export const Tasks = () => {
   const [tasks, setTasks] = useState([]);
   const [projectsList, setProjectsList] = useState([]);
   const [usersList, setUsersList] = useState([]);
+  const [artistAvailabilityMap, setArtistAvailabilityMap] = useState({});
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useViewMode();
 
@@ -62,6 +64,32 @@ export const Tasks = () => {
   useEffect(() => {
     fetchTasksProjectsUsers();
   }, []);
+
+  useEffect(() => {
+    if (newTask.startDate && newTask.endDate) {
+      fetchArtistAvailability(newTask.startDate, newTask.endDate);
+    }
+  }, [newTask.startDate, newTask.endDate]);
+
+  const fetchArtistAvailability = async (from, to) => {
+    try {
+      const data = await resourceService.getArtistAvailability({ from, to });
+      const artistsArr = Array.isArray(data) ? data : (data?.artists || []);
+      const map = {};
+      artistsArr.forEach(a => {
+        const id = (a.artistId || a._id || '').toString();
+        const isFullyBooked = a.dailySchedule ? a.dailySchedule.some(d => d.status === 'Fully Booked' || d.status === 'Over-Allocated') : false;
+        map[id] = {
+          name: a.name,
+          isFullyBooked,
+          statusText: isFullyBooked ? 'Unavailable' : 'Available'
+        };
+      });
+      setArtistAvailabilityMap(map);
+    } catch {
+      setArtistAvailabilityMap({});
+    }
+  };
 
   const fetchTasksProjectsUsers = async () => {
     setLoading(true);
@@ -711,15 +739,31 @@ export const Tasks = () => {
             {projectsList.map(p => <option key={p._id} value={p._id}>{p.projectName}</option>)}
           </FormField>
           <FormField
-            label="Artist Assignee"
+            label="Artist Assignee (Live Availability Status)"
             name="assignee"
             type="select"
             value={newTask.assignee}
-            onChange={(e) => setNewTask({ ...newTask, assignee: e.target.value })}
+            onChange={(e) => {
+              const selectedId = e.target.value;
+              const avail = artistAvailabilityMap[selectedId];
+              if (avail?.isFullyBooked) {
+                setToast({ message: `Warning: ${avail.name} is currently fully booked / unavailable during selected task dates!`, type: 'error' });
+              }
+              setNewTask({ ...newTask, assignee: selectedId });
+            }}
             error={formErrors.assignee}
             required
           >
-            {usersList.map(u => <option key={u._id} value={u._id}>{u.name} ({u.email})</option>)}
+            {usersList.map(u => {
+              const uId = u._id.toString();
+              const avail = artistAvailabilityMap[uId];
+              const isUnavailable = avail?.isFullyBooked;
+              return (
+                <option key={u._id} value={u._id}>
+                  {u.name} — {isUnavailable ? '🔴 Unavailable (Fully Booked)' : '🟢 Available'}
+                </option>
+              );
+            })}
           </FormField>
           <FormField
             label="Reviewer / PM"

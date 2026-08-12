@@ -128,9 +128,25 @@ const streamPdf = async (res, title, headers, rows, filename) => {
   return res.send(buffer);
 };
 
+/**
+ * Stream CSV response directly to Express res
+ */
+const streamCsv = (res, title, headers, rows, filename) => {
+  const csvLines = [];
+  csvLines.push(headers.map(h => `"${String(h).replace(/"/g, '""')}"`).join(','));
+  rows.forEach(row => {
+    csvLines.push(row.map(cell => `"${String(cell !== null && cell !== undefined ? cell : '').replace(/"/g, '""')}"`).join(','));
+  });
+  const csvContent = csvLines.join('\n');
+  res.setHeader('Content-Type', 'text/csv');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}.csv"`);
+  return res.send(csvContent);
+};
+
 module.exports = {
   buildExcelBuffer,
   streamExcel,
   buildPdfBuffer,
-  streamPdf
+  streamPdf,
+  streamCsv
 };

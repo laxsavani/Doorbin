@@ -61,6 +61,41 @@ export const Hrm = () => {
   const [holidayForm, setHolidayForm] = useState({ holidayName: '', date: '', type: 'Festival' });
   const [reviewForm, setReviewForm] = useState({ employeeId: '', reviewPeriod: 'Q3 2026', qualityScore: 9, timelinessScore: 8, teamworkScore: 9, feedback: '' });
 
+  // Export Attendance State
+  const [exportMonth, setExportMonth] = useState(new Date().toISOString().slice(0, 7)); // YYYY-MM
+  const [exportEmployeeId, setExportEmployeeId] = useState('all');
+
+  const handleExportAttendance = async (format) => {
+    try {
+      setToast({ message: `Generating month-wise ${format.toUpperCase()} attendance report...`, type: 'info' });
+      const params = {
+        format,
+        month: exportMonth
+      };
+      if (exportEmployeeId && exportEmployeeId !== 'all') {
+        params.employeeId = exportEmployeeId;
+      }
+
+      const response = await hrService.exportAttendanceReport(params);
+
+      const blob = new Blob([response.data], {
+        type: format === 'pdf' ? 'application/pdf' : (format === 'csv' ? 'text/csv' : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+      });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `Attendance_Report_${exportMonth}_${format}.${format === 'excel' ? 'xlsx' : format}`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+
+      setToast({ message: `Month-wise attendance ${format.toUpperCase()} report downloaded successfully!`, type: 'success' });
+    } catch (err) {
+      setToast({ message: 'Failed to download month-wise attendance report', type: 'error' });
+    }
+  };
+
   useEffect(() => {
     loadHrmData();
   }, []);
@@ -306,41 +341,98 @@ export const Hrm = () => {
   };
 
   const renderAttendanceTab = () => (
-    <div className="table-responsive">
-      <table className="table">
-        <thead>
-          <tr>
-            <th>EMPLOYEE</th>
-            <th>DATE</th>
-            <th>CLOCK IN</th>
-            <th>CLOCK OUT</th>
-            <th>HOURS WORKED</th>
-            <th>STATUS</th>
-          </tr>
-        </thead>
-        <tbody>
-            {attendanceLogs.map(att => {
-              const checkInStr = att.checkIn ? formatISTTimeStr(att.checkIn) : (att.activeSession?.checkInFormatted || '--:--');
-              const checkOutStr = att.checkOut ? formatISTTimeStr(att.checkOut) : (att.activeSession?.checkOutFormatted || '--:--');
-              return (
-                <tr key={att._id}>
-                  <td style={{ fontWeight: '600' }}>{att.employee?.name || currentUserName}</td>
-                  <td>{att.dateFormatted || (att.date ? new Date(att.date).toLocaleDateString() : 'Today')}</td>
-                  <td>{checkInStr}</td>
-                  <td>{checkOutStr}</td>
-                  <td style={{ fontWeight: '600', color: 'var(--color-primary)' }}>
-                    {formatWorkedDuration(checkInStr, checkOutStr, att.workingHours)}
-                  </td>
-                  <td>
-                    <span className={`badge ${att.status === 'Present' ? 'badge-success' : att.status === 'Late' ? 'badge-warning' : 'badge-danger'}`}>
-                      {att.status || 'Present'}
-                    </span>
-                  </td>
-                </tr>
-              );
-            })}
-        </tbody>
-      </table>
+    <div>
+      {/* Month-Wise Export & Filter Toolbar */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1.25rem', padding: '1rem', backgroundColor: '#ffffff', border: '1px solid #e9e5dc', borderRadius: '10px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+          <div>
+            <label style={{ display: 'block', fontSize: '0.725rem', fontWeight: 700, color: '#8c8882', marginBottom: '0.25rem' }}>SELECT MONTH</label>
+            <input
+              type="month"
+              value={exportMonth}
+              onChange={(e) => setExportMonth(e.target.value)}
+              style={{ padding: '0.45rem 0.65rem', border: '1px solid #dcd7ce', borderRadius: '6px', fontSize: '0.825rem', color: '#1F1F1F' }}
+            />
+          </div>
+
+          <div>
+            <label style={{ display: 'block', fontSize: '0.725rem', fontWeight: 700, color: '#8c8882', marginBottom: '0.25rem' }}>FILTER EMPLOYEE</label>
+            <select
+              value={exportEmployeeId}
+              onChange={(e) => setExportEmployeeId(e.target.value)}
+              style={{ padding: '0.45rem 0.65rem', border: '1px solid #dcd7ce', borderRadius: '6px', fontSize: '0.825rem', color: '#1F1F1F', backgroundColor: '#ffffff' }}
+            >
+              <option value="all">All Staff Members (Monthly Summary)</option>
+              {employees.map(e => (
+                <option key={e._id || e.id} value={e.user?._id || e._id || e.id}>
+                  {e.name || e.user?.name || 'Staff Member'}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+          <button
+            onClick={() => handleExportAttendance('pdf')}
+            className="btn btn-secondary"
+            style={{ fontSize: '0.78rem', padding: '0.45rem 0.75rem', backgroundColor: '#fef2f2', color: '#dc2626', borderColor: '#fecaca' }}
+          >
+            📄 PDF Report
+          </button>
+          <button
+            onClick={() => handleExportAttendance('excel')}
+            className="btn btn-secondary"
+            style={{ fontSize: '0.78rem', padding: '0.45rem 0.75rem', backgroundColor: '#f0fdf4', color: '#16a34a', borderColor: '#bbf7d0' }}
+          >
+            📊 Excel (.xlsx)
+          </button>
+          <button
+            onClick={() => handleExportAttendance('csv')}
+            className="btn btn-secondary"
+            style={{ fontSize: '0.78rem', padding: '0.45rem 0.75rem', backgroundColor: '#eff6ff', color: '#2563eb', borderColor: '#bfdbfe' }}
+          >
+            📑 CSV Export
+          </button>
+        </div>
+      </div>
+
+      <div className="table-responsive">
+        <table className="table">
+          <thead>
+            <tr>
+              <th>EMPLOYEE</th>
+              <th>DATE</th>
+              <th>CLOCK IN</th>
+              <th>CLOCK OUT</th>
+              <th>HOURS WORKED</th>
+              <th>STATUS</th>
+            </tr>
+          </thead>
+          <tbody>
+              {attendanceLogs.map(att => {
+                const checkInStr = att.checkIn ? formatISTTimeStr(att.checkIn) : (att.activeSession?.checkInFormatted || '--:--');
+                const checkOutStr = att.checkOut ? formatISTTimeStr(att.checkOut) : (att.activeSession?.checkOutFormatted || '--:--');
+                return (
+                  <tr key={att._id}>
+                    <td style={{ fontWeight: '600' }}>{att.employee?.name || currentUserName}</td>
+                    <td>{att.dateFormatted || (att.date ? new Date(att.date).toLocaleDateString() : 'Today')}</td>
+                    <td>{checkInStr}</td>
+                    <td>{checkOutStr}</td>
+                    <td style={{ fontWeight: '600', color: 'var(--color-primary)' }}>
+                      {formatWorkedDuration(checkInStr, checkOutStr, att.workingHours)}
+                    </td>
+                    <td>
+                      <span className={`badge ${att.status === 'Present' ? 'badge-success' : att.status === 'Late' ? 'badge-warning' : 'badge-danger'}`}>
+                        {att.status || 'Present'}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 

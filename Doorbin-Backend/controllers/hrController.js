@@ -7,6 +7,7 @@ const User = require('../models/User');
 const Department = require('../models/Department');
 const logActivity = require('../utils/activityLogger');
 const { formatDDMMYYYY, parseDateString } = require('../utils/dateFormatter');
+const { streamExcel, streamPdf, streamCsv } = require('../services/exportEngine');
 const mongoose = require('mongoose');
 
 // Helper: Check if current user is HR or Director
@@ -906,6 +907,125 @@ const getJoiningExitReport = async (req, res) => {
 
 const { clockIn, clockOut, getTodayAttendance } = require('./attendanceController');
 
+// @desc    Export Month-Wise Attendance (All Employees or Particular Employee) in PDF, Excel, or CSV
+// @route   GET /api/hr/attendance/export
+// @access  Private (hrAccess)
+const exportAttendance = async (req, res) => {
+  try {
+    const { format = 'excel', month, from, to, employeeId } = req.query;
+
+    let startDate, endDate;
+    if (month && /^\d{4}-\d{2}$/.test(month)) {
+      const [year, m] = month.split('-').map(Number);
+      startDate = new Date(year, m - 1, 1);
+      endDate = new Date(year, m, 0, 23, 59, 59);
+    } else if (from || to) {
+      startDate = from ? parseDateString(from) : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+      endDate = to ? parseDateString(to, true) : new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0);
+    } else {
+      const now = new Date();
+      startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+      endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+    }
+
+    const monthName = startDate.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+
+    let title = '';
+    let headers = [];
+    let rows = [];
+
+    if (employeeId && mongoose.Types.ObjectId.isValid(employeeId)) {
+      // Particular Employee Monthly Attendance Export
+      const empUser = await User.findById(employeeId).select('name email role');
+      const empName = empUser ? empUser.name : 'Employee';
+
+      const records = await Attendance.find({
+        employee: employeeId,
+        date: { $gte: startDate, $lte: endDate }
+      }).sort({ date: 1 });
+
+      title = `Attendance Report — ${empName} (${monthName})`;
+      headers = ['Date', 'Status', 'Clock In', 'Clock Out', 'Working Hours (hrs)', 'Late Arrival', 'Remarks'];
+
+      rows = records.map(att => [
+        formatDDMMYYYY(att.date),
+        att.status || 'Present',
+        att.checkIn ? new Date(att.checkIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-',
+        att.checkOut ? new Date(att.checkOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-',
+        att.workingHours || 0,
+        att.isLate ? 'YES' : 'NO',
+        att.remarks || '-'
+      ]);
+    } else {
+      // All Employees Monthly Attendance Export Summary
+      const activeUsers = await User.find({ status: 'Active' }).select('name email role department');
+      const userIds = activeUsers.map(u => u._id);
+
+      const records = await Attendance.find({
+        employee: { $in: userIds },
+        date: { $gte: startDate, $lte: endDate }
+      });
+
+      title = `Studio Monthly Attendance Summary — ${monthName}`;
+      headers = ['Employee Name', 'Email', 'Role', 'Present Days', 'Absent Days', 'Half Days', 'On Leave', 'Total Hours', 'Avg Daily Hours'];
+
+      const userStatsMap = {};
+      activeUsers.forEach(u => {
+        userStatsMap[u._id.toString()] = {
+          name: u.name,
+          email: u.email,
+          role: u.role?.name || 'Staff',
+          present: 0,
+          absent: 0,
+          halfDay: 0,
+          leave: 0,
+          totalHours: 0
+        };
+      });
+
+      records.forEach(att => {
+        const uId = att.employee.toString();
+        if (userStatsMap[uId]) {
+          const st = (att.status || 'Present').toLowerCase();
+          if (st === 'present') userStatsMap[uId].present += 1;
+          else if (st === 'absent') userStatsMap[uId].absent += 1;
+          else if (st === 'half-day' || st === 'half_day') userStatsMap[uId].halfDay += 1;
+          else if (st === 'on leave' || st === 'leave' || st === 'on_leave') userStatsMap[uId].leave += 1;
+
+          userStatsMap[uId].totalHours += Number(att.workingHours || 0);
+        }
+      });
+
+      rows = Object.values(userStatsMap).map(s => {
+        const avgHours = s.present > 0 ? (s.totalHours / s.present).toFixed(1) : '0.0';
+        return [
+          s.name,
+          s.email,
+          s.role,
+          s.present,
+          s.absent,
+          s.halfDay,
+          s.leave,
+          s.totalHours.toFixed(1),
+          avgHours
+        ];
+      });
+    }
+
+    const filename = `attendance-${monthName.replace(/\s+/g, '_').toLowerCase()}-${Date.now()}`;
+
+    if (format === 'pdf') {
+      return await streamPdf(res, title, headers, rows, filename);
+    } else if (format === 'csv') {
+      return streamCsv(res, title, headers, rows, filename);
+    } else {
+      return await streamExcel(res, title, headers, rows, filename);
+    }
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   createEmployee,
   getEmployees,
@@ -918,6 +1038,7 @@ module.exports = {
   clockOut,
   getTodayAttendance,
   getAttendanceByEmployee,
+  exportAttendance,
   applyLeave,
   getLeaves,
   approveLeave,

@@ -12,6 +12,7 @@ const {
   clockOut,
   getTodayAttendance,
   getAttendanceByEmployee,
+  exportAttendance,
   applyLeave,
   getLeaves,
   approveLeave,
@@ -210,6 +211,7 @@ router.post('/attendance', protect, markAttendance);
 router.post('/attendance/clock-in', protect, clockIn);
 router.post('/attendance/clock-out', protect, clockOut);
 router.get('/attendance/today', protect, getTodayAttendance);
+router.get('/attendance/export', protect, exportAttendance);
 
 /**
  * @swagger
