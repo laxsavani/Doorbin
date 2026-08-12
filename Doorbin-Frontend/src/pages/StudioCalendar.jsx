@@ -7,7 +7,7 @@ import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, Clock, Tag, 
 import './Dashboard.css';
 
 const DAYS_OF_WEEK = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-const EVENT_TYPES = ['All', 'Milestone', 'Delivery', 'Meeting'];
+const EVENT_TYPES = ['All', 'Task', 'Milestone', 'Meeting', 'Followup', 'Leave', 'Holiday'];
 
 export const StudioCalendar = () => {
   const today = new Date();
@@ -48,30 +48,37 @@ export const StudioCalendar = () => {
   const fetchCalendarEvents = async () => {
     setLoading(true);
     try {
-      const data = await timelineService.getStudioCalendar();
-      let fetched = Array.isArray(data) ? data : [];
+      const dateStr = `${currentDate.getFullYear()}-${(currentDate.getMonth() + 1).toString().padStart(2, '0')}-${currentDate.getDate().toString().padStart(2, '0')}`;
+      const data = await timelineService.getStudioCalendar({ view: viewMode, date: dateStr });
+      let fetched = [];
+      if (data && Array.isArray(data.events)) {
+        fetched = data.events.map(e => ({
+          ...e,
+          date: e.date || e.dateStr || (e.startDate ? new Date(e.startDate).toISOString().split('T')[0] : todayDateStr)
+        }));
+      } else if (Array.isArray(data)) {
+        fetched = data.map(e => ({
+          ...e,
+          date: e.date || e.dateStr || (e.startDate ? new Date(e.startDate).toISOString().split('T')[0] : todayDateStr)
+        }));
+      }
 
-      const currYear = today.getFullYear();
-      const currMonth = (today.getMonth() + 1).toString().padStart(2, '0');
+      if (fetched.length > 0) {
+        setEvents(fetched);
+      } else {
+        const currYear = today.getFullYear();
+        const currMonth = (today.getMonth() + 1).toString().padStart(2, '0');
 
-      // Demo studio events for current live month
-      const demoEvents = [
-        { id: 'cal_1', title: 'Hillcrest Facade 3D Render Review', date: todayDateStr, type: 'Milestone', project: 'Hillcrest Luxury Villa', time: '10:30 AM', assignedTo: 'Sana Qureshi' },
-        { id: 'cal_2', title: 'Sun Penthouse Moodboard Pitch', date: `${currYear}-${currMonth}-14`, type: 'Meeting', project: 'Sun Horizon Penthouse', time: '02:00 PM', assignedTo: 'Arjun Mehta' },
-        { id: 'cal_3', title: 'Prestige 3D Animatic First Draft', date: `${currYear}-${currMonth}-18`, type: 'Delivery', project: 'Prestige City 3D Animation', time: '05:00 PM', assignedTo: 'Dev Patel' },
-        { id: 'cal_4', title: 'Lighting & Shaders Approval Gate', date: `${currYear}-${currMonth}-22`, type: 'Milestone', project: 'Hillcrest Luxury Villa', time: '11:00 AM', assignedTo: 'Arjun Mehta' },
-        { id: 'cal_5', title: 'Client VR Walkthrough Session', date: `${currYear}-${currMonth}-25`, type: 'Meeting', project: 'Sun Horizon Penthouse', time: '03:30 PM', assignedTo: 'Tara Nair' },
-        { id: 'cal_6', title: '4K Render Farm Sequence Export', date: `${currYear}-${currMonth}-28`, type: 'Delivery', project: 'Prestige City 3D Animation', time: '06:00 PM', assignedTo: 'Dev Patel' }
-      ];
-
-      const combined = [...fetched];
-      demoEvents.forEach(de => {
-        if (!combined.some(e => e.id === de.id)) {
-          combined.push(de);
-        }
-      });
-
-      setEvents(combined);
+        const demoEvents = [
+          { id: 'cal_1', title: 'Hillcrest Facade 3D Render Review', date: todayDateStr, type: 'Milestone', project: 'Hillcrest Luxury Villa', time: '10:30 AM', assignedTo: 'Sana Qureshi' },
+          { id: 'cal_2', title: 'Sun Penthouse Moodboard Pitch', date: `${currYear}-${currMonth}-14`, type: 'Meeting', project: 'Sun Horizon Penthouse', time: '02:00 PM', assignedTo: 'Arjun Mehta' },
+          { id: 'cal_3', title: 'Prestige 3D Animatic First Draft', date: `${currYear}-${currMonth}-18`, type: 'Followup', project: 'Prestige City 3D Animation', time: '05:00 PM', assignedTo: 'Dev Patel' },
+          { id: 'cal_4', title: 'Lighting & Shaders Approval Gate', date: `${currYear}-${currMonth}-22`, type: 'Task', project: 'Hillcrest Luxury Villa', time: '11:00 AM', assignedTo: 'Arjun Mehta' },
+          { id: 'cal_5', title: 'Client VR Walkthrough Session', date: `${currYear}-${currMonth}-25`, type: 'Meeting', project: 'Sun Horizon Penthouse', time: '03:30 PM', assignedTo: 'Tara Nair' },
+          { id: 'cal_6', title: 'Annual Studio Hackathon Holiday', date: `${currYear}-${currMonth}-28`, type: 'Holiday', project: 'Studio Holiday', time: 'All Day', assignedTo: 'All Team' }
+        ];
+        setEvents(demoEvents);
+      }
     } catch (err) {
       setToast({ message: err.message || 'Failed to load calendar events', type: 'error' });
     } finally {
@@ -185,10 +192,17 @@ export const StudioCalendar = () => {
     switch (type) {
       case 'Milestone':
         return { bg: '#fbf7f0', color: '#B68D40', border: '#e9e0d1', icon: Flag };
+      case 'Task':
       case 'Delivery':
         return { bg: '#f0fdf4', color: '#15803d', border: '#bbf7d0', icon: CheckCircle };
       case 'Meeting':
         return { bg: '#eff6ff', color: '#1d4ed8', border: '#bfdbfe', icon: Video };
+      case 'Followup':
+        return { bg: '#fff7ed', color: '#c2410c', border: '#ffedd5', icon: Clock };
+      case 'Leave':
+        return { bg: '#fef2f2', color: '#b91c1c', border: '#fecaca', icon: User };
+      case 'Holiday':
+        return { bg: '#faf5ff', color: '#047857', border: '#a7f3d0', icon: CalendarIcon };
       default:
         return { bg: '#faf5ff', color: '#7e22ce', border: '#e9d5ff', icon: Tag };
     }
@@ -378,13 +392,13 @@ export const StudioCalendar = () => {
                       {/* Desktop Events List in Day Cell */}
                       {!isMobile && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', overflow: 'hidden', flex: 1 }}>
-                          {displayEvents.map((evt) => {
+                          {displayEvents.map((evt, idx) => {
                             const badge = getBadgeStyle(evt.type);
                             const IconComp = badge.icon;
 
                             return (
                               <div
-                                key={evt.id}
+                                key={evt.id || `evt_${idx}`}
                                 onClick={(e) => { e.stopPropagation(); setSelectedEvent(evt); }}
                                 style={{
                                   backgroundColor: badge.bg,
@@ -445,10 +459,10 @@ export const StudioCalendar = () => {
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', flex: 1 }}>
                       {dayEvents.length > 0 ? (
-                        dayEvents.map(evt => {
+                        dayEvents.map((evt, idx) => {
                           const badge = getBadgeStyle(evt.type);
                           return (
-                            <div key={evt.id} onClick={() => setSelectedEvent(evt)} style={{ backgroundColor: badge.bg, border: `1px solid ${badge.border}`, color: badge.color, borderRadius: '8px', padding: '0.5rem', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}>
+                            <div key={evt.id || `wk_${idx}`} onClick={() => setSelectedEvent(evt)} style={{ backgroundColor: badge.bg, border: `1px solid ${badge.border}`, color: badge.color, borderRadius: '8px', padding: '0.5rem', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}>
                               <div>{evt.title}</div>
                               <div style={{ fontSize: '0.68rem', opacity: 0.8, marginTop: '0.2rem' }}>{evt.time}</div>
                             </div>
@@ -473,10 +487,10 @@ export const StudioCalendar = () => {
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
                 {dayViewEvents.length > 0 ? (
-                  dayViewEvents.map(evt => {
+                  dayViewEvents.map((evt, idx) => {
                     const badge = getBadgeStyle(evt.type);
                     return (
-                      <div key={evt.id} onClick={() => setSelectedEvent(evt)} style={{ backgroundColor: '#ffffff', border: `1px solid ${badge.border}`, borderLeft: `5px solid ${badge.color}`, borderRadius: '10px', padding: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}>
+                      <div key={evt.id || `dy_${idx}`} onClick={() => setSelectedEvent(evt)} style={{ backgroundColor: '#ffffff', border: `1px solid ${badge.border}`, borderLeft: `5px solid ${badge.color}`, borderRadius: '10px', padding: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}>
                         <div>
                           <span className="task-status-blue" style={{ fontSize: '0.68rem', textTransform: 'uppercase', marginBottom: '0.25rem' }}>{evt.type}</span>
                           <div style={{ fontWeight: 800, fontSize: '1.05rem', color: '#1F1F1F' }}>{evt.title}</div>
@@ -569,7 +583,7 @@ export const StudioCalendar = () => {
                 No studio events scheduled for this day. Click below to add one!
               </div>
             ) : (
-              selectedDayDetails.events.map((evt) => {
+              selectedDayDetails.events.map((evt, idx) => {
                 const badge = getBadgeStyle(evt.type);
                 const IconComp = badge.icon;
                 return (

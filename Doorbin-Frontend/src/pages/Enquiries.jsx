@@ -51,7 +51,8 @@ export const Enquiries = () => {
   // Activity Log State
   const [newActivity, setNewActivity] = useState({
     type: 'Call',
-    description: ''
+    description: '',
+    followUpDate: ''
   });
 
   const [formErrors, setFormErrors] = useState({});
@@ -138,6 +139,16 @@ export const Enquiries = () => {
       setIsCreateModalOpen(false);
     } catch (err) {
       setToast({ message: err.message || 'Failed to create enquiry', type: 'error' });
+    }
+  };
+
+  const handleConvertEnquiry = async (enq) => {
+    try {
+      await enquiryService.convertEnquiry(enq._id);
+      setToast({ message: `Enquiry "${enq.projectName}" converted into an active Project successfully!`, type: 'success' });
+      fetchEnquiries();
+    } catch (err) {
+      setToast({ message: err.message || 'Failed to convert enquiry to project', type: 'error' });
     }
   };
 
@@ -241,13 +252,19 @@ export const Enquiries = () => {
 
       const updatedEnquiry = {
         ...selectedEnquiry,
+        followUpDate: newActivity.followUpDate || selectedEnquiry.followUpDate,
         activityLog: [activityEntry, ...(selectedEnquiry.activityLog || [])]
       };
 
       setSelectedEnquiry(updatedEnquiry);
       setEnquiries(enquiries.map(e => e._id === selectedEnquiry._id ? updatedEnquiry : e));
-      setNewActivity({ type: 'Call', description: '' });
-      setToast({ message: 'Activity log entry added!', type: 'success' });
+
+      const scheduledMsg = newActivity.followUpDate
+        ? `Activity logged & Follow-Up date (${newActivity.followUpDate}) added to Master Calendar!`
+        : 'Activity log entry recorded!';
+
+      setToast({ message: scheduledMsg, type: 'success' });
+      setNewActivity({ type: 'Call', description: '', followUpDate: '' });
     } catch (err) {
       setToast({ message: err.message || 'Failed to log activity', type: 'error' });
     }
@@ -460,7 +477,17 @@ export const Enquiries = () => {
                           <span className="status-badge-pill badge-on-track">{enq.status}</span>
                         </td>
                         <td style={{ padding: '1rem 1.25rem', textAlign: 'right' }}>
-                          <div style={{ display: 'inline-flex', gap: '0.5rem' }}>
+                          <div style={{ display: 'inline-flex', gap: '0.5rem', alignItems: 'center' }}>
+                            {enq.status === 'Won' && (
+                              <button
+                                onClick={() => handleConvertEnquiry(enq)}
+                                className="btn btn-primary"
+                                style={{ padding: '0.35rem 0.65rem', fontSize: '0.75rem', backgroundColor: '#B68D40', border: 'none' }}
+                                title="Convert Won Enquiry into Active Project"
+                              >
+                                🚀 Convert to Project
+                              </button>
+                            )}
                             <button onClick={() => { setSelectedEnquiry(enq); setIsDetailModalOpen(true); }} className="btn btn-secondary" style={{ padding: '0.35rem 0.65rem', fontSize: '0.75rem' }}>
                               Details
                             </button>
@@ -556,6 +583,16 @@ export const Enquiries = () => {
                     </select>
 
                     <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center' }}>
+                      {enq.status === 'Won' && (
+                        <button
+                          onClick={() => handleConvertEnquiry(enq)}
+                          className="btn btn-primary"
+                          style={{ padding: '0.4rem 0.65rem', fontSize: '0.75rem', backgroundColor: '#B68D40', border: 'none' }}
+                          title="Convert Won Enquiry into Active Project"
+                        >
+                          🚀 Convert
+                        </button>
+                      )}
                       <button
                         onClick={() => { setSelectedEnquiry(enq); setIsDetailModalOpen(true); }}
                         className="btn btn-secondary"
@@ -823,44 +860,66 @@ export const Enquiries = () => {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
             {/* Detail Overview */}
             <div style={{ backgroundColor: '#faf9f6', padding: '1rem', borderRadius: '12px', border: '1px solid #eeeae3' }}>
-              <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#1F1F1F' }}>Client: {selectedEnquiry.clientName}</div>
-              <div style={{ fontSize: '0.8rem', color: '#8c8882', marginTop: '0.2rem' }}>
-                Scope: {selectedEnquiry.projectType} · Priority: {selectedEnquiry.priority} · Category: {selectedEnquiry.clientCategory || 'N/A'}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.5rem' }}>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#1F1F1F' }}>Client: {selectedEnquiry.clientName}</div>
+                  <div style={{ fontSize: '0.8rem', color: '#8c8882', marginTop: '0.2rem' }}>
+                    Scope: {selectedEnquiry.projectType} · Priority: {selectedEnquiry.priority} · Category: {selectedEnquiry.clientCategory || 'N/A'}
+                  </div>
+                </div>
+                {selectedEnquiry.followUpDate && (
+                  <div style={{ backgroundColor: '#fffbf0', border: '1px solid #f6e6be', color: '#996500', padding: '0.35rem 0.75rem', borderRadius: '8px', fontSize: '0.78rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <span>📅</span> Next Scheduled Follow-Up: {new Date(selectedEnquiry.followUpDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                  </div>
+                )}
               </div>
               {selectedEnquiry.notes && (
-                <div style={{ fontSize: '0.78rem', color: '#4a4742', marginTop: '0.35rem' }}>
+                <div style={{ fontSize: '0.78rem', color: '#4a4742', marginTop: '0.5rem' }}>
                   Notes: {selectedEnquiry.notes}
                 </div>
               )}
             </div>
 
             {/* Add Activity Entry */}
-            <form onSubmit={handleAddActivity} style={{ backgroundColor: '#ffffff', padding: '0.85rem', borderRadius: '12px', border: '1px solid #e9e5dc' }}>
-              <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#1F1F1F', marginBottom: '0.5rem' }}>
+            <form onSubmit={handleAddActivity} style={{ backgroundColor: '#ffffff', padding: '0.9rem', borderRadius: '12px', border: '1px solid #e9e5dc' }}>
+              <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#1F1F1F', marginBottom: '0.65rem' }}>
                 Log Executive Activity (Call / Meeting / Note)
               </div>
-              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                <select
-                  value={newActivity.type}
-                  onChange={(e) => setNewActivity({ ...newActivity, type: e.target.value })}
-                  style={{ padding: '0.4rem 0.75rem', borderRadius: '8px', border: '1px solid #d8d4cb', fontSize: '0.78rem', fontWeight: 600, backgroundColor: '#ffffff' }}
-                >
-                  <option value="Call">Call</option>
-                  <option value="Email">Email</option>
-                  <option value="Meeting">Meeting</option>
-                  <option value="Note">Note</option>
-                </select>
-                <input
-                  type="text"
-                  placeholder="Enter meeting notes or discussion summary..."
-                  value={newActivity.description}
-                  onChange={(e) => setNewActivity({ ...newActivity, description: e.target.value })}
-                  className="top-bar-search-input"
-                  style={{ flex: 1, fontSize: '0.78rem', padding: '0.45rem 0.75rem' }}
-                  required
-                />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', marginBottom: '0.85rem' }}>
+                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <select
+                    value={newActivity.type}
+                    onChange={(e) => setNewActivity({ ...newActivity, type: e.target.value })}
+                    style={{ padding: '0.45rem 0.75rem', borderRadius: '8px', border: '1px solid #d8d4cb', fontSize: '0.8rem', fontWeight: 600, backgroundColor: '#ffffff', minWidth: '100px' }}
+                  >
+                    <option value="Call">Call</option>
+                    <option value="Email">Email</option>
+                    <option value="Meeting">Meeting</option>
+                    <option value="Note">Note</option>
+                  </select>
+                  <input
+                    type="text"
+                    placeholder="Enter meeting notes or discussion summary..."
+                    value={newActivity.description}
+                    onChange={(e) => setNewActivity({ ...newActivity, description: e.target.value })}
+                    className="top-bar-search-input"
+                    style={{ flex: 1, minWidth: '180px', fontSize: '0.8rem', padding: '0.45rem 0.75rem' }}
+                    required
+                  />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', padding: '0.65rem 0.85rem', backgroundColor: '#fffdf9', borderRadius: '8px', border: '1px solid #f3eedf' }}>
+                  <label style={{ fontSize: '0.78rem', fontWeight: 700, color: '#4a4742', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <span>📅</span> Schedule Next Follow-Up Date (Auto-sync to Master Calendar)
+                  </label>
+                  <input
+                    type="date"
+                    value={newActivity.followUpDate}
+                    onChange={(e) => setNewActivity({ ...newActivity, followUpDate: e.target.value })}
+                    style={{ width: '100%', padding: '0.45rem 0.75rem', borderRadius: '6px', border: '1px solid #d8d4cb', fontSize: '0.8rem', backgroundColor: '#ffffff', boxSizing: 'border-box' }}
+                  />
+                </div>
               </div>
-              <button type="submit" className="btn-new-task" style={{ width: '100%', justifyContent: 'center', fontSize: '0.75rem', padding: '0.45rem' }}>
+              <button type="submit" className="btn-new-task" style={{ width: '100%', justifyContent: 'center', fontSize: '0.8rem', padding: '0.55rem' }}>
                 <MessageSquare size={14} /> Record Activity Entry
               </button>
             </form>
@@ -870,21 +929,26 @@ export const Enquiries = () => {
               <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#1F1F1F', marginBottom: '0.65rem' }}>
                 Activity History ({selectedEnquiry.activityLog?.length || 0})
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', maxHeight: '220px', overflowY: 'auto' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', maxHeight: '240px', overflowY: 'auto' }}>
                 {selectedEnquiry.activityLog && selectedEnquiry.activityLog.length > 0 ? (
-                  selectedEnquiry.activityLog.map((log) => (
-                    <div key={log._id} style={{ padding: '0.65rem 0.85rem', borderRadius: '10px', backgroundColor: '#ffffff', border: '1px solid #eeeae3' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.2rem' }}>
+                  selectedEnquiry.activityLog.map((log, idx) => (
+                    <div key={log._id || idx} style={{ padding: '0.65rem 0.85rem', borderRadius: '10px', backgroundColor: '#ffffff', border: '1px solid #eeeae3' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
                         <span className="task-status-blue" style={{ fontSize: '0.65rem', textTransform: 'uppercase' }}>
                           {log.type}
                         </span>
                         <span style={{ fontSize: '0.725rem', color: '#8c8882', fontFamily: 'monospace' }}>
-                          {new Date(log.date).toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                          {new Date(log.date || Date.now()).toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                         </span>
                       </div>
-                      <div style={{ fontSize: '0.8rem', color: '#1F1F1F' }}>
+                      <div style={{ fontSize: '0.8rem', color: '#1F1F1F', marginBottom: (log.followUpDate || log.nextFollowUpDate) ? '0.35rem' : '0' }}>
                         {log.description}
                       </div>
+                      {(log.followUpDate || log.nextFollowUpDate) && (
+                        <div style={{ fontSize: '0.725rem', color: '#996500', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.25rem', backgroundColor: '#fffbf0', padding: '0.2rem 0.5rem', borderRadius: '4px', width: 'fit-content' }}>
+                          <span>📅 Scheduled Follow-Up:</span> {new Date(log.followUpDate || log.nextFollowUpDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </div>
+                      )}
                     </div>
                   ))
                 ) : (
