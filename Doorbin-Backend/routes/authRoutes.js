@@ -126,6 +126,7 @@ router.post(
  *         description: Unauthorized
  */
 router.get('/profile', protect, getUserProfile);
+router.get('/me', protect, getUserProfile);
 
 /**
  * @swagger

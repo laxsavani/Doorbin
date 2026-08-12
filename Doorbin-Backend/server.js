@@ -36,8 +36,10 @@ require('./models/PerformanceReview');
 require('./models/ScheduledReport');
 require('./models/ActivityLog');
 require('./models/Notification');
+require('./models/PushSubscription');
 
 const { initScheduledReportCron } = require('./services/scheduledReportService');
+const initAllCronJobs = require('./jobs');
 
 const app = express();
 
@@ -69,9 +71,10 @@ app.use('/api/reports', require('./routes/reportRoutes'));
 app.use('/api/activity-logs', require('./routes/activityLogRoutes'));
 app.use('/api/notifications', require('./routes/notificationRoutes'));
 
-// Initialize background scheduled report cron job
+// Initialize background scheduled report & automation cron jobs
 if (process.env.NODE_ENV !== 'test') {
   initScheduledReportCron();
+  initAllCronJobs();
 }
 
 // Health check / base route

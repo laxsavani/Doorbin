@@ -440,6 +440,8 @@ router.get('/outstanding-summary', protect, financeAccess, getOutstandingSummary
  *         description: Cashflow time-series report
  */
 router.get('/cashflow', protect, financeAccess, getCashflowReport);
+router.get('/reports/cashflow', protect, financeAccess, getCashflowReport);
+router.get('/reports/outstanding', protect, financeAccess, getOutstandingSummary);
 
 /**
  * @swagger

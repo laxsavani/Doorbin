@@ -15,5 +15,11 @@ export const auditService = {
       console.warn('Error fetching activity logs:', err.message);
       return { total: 0, page, limit, logs: [] };
     }
+  },
+
+  // GET /health - Check backend system health & uptime
+  async getHealth() {
+    const response = await apiClient.get('/health');
+    return response.data;
   }
 };

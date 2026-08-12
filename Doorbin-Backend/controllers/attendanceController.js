@@ -1,6 +1,9 @@
 const Attendance = require('../models/Attendance');
+const User = require('../models/User');
 const logActivity = require('../utils/activityLogger');
 const { formatDDMMYYYY } = require('../utils/dateFormatter');
+const { calculateWorkingHours, checkLateArrival, checkEarlyLeave } = require('../utils/attendanceCalc');
+const { exportToExcel, exportToPDF, exportToCSV } = require('../services/exportEngine');
 
 // Helper to compute average working hours for an employee
 const calculateAverageWorkingHours = async (employeeId) => {
@@ -15,7 +18,7 @@ const calculateAverageWorkingHours = async (employeeId) => {
   return Number((total / records.length).toFixed(2));
 };
 
-// @desc    Clock in employee attendance session for today (creates or updates single entry)
+// @desc    Clock in employee attendance session for today
 // @route   POST /api/attendance/clock-in
 // @access  Private (Authenticated User)
 const clockIn = async (req, res) => {
@@ -29,8 +32,9 @@ const clockIn = async (req, res) => {
       date: today
     });
 
-    if (attendance && attendance.checkIn && !attendance.checkOut) {
+    if (attendance && (attendance.checkIn || attendance.clockIn) && !(attendance.checkOut || attendance.clockOut)) {
       return res.status(400).json({
+        success: false,
         message: 'You are already clocked in today. Please clock out before starting a new session.',
         attendance,
         isClockedIn: true
@@ -38,12 +42,16 @@ const clockIn = async (req, res) => {
     }
 
     const now = new Date();
+    const isLate = checkLateArrival(now);
 
     if (attendance) {
       attendance.checkIn = now;
+      attendance.clockIn = now;
       attendance.checkOut = null;
+      attendance.clockOut = null;
       attendance.workingHours = 0;
       attendance.status = 'Present';
+      attendance.isLate = isLate;
       attendance.markedBy = userId;
       await attendance.save();
     } else {
@@ -52,6 +60,8 @@ const clockIn = async (req, res) => {
         date: today,
         status: 'Present',
         checkIn: now,
+        clockIn: now,
+        isLate,
         markedBy: userId
       });
     }
@@ -62,27 +72,36 @@ const clockIn = async (req, res) => {
       action: 'ATTENDANCE_CLOCK_IN',
       targetType: 'Attendance',
       targetId: attendance._id,
-      metadata: { checkIn: now }
+      metadata: { checkIn: now, isLate }
     });
 
     const avgHours = await calculateAverageWorkingHours(userId);
 
+    const resData = {
+      employee: userId,
+      date: attendance.date,
+      clockIn: attendance.checkIn || attendance.clockIn,
+      checkIn: attendance.checkIn || attendance.clockIn,
+      isLate: attendance.isLate,
+      status: attendance.status,
+      dateFormatted: formatDDMMYYYY(attendance.date),
+      checkInFormatted: attendance.checkIn ? attendance.checkIn.toLocaleTimeString() : null
+    };
+
     return res.json({
+      success: true,
       message: 'Clocked in successfully',
-      attendance: {
-        ...attendance.toObject(),
-        dateFormatted: formatDDMMYYYY(attendance.date),
-        checkInFormatted: attendance.checkIn ? attendance.checkIn.toLocaleTimeString() : null
-      },
+      attendance: resData,
+      data: resData,
       isClockedIn: true,
       averageWorkingHours: avgHours
     });
   } catch (error) {
-    return res.status(500).json({ message: error.message });
+    return res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// @desc    Clock out employee attendance session for today (updates same entry, calculates worked & avg time)
+// @desc    Clock out employee attendance session for today
 // @route   POST /api/attendance/clock-out
 // @access  Private (Authenticated User)
 const clockOut = async (req, res) => {
@@ -96,14 +115,17 @@ const clockOut = async (req, res) => {
       date: today
     });
 
-    if (!attendance || !attendance.checkIn) {
+    const checkInTime = attendance ? (attendance.checkIn || attendance.clockIn) : null;
+    if (!attendance || !checkInTime) {
       return res.status(400).json({
+        success: false,
         message: 'No active clock-in session found for today. Please clock in first.'
       });
     }
 
-    if (attendance.checkOut) {
+    if (attendance.checkOut || attendance.clockOut) {
       return res.status(400).json({
+        success: false,
         message: 'You have already clocked out for today.',
         attendance,
         isClockedIn: false
@@ -112,13 +134,14 @@ const clockOut = async (req, res) => {
 
     const now = new Date();
     attendance.checkOut = now;
+    attendance.clockOut = now;
 
-    // Calculate worked duration in hours
-    const diffMs = now.getTime() - new Date(attendance.checkIn).getTime();
-    const workedHours = Number((diffMs / (1000 * 60 * 60)).toFixed(2));
+    const workedHours = calculateWorkingHours(checkInTime, now);
     attendance.workingHours = workedHours;
 
-    // Update status based on hours worked
+    const isEarly = checkEarlyLeave(now);
+    attendance.isEarlyLeave = isEarly;
+
     if (workedHours < 4) {
       attendance.status = 'Half-day';
     } else {
@@ -133,25 +156,37 @@ const clockOut = async (req, res) => {
       action: 'ATTENDANCE_CLOCK_OUT',
       targetType: 'Attendance',
       targetId: attendance._id,
-      metadata: { checkOut: now, workingHours: workedHours }
+      metadata: { checkOut: now, workingHours: workedHours, isEarlyLeave: isEarly }
     });
 
     const avgHours = await calculateAverageWorkingHours(userId);
 
+    const resData = {
+      clockIn: checkInTime,
+      checkIn: checkInTime,
+      clockOut: now,
+      checkOut: now,
+      workingHours: workedHours,
+      isEarlyLeave: isEarly,
+      status: attendance.status
+    };
+
     return res.json({
+      success: true,
       message: 'Clocked out successfully',
       attendance: {
         ...attendance.toObject(),
         dateFormatted: formatDDMMYYYY(attendance.date),
-        checkInFormatted: attendance.checkIn ? attendance.checkIn.toLocaleTimeString() : null,
-        checkOutFormatted: attendance.checkOut.toLocaleTimeString()
+        checkInFormatted: checkInTime ? new Date(checkInTime).toLocaleTimeString() : null,
+        checkOutFormatted: now.toLocaleTimeString()
       },
+      data: resData,
       workingHours: workedHours,
       averageWorkingHours: avgHours,
       isClockedIn: false
     });
   } catch (error) {
-    return res.status(500).json({ message: error.message });
+    return res.status(500).json({ success: false, message: error.message });
   }
 };
 
@@ -169,22 +204,25 @@ const getTodayAttendance = async (req, res) => {
       date: today
     }).populate('markedBy', 'name email');
 
-    const isClockedIn = !!(attendance && attendance.checkIn && !attendance.checkOut);
+    const checkInTime = attendance ? (attendance.checkIn || attendance.clockIn) : null;
+    const checkOutTime = attendance ? (attendance.checkOut || attendance.clockOut) : null;
+
+    const isClockedIn = !!(attendance && checkInTime && !checkOutTime);
 
     let currentSessionHours = 0;
     if (isClockedIn) {
-      const diffMs = new Date().getTime() - new Date(attendance.checkIn).getTime();
-      currentSessionHours = Number((diffMs / (1000 * 60 * 60)).toFixed(2));
+      currentSessionHours = calculateWorkingHours(checkInTime, new Date());
     }
 
     const avgHours = await calculateAverageWorkingHours(userId);
 
     return res.json({
+      success: true,
       activeSession: attendance ? {
         ...attendance.toObject(),
         dateFormatted: formatDDMMYYYY(attendance.date),
-        checkInFormatted: attendance.checkIn ? attendance.checkIn.toLocaleTimeString() : null,
-        checkOutFormatted: attendance.checkOut ? attendance.checkOut.toLocaleTimeString() : null
+        checkInFormatted: checkInTime ? new Date(checkInTime).toLocaleTimeString() : null,
+        checkOutFormatted: checkOutTime ? new Date(checkOutTime).toLocaleTimeString() : null
       } : null,
       isClockedIn,
       workingHours: attendance ? (attendance.workingHours || currentSessionHours) : 0,
@@ -192,11 +230,11 @@ const getTodayAttendance = async (req, res) => {
       averageWorkingHours: avgHours
     });
   } catch (error) {
-    return res.status(500).json({ message: error.message });
+    return res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// @desc    Get average clock-in, clock-out & working hours (Aggregation Pipeline - Section D.3)
+// @desc    Get average clock-in, clock-out & working hours
 // @route   GET /api/attendance/average
 // @access  Private
 const getAverageAttendance = async (req, res) => {
@@ -210,8 +248,8 @@ const getAverageAttendance = async (req, res) => {
     const records = await Attendance.find({
       employee: employeeId,
       date: { $gte: queryFrom, $lte: queryTo },
-      checkIn: { $ne: null },
-      checkOut: { $ne: null }
+      $or: [{ checkIn: { $ne: null } }, { clockIn: { $ne: null } }],
+      $or: [{ checkOut: { $ne: null } }, { clockOut: { $ne: null } }]
     });
 
     if (!records.length) {
@@ -231,8 +269,8 @@ const getAverageAttendance = async (req, res) => {
     let totalHours = 0;
 
     records.forEach(r => {
-      const inDate = new Date(r.checkIn);
-      const outDate = new Date(r.checkOut);
+      const inDate = new Date(r.checkIn || r.clockIn);
+      const outDate = new Date(r.checkOut || r.clockOut);
       totalCheckInMins += (inDate.getHours() * 60) + inDate.getMinutes();
       totalCheckOutMins += (outDate.getHours() * 60) + outDate.getMinutes();
       totalHours += (r.workingHours || 0);
@@ -259,41 +297,267 @@ const getAverageAttendance = async (req, res) => {
       }
     });
   } catch (error) {
-    return res.status(500).json({ message: error.message });
+    return res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// @desc    Edit particular day's attendance record (HR/Director manual correction - Section D.4)
+// @desc    Edit particular day's attendance record (HR/Director manual correction)
 // @route   PUT /api/attendance/:id
 // @access  Private (HR / Director)
 const editAttendance = async (req, res) => {
   try {
     const { id } = req.params;
-    const { checkIn, checkOut, status, remarks } = req.body;
+    const { checkIn, clockIn: cIn, checkOut, clockOut: cOut, status, remarks } = req.body;
 
     const attendance = await Attendance.findById(id);
-    if (!attendance) return res.status(404).json({ message: 'Attendance record not found' });
+    if (!attendance) return res.status(404).json({ success: false, message: 'Attendance record not found' });
 
-    if (checkIn) attendance.checkIn = new Date(checkIn);
-    if (checkOut) attendance.checkOut = new Date(checkOut);
+    const newIn = checkIn || cIn;
+    const newOut = checkOut || cOut;
+
+    if (newIn) {
+      attendance.checkIn = new Date(newIn);
+      attendance.clockIn = new Date(newIn);
+      attendance.isLate = checkLateArrival(newIn);
+    }
+    if (newOut) {
+      attendance.checkOut = new Date(newOut);
+      attendance.clockOut = new Date(newOut);
+      attendance.isEarlyLeave = checkEarlyLeave(newOut);
+    }
     if (status) attendance.status = status;
-    if (remarks) attendance.remarks = remarks;
+    if (remarks !== undefined) attendance.remarks = remarks;
 
-    if (attendance.checkIn && attendance.checkOut) {
-      const diffMs = new Date(attendance.checkOut).getTime() - new Date(attendance.checkIn).getTime();
-      attendance.workingHours = Number((diffMs / (1000 * 60 * 60)).toFixed(2));
+    const inTime = attendance.checkIn || attendance.clockIn;
+    const outTime = attendance.checkOut || attendance.clockOut;
+
+    if (inTime && outTime) {
+      attendance.workingHours = calculateWorkingHours(inTime, outTime);
     }
 
     attendance.editedManually = true;
     attendance.markedBy = req.user._id;
     await attendance.save();
 
+    await logActivity({
+      req,
+      userId: req.user._id,
+      action: 'ATTENDANCE_EDITED_MANUALLY',
+      targetType: 'Attendance',
+      targetId: attendance._id,
+      metadata: { employee: attendance.employee, date: attendance.date, status: attendance.status }
+    });
+
     return res.json({
+      success: true,
       message: 'Attendance record updated successfully',
+      data: attendance,
       attendance
     });
   } catch (error) {
-    return res.status(500).json({ message: error.message });
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Get all attendance records with filtering
+// @route   GET /api/attendance
+// @access  Private
+const getAllAttendance = async (req, res) => {
+  try {
+    const { employeeId, date, fromDate, toDate, status } = req.query;
+    const query = {};
+
+    if (employeeId) query.employee = employeeId;
+    if (status) query.status = new RegExp(status, 'i');
+
+    if (date) {
+      const d = new Date(date);
+      d.setHours(0, 0, 0, 0);
+      query.date = d;
+    } else if (fromDate || toDate) {
+      query.date = {};
+      if (fromDate) query.date.$gte = new Date(fromDate);
+      if (toDate) query.date.$lte = new Date(toDate);
+    }
+
+    const records = await Attendance.find(query)
+      .populate('employee', 'name email department designation')
+      .populate('markedBy', 'name email')
+      .sort({ date: -1 });
+
+    return res.json({
+      success: true,
+      count: records.length,
+      data: records
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Get specific employee attendance history
+// @route   GET /api/attendance/:employeeId
+// @access  Private
+const getEmployeeAttendance = async (req, res) => {
+  try {
+    const { employeeId } = req.params;
+    const { month, year } = req.query;
+
+    const query = { employee: employeeId };
+
+    if (month && year) {
+      const start = new Date(year, month - 1, 1);
+      const end = new Date(year, month, 0, 23, 59, 59);
+      query.date = { $gte: start, $lte: end };
+    }
+
+    const records = await Attendance.find(query).sort({ date: -1 });
+    const avgHours = await calculateAverageWorkingHours(employeeId);
+
+    return res.json({
+      success: true,
+      employeeId,
+      averageWorkingHours: avgHours,
+      count: records.length,
+      data: records
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Get attendance summary for employee
+// @route   GET /api/attendance/summary/:employeeId
+// @access  Private
+const getAttendanceSummary = async (req, res) => {
+  try {
+    const { employeeId } = req.params;
+    const { month, year } = req.query;
+
+    const m = month ? parseInt(month, 10) : new Date().getMonth() + 1;
+    const y = year ? parseInt(year, 10) : new Date().getFullYear();
+
+    const start = new Date(y, m - 1, 1);
+    const end = new Date(y, m, 0, 23, 59, 59);
+
+    const records = await Attendance.find({
+      employee: employeeId,
+      date: { $gte: start, $lte: end }
+    });
+
+    let present = 0, absent = 0, halfDay = 0, leave = 0, holiday = 0, totalHours = 0;
+    records.forEach(r => {
+      const st = r.status ? r.status.toLowerCase() : '';
+      if (st.includes('present')) present++;
+      else if (st.includes('absent')) absent++;
+      else if (st.includes('half')) halfDay++;
+      else if (st.includes('leave')) leave++;
+      else if (st.includes('holiday')) holiday++;
+      totalHours += (r.workingHours || 0);
+    });
+
+    const avgHours = await calculateAverageWorkingHours(employeeId);
+
+    return res.json({
+      success: true,
+      data: {
+        employeeId,
+        month: m,
+        year: y,
+        counts: { present, absent, halfDay, leave, holiday },
+        totalHoursWorked: Number(totalHours.toFixed(2)),
+        averageWorkingHours: avgHours
+      }
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Get team attendance summary grid
+// @route   GET /api/attendance/team-summary
+// @access  Private
+const getTeamSummary = async (req, res) => {
+  try {
+    const { date, department } = req.query;
+    const queryDate = date ? new Date(date) : new Date();
+    queryDate.setHours(0, 0, 0, 0);
+
+    const userQuery = { status: 'Active' };
+    if (department) userQuery.department = department;
+
+    const users = await User.find(userQuery).populate('department', 'name');
+    const userIds = users.map(u => u._id);
+
+    const attendanceRecords = await Attendance.find({
+      employee: { $in: userIds },
+      date: queryDate
+    });
+
+    const attMap = new Map();
+    attendanceRecords.forEach(a => attMap.set(a.employee.toString(), a));
+
+    const grid = users.map(u => {
+      const att = attMap.get(u._id.toString());
+      return {
+        user: { _id: u._id, name: u.name, email: u.email, department: u.department },
+        status: att ? att.status : 'Absent',
+        checkIn: att ? (att.checkIn || att.clockIn) : null,
+        checkOut: att ? (att.checkOut || att.clockOut) : null,
+        workingHours: att ? att.workingHours : 0,
+        isLate: att ? att.isLate : false,
+        isEarlyLeave: att ? att.isEarlyLeave : false
+      };
+    });
+
+    return res.json({
+      success: true,
+      date: queryDate,
+      totalUsers: users.length,
+      presentCount: grid.filter(g => g.status.toLowerCase().includes('present')).length,
+      absentCount: grid.filter(g => g.status.toLowerCase().includes('absent')).length,
+      data: grid
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Export attendance records
+// @route   GET /api/attendance/export
+// @access  Private (HR / Director)
+const exportAttendance = async (req, res) => {
+  try {
+    const { type = 'excel', fromDate, toDate } = req.query;
+    const query = {};
+    if (fromDate || toDate) {
+      query.date = {};
+      if (fromDate) query.date.$gte = new Date(fromDate);
+      if (toDate) query.date.$lte = new Date(toDate);
+    }
+
+    const records = await Attendance.find(query).populate('employee', 'name email department').sort({ date: -1 });
+
+    const exportData = records.map(r => ({
+      Employee: r.employee ? r.employee.name : 'N/A',
+      Date: formatDDMMYYYY(r.date),
+      Status: r.status,
+      ClockIn: (r.checkIn || r.clockIn) ? new Date(r.checkIn || r.clockIn).toLocaleTimeString() : 'N/A',
+      ClockOut: (r.checkOut || r.clockOut) ? new Date(r.checkOut || r.clockOut).toLocaleTimeString() : 'N/A',
+      WorkingHours: r.workingHours || 0,
+      IsLate: r.isLate ? 'Yes' : 'No',
+      IsEarlyLeave: r.isEarlyLeave ? 'Yes' : 'No'
+    }));
+
+    if (type.toLowerCase() === 'pdf') {
+      return await exportToPDF(res, 'Attendance_Report', exportData);
+    } else if (type.toLowerCase() === 'csv') {
+      return await exportToCSV(res, 'Attendance_Report', exportData);
+    } else {
+      return await exportToExcel(res, 'Attendance_Report', exportData);
+    }
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
   }
 };
 
@@ -302,5 +566,10 @@ module.exports = {
   clockOut,
   getTodayAttendance,
   getAverageAttendance,
-  editAttendance
+  editAttendance,
+  getAllAttendance,
+  getEmployeeAttendance,
+  getAttendanceSummary,
+  getTeamSummary,
+  exportAttendance
 };

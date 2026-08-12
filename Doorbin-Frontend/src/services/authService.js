@@ -82,6 +82,25 @@ export const authService = {
     return response.data;
   },
 
+  async getMe() {
+    const response = await apiClient.get('/auth/me');
+    return response.data;
+  },
+
+  async refreshToken(refreshTokenVal) {
+    const response = await apiClient.post('/auth/refresh-token', { refreshToken: refreshTokenVal });
+    return response.data;
+  },
+
+  async logoutSession() {
+    try {
+      await apiClient.post('/auth/logout');
+    } catch (e) {
+      console.warn('Logout session API call silent handling:', e.message);
+    }
+    this.logout();
+  },
+
   /**
    * Get current authenticated user session
    */

@@ -939,12 +939,82 @@ const updateProjectTeam = async (req, res) => {
   }
 };
 
+// @desc    Approve a pending project (Director only)
+// @route   PATCH /api/projects/:id/approve
+// @access  Private (Director)
+const approveProject = async (req, res) => {
+  try {
+    const project = await Project.findOne({ _id: req.params.id, isDeleted: { $ne: true } });
+    if (!project) return res.status(404).json({ message: 'Project not found' });
+
+    project.status = 'Approved';
+    project.approvedBy = req.user._id;
+    project.approvalDate = new Date();
+    await project.save();
+
+    await logActivity({
+      req,
+      userId: req.user._id,
+      action: 'PROJECT_APPROVED',
+      targetType: 'Project',
+      targetId: project._id,
+      metadata: { projectName: project.projectName }
+    });
+
+    return res.json({
+      success: true,
+      message: 'Project approved successfully',
+      project
+    });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Reject a pending project (Director only)
+// @route   PATCH /api/projects/:id/reject
+// @access  Private (Director)
+const rejectProject = async (req, res) => {
+  try {
+    const { reason } = req.body;
+    const project = await Project.findOne({ _id: req.params.id, isDeleted: { $ne: true } });
+    if (!project) return res.status(404).json({ message: 'Project not found' });
+
+    project.status = 'Rejected';
+    project.approvedBy = req.user._id;
+    project.approvalDate = new Date();
+    if (reason) {
+      project.comments.push({ user: req.user._id, text: `Rejection reason: ${reason}` });
+    }
+    await project.save();
+
+    await logActivity({
+      req,
+      userId: req.user._id,
+      action: 'PROJECT_REJECTED',
+      targetType: 'Project',
+      targetId: project._id,
+      metadata: { projectName: project.projectName, reason }
+    });
+
+    return res.json({
+      success: true,
+      message: 'Project rejected',
+      project
+    });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   createProject,
   getProjects,
   getProjectById,
   updateProject,
   deleteProject,
+  approveProject,
+  rejectProject,
   addProjectStage,
   updateProjectStage,
   deleteCustomStage,

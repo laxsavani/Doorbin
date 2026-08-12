@@ -17,10 +17,14 @@ const projectSchema = new mongoose.Schema({
 
   status: {
     type: String,
-    enum: ['Not Started', 'In Progress', 'On Hold', 'Completed', 'Delayed'],
+    enum: ['Not Started', 'In Progress', 'On Hold', 'Completed', 'Delayed', 'Pending Approval', 'Approved', 'Rejected', 'Cancelled', 'pending_approval', 'approved', 'rejected', 'in_progress', 'on_hold', 'completed', 'cancelled'],
     default: 'Not Started'
   },
   progressPercentage: { type: Number, default: 0, min: 0, max: 100 },
+  progressPercent:    { type: Number, default: 0, min: 0, max: 100 },
+  isDelayed:          { type: Boolean, default: false },
+  approvedBy:         { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  approvalDate:       { type: Date },
   isDeleted:          { type: Boolean, default: false },
 
   attachments: [{ type: String }],

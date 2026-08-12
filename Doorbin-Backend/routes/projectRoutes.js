@@ -6,6 +6,8 @@ const {
   getProjectById,
   updateProject,
   deleteProject,
+  approveProject,
+  rejectProject,
   addProjectStage,
   updateProjectStage,
   deleteCustomStage,
@@ -687,5 +689,8 @@ router.get('/:id/comments', protect, getProjectComments);
  */
 router.get('/:id/team', protect, getProjectTeam);
 router.post('/:id/team', protect, pmOrDirectorAccess, updateProjectTeam);
+
+router.patch('/:id/approve', protect, pmOrDirectorAccess, approveProject);
+router.patch('/:id/reject', protect, pmOrDirectorAccess, rejectProject);
 
 module.exports = router;

@@ -68,6 +68,31 @@ export const dashboardService = {
     }
   },
 
+  async getDirectorDashboard() {
+    const res = await apiClient.get('/dashboard/director');
+    return res.data;
+  },
+
+  async getProductionManagerDashboard() {
+    const res = await apiClient.get('/dashboard/production-manager');
+    return res.data;
+  },
+
+  async getArtistDashboard() {
+    const res = await apiClient.get('/dashboard/artist');
+    return res.data;
+  },
+
+  async getHRDashboard() {
+    const res = await apiClient.get('/dashboard/hr');
+    return res.data;
+  },
+
+  async getBDDashboard() {
+    const res = await apiClient.get('/dashboard/bd');
+    return res.data;
+  },
+
   async createTask(taskData) {
     return taskService.createTask(taskData);
   }

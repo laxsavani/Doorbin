@@ -24,6 +24,30 @@ export const userService = {
     return response.data;
   },
 
+  // POST /users - Create new user account (Director only)
+  async createUser(userData) {
+    const response = await apiClient.post('/users', userData);
+    return response.data;
+  },
+
+  // PUT /users/:id - Update user profile, skills, designation, shift times
+  async updateUser(id, userData) {
+    const response = await apiClient.put(`/users/${id}`, userData);
+    return response.data;
+  },
+
+  // DELETE /users/:id - Soft-deactivate user account
+  async deleteUser(id) {
+    const response = await apiClient.delete(`/users/${id}`);
+    return response.data;
+  },
+
+  // PATCH /users/:id/status - Toggle user status ('Active' | 'Inactive')
+  async toggleUserStatusPatch(id, status) {
+    const response = await apiClient.patch(`/users/${id}/status`, { status });
+    return response.data;
+  },
+
   // PUT /users/:id/status - Update user status ('Active' | 'Inactive')
   async updateUserStatus(id, status) {
     const response = await apiClient.put(`/users/${id}/status`, { status });

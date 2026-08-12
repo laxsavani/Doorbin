@@ -287,6 +287,10 @@ router.route('/leave')
   .get(protect, getLeaves)
   .post(protect, applyLeave);
 
+router.route('/leaves')
+  .get(protect, getLeaves)
+  .post(protect, applyLeave);
+
 /**
  * @swagger
  * /hr/leave/{id}/approve:
@@ -318,6 +322,9 @@ router.route('/leave')
  *         description: Leave decision recorded
  */
 router.put('/leave/:id/approve', protect, hrAccess, approveLeave);
+router.patch('/leave/:id/approve', protect, hrAccess, approveLeave);
+router.put('/leaves/:id/approve', protect, hrAccess, approveLeave);
+router.patch('/leaves/:id/approve', protect, hrAccess, approveLeave);
 
 // --- HOLIDAYS ---
 /**
