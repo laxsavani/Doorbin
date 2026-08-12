@@ -411,19 +411,33 @@ export const Hrm = () => {
           </thead>
           <tbody>
               {attendanceLogs.map(att => {
-                const checkInStr = att.checkIn ? formatISTTimeStr(att.checkIn) : (att.activeSession?.checkInFormatted || '--:--');
-                const checkOutStr = att.checkOut ? formatISTTimeStr(att.checkOut) : (att.activeSession?.checkOutFormatted || '--:--');
+                const isLeaveDay = att.status === 'On Leave' || att.status === 'Leave';
+                const checkInStr = isLeaveDay ? '--' : (att.checkIn ? formatISTTimeStr(att.checkIn) : (att.activeSession?.checkInFormatted || '--'));
+                const checkOutStr = isLeaveDay ? '--' : (att.checkOut ? formatISTTimeStr(att.checkOut) : (att.activeSession?.checkOutFormatted || '--'));
+                
+                let displayDate = 'Today';
+                if (att.dateFormatted && att.dateFormatted !== 'Invalid Date') {
+                  displayDate = att.dateFormatted;
+                } else if (att.date) {
+                  if (typeof att.date === 'string' && att.date.includes('/')) {
+                    displayDate = att.date;
+                  } else {
+                    const parsedD = new Date(att.date);
+                    displayDate = isNaN(parsedD.getTime()) ? (typeof att.date === 'string' ? att.date : 'Today') : parsedD.toLocaleDateString('en-GB');
+                  }
+                }
+
                 return (
                   <tr key={att._id}>
                     <td style={{ fontWeight: '600' }}>{att.employee?.name || currentUserName}</td>
-                    <td>{att.dateFormatted || (att.date ? new Date(att.date).toLocaleDateString() : 'Today')}</td>
+                    <td style={{ fontWeight: '600' }}>{displayDate}</td>
                     <td>{checkInStr}</td>
                     <td>{checkOutStr}</td>
-                    <td style={{ fontWeight: '600', color: 'var(--color-primary)' }}>
-                      {formatWorkedDuration(checkInStr, checkOutStr, att.workingHours)}
+                    <td style={{ fontWeight: '600', color: isLeaveDay ? '#94a3b8' : 'var(--color-primary)' }}>
+                      {isLeaveDay ? '--' : formatWorkedDuration(checkInStr, checkOutStr, att.workingHours)}
                     </td>
                     <td>
-                      <span className={`badge ${att.status === 'Present' ? 'badge-success' : att.status === 'Late' ? 'badge-warning' : 'badge-danger'}`}>
+                      <span className={`badge ${att.status === 'Present' ? 'badge-success' : (att.status === 'On Leave' || att.status === 'Leave' ? 'badge-info' : att.status === 'Late' ? 'badge-warning' : 'badge-danger')}`}>
                         {att.status || 'Present'}
                       </span>
                     </td>

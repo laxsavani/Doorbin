@@ -118,18 +118,29 @@ export const hrService = {
         }
 
         if (rawRecords.length > 0) {
-          return rawRecords.map(r => ({
-            _id: r._id || `att_${Math.random()}`,
-            employee: {
-              name: typeof r.employee === 'object' ? (r.employee?.name || r.employee?.email) : (r.employeeName || currentUser?.name || 'Staff Member'),
-              employeeCode: r.employee?.employeeCode || 'EMP-001'
-            },
-            date: r.dateFormatted || (r.date ? new Date(r.date).toLocaleDateString() : new Date().toLocaleDateString()),
-            checkIn: r.checkInFormatted || (r.checkIn ? new Date(r.checkIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--'),
-            checkOut: r.checkOutFormatted || (r.checkOut ? new Date(r.checkOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--'),
-            status: r.status || 'Present',
-            workHours: r.workingHours !== undefined ? r.workingHours : (r.workHours || 0)
-          }));
+          return rawRecords.map(r => {
+            let safeDate = 'Today';
+            if (r.dateFormatted && r.dateFormatted !== 'Invalid Date') {
+              safeDate = r.dateFormatted;
+            } else if (r.date) {
+              const d = new Date(r.date);
+              safeDate = isNaN(d.getTime()) ? (typeof r.date === 'string' ? r.date : 'Today') : d.toLocaleDateString('en-GB');
+            }
+
+            return {
+              _id: r._id || `att_${Math.random()}`,
+              employee: {
+                name: typeof r.employee === 'object' ? (r.employee?.name || r.employee?.email) : (r.employeeName || currentUser?.name || 'Staff Member'),
+                employeeCode: r.employee?.employeeCode || 'EMP-001'
+              },
+              date: safeDate,
+              dateFormatted: safeDate,
+              checkIn: r.checkInFormatted || (r.checkIn ? new Date(r.checkIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--'),
+              checkOut: r.checkOutFormatted || (r.checkOut ? new Date(r.checkOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--'),
+              status: r.status || 'Present',
+              workHours: r.workingHours !== undefined ? r.workingHours : (r.workHours || 0)
+            };
+          });
         }
       } catch {
         continue;

@@ -59,56 +59,134 @@ const streamExcel = async (res, title, headers, rows, filename) => {
 const buildPdfBuffer = (title, headers, rows) => {
   return new Promise((resolve, reject) => {
     try {
-      const doc = new PDFDocument({ margin: 40, size: 'A4' });
+      // Landscape A4 for wide table space
+      const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape' });
       const buffers = [];
 
       doc.on('data', b => buffers.push(b));
       doc.on('end', () => resolve(Buffer.concat(buffers)));
 
+      const pageWidth = doc.page.width; // ~841.89
+      const pageHeight = doc.page.height; // ~595.28
+      const margin = 30;
+      const printableWidth = pageWidth - (margin * 2); // ~781.89
+
       // Header Banner
-      doc.fillColor('#0F172A').fontSize(20).text('DOORBIN VISUALS', { align: 'center' });
-      doc.fontSize(12).fillColor('#64748B').text('Collaborative Project Management System', { align: 'center' });
-      doc.moveDown(0.5);
-      doc.strokeColor('#CBD5E1').lineWidth(1).moveTo(40, doc.y).lineTo(555, doc.y).stroke();
-      doc.moveDown(1);
+      doc.fillColor('#0F172A').fontSize(18).text('DOORBIN VISUALS', margin, 25, { align: 'center' });
+      doc.fontSize(10).fillColor('#64748B').text('Collaborative Project Management System', { align: 'center' });
+      doc.moveDown(0.4);
+      doc.strokeColor('#CBD5E1').lineWidth(1).moveTo(margin, doc.y).lineTo(pageWidth - margin, doc.y).stroke();
+      doc.moveDown(0.8);
 
       // Report Title
-      doc.fillColor('#1E293B').fontSize(16).text(title, { align: 'left' });
-      doc.fontSize(9).fillColor('#94A3B8').text(`Generated on: ${new Date().toLocaleString()}`, { align: 'left' });
-      doc.moveDown(1);
+      const titleY = doc.y;
+      doc.fillColor('#1E293B').fontSize(14).text(title, margin, titleY, { align: 'left' });
+      doc.fontSize(8).fillColor('#94A3B8').text(`Generated on: ${new Date().toLocaleString()}`, margin, titleY + 18, { align: 'left' });
 
-      // Table Rendering
-      const startX = 40;
-      let startY = doc.y;
-      const colWidth = Math.floor((515) / Math.max(headers.length, 1));
+      let startY = titleY + 36;
+      const numCols = headers.length;
 
-      // Table Header Row
-      doc.rect(startX, startY, 515, 20).fill('#0F172A');
-      doc.fillColor('#FFFFFF').fontSize(10);
+      // Smart Custom Column Width Proportions
+      let colWidths = [];
+      if (numCols === 9) {
+        colWidths = [
+          printableWidth * 0.15, // Name
+          printableWidth * 0.23, // Email
+          printableWidth * 0.10, // Role
+          printableWidth * 0.08, // Present
+          printableWidth * 0.08, // Absent
+          printableWidth * 0.09, // Half Days
+          printableWidth * 0.09, // On Leave
+          printableWidth * 0.09, // Total Hours
+          printableWidth * 0.09  // Avg Hours
+        ];
+      } else if (numCols === 7) {
+        colWidths = [
+          printableWidth * 0.12, // Date
+          printableWidth * 0.14, // Status
+          printableWidth * 0.13, // Clock In
+          printableWidth * 0.13, // Clock Out
+          printableWidth * 0.15, // Hours
+          printableWidth * 0.11, // Late
+          printableWidth * 0.22  // Remarks
+        ];
+      } else {
+        const defaultW = printableWidth / numCols;
+        colWidths = Array(numCols).fill(defaultW);
+      }
+
+      const getColX = (colIdx) => {
+        let x = margin;
+        for (let i = 0; i < colIdx; i++) {
+          x += colWidths[i];
+        }
+        return x;
+      };
+
+      const headerHeight = 26;
+      const rowHeight = 22;
+
+      // Table Header Box
+      doc.rect(margin, startY, printableWidth, headerHeight).fill('#0F172A');
+      doc.fillColor('#FFFFFF').fontSize(8.5);
+
       headers.forEach((h, i) => {
-        doc.text(String(h), startX + i * colWidth + 4, startY + 5, { width: colWidth - 8, truncate: true });
+        const x = getColX(i);
+        const w = colWidths[i];
+        doc.text(String(h), x + 4, startY + 8, {
+          width: w - 8,
+          height: 14,
+          lineBreak: false,
+          ellipsis: true
+        });
       });
 
-      startY += 22;
+      startY += headerHeight;
 
       // Table Data Rows
-      doc.fillColor('#334155').fontSize(9);
       rows.forEach((r, rIdx) => {
-        if (startY > 720) {
+        if (startY > pageHeight - 50) {
           doc.addPage();
-          startY = 40;
+          startY = 35;
+
+          // Repeat Header Box on New Page
+          doc.rect(margin, startY, printableWidth, headerHeight).fill('#0F172A');
+          doc.fillColor('#FFFFFF').fontSize(8.5);
+          headers.forEach((h, i) => {
+            const x = getColX(i);
+            const w = colWidths[i];
+            doc.text(String(h), x + 4, startY + 8, {
+              width: w - 8,
+              height: 14,
+              lineBreak: false,
+              ellipsis: true
+            });
+          });
+          startY += headerHeight;
         }
 
+        // Alternating background fill
         if (rIdx % 2 === 1) {
-          doc.rect(startX, startY, 515, 18).fill('#F8FAFC');
+          doc.rect(margin, startY, printableWidth, rowHeight).fill('#F8FAFC');
         }
 
-        doc.fillColor('#334155');
+        // Cell border line bottom
+        doc.strokeColor('#F1F5F9').lineWidth(0.5).moveTo(margin, startY + rowHeight).lineTo(pageWidth - margin, startY + rowHeight).stroke();
+
+        doc.fillColor('#334155').fontSize(8);
         r.forEach((cellVal, cIdx) => {
           const str = cellVal !== null && cellVal !== undefined ? String(cellVal) : '';
-          doc.text(str, startX + cIdx * colWidth + 4, startY + 4, { width: colWidth - 8, truncate: true });
+          const x = getColX(cIdx);
+          const w = colWidths[cIdx];
+          doc.text(str, x + 4, startY + 6, {
+            width: w - 8,
+            height: 12,
+            lineBreak: false,
+            ellipsis: true
+          });
         });
-        startY += 18;
+
+        startY += rowHeight;
       });
 
       doc.end();
