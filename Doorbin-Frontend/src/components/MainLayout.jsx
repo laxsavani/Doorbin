@@ -27,6 +27,7 @@ import {
   BarChart2
 } from 'lucide-react';
 import { ClockInOutWidget } from './ClockInOutWidget';
+import { notificationService } from '../services/notificationService';
 import '../pages/Dashboard.css';
 
 // System Roles & Permission Matrix
@@ -195,6 +196,11 @@ export const MainLayout = ({ children }) => {
     workforce: false,
     system: false
   });
+
+  // Auto-register Web Push Notification Subscription
+  useEffect(() => {
+    notificationService.registerWebPush();
+  }, []);
 
   // Auto-expand active route parent group
   useEffect(() => {
