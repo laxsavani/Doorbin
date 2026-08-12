@@ -767,6 +767,10 @@ const getAttendanceReport = async (req, res) => {
     const { from, to } = req.query;
 
     const query = {};
+    if (!isHROrDirector(req)) {
+      query.employee = req.user._id;
+    }
+
     if (from || to) {
       query.date = {};
       if (from) query.date.$gte = parseDateString(from);

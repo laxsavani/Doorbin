@@ -212,18 +212,21 @@ const getProjects = async (req, res) => {
       query.$text = { $search: search.trim() };
     }
 
-    // Department Visibility Rule
+    // User Assignment Scoped Visibility Rule
     if (!isDirectorUser(req)) {
-      const sameDeptUsers = req.user.department
-        ? await User.find({ department: req.user.department }).select('_id')
-        : [];
-      const sameDeptUserIds = sameDeptUsers.map(u => u._id);
-
-      query.$or = [
-        { productionManager: req.user._id },
-        { assignedTeam: req.user._id },
-        { productionManager: { $in: sameDeptUserIds } }
-      ];
+      const isPM = req.user?.role?.name === 'Production Manager' || req.user?.role?.permissions?.projectManagement === true;
+      if (isPM) {
+        query.$or = [
+          { productionManager: req.user._id },
+          { assignedTeam: req.user._id }
+        ];
+      } else {
+        // Artist / Team Member: STRICT USER DATA ISOLATION (Only projects assigned to req.user._id)
+        query.$or = [
+          { assignedTeam: req.user._id },
+          { productionManager: req.user._id }
+        ];
+      }
     }
 
     const pageNum = parseInt(page, 10) || 1;

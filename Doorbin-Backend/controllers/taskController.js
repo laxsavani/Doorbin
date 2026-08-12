@@ -190,12 +190,32 @@ const getTasks = async (req, res) => {
     if (status) query.status = status;
     if (priority) query.priority = priority;
 
-    // Ownership dual-gate for non-PM Artists
-    if (!isPMOrDirector(req)) {
-      query.$or = [
-        { assignee: req.user._id },
-        { reviewer: req.user._id }
-      ];
+    // Strict User-Level Data Isolation Rule
+    const isDirector = req.user?.role?.name === 'Director';
+    if (!isDirector) {
+      const isPM = req.user?.role?.name === 'Production Manager';
+      if (isPM) {
+        // PM sees tasks assigned to them OR tasks in projects they manage
+        const managedProjects = await Project.find({
+          $or: [
+            { productionManager: req.user._id },
+            { assignedTeam: req.user._id }
+          ]
+        }).select('_id');
+        const managedProjectIds = managedProjects.map(p => p._id);
+
+        query.$or = [
+          { assignee: req.user._id },
+          { reviewer: req.user._id },
+          { project: { $in: managedProjectIds } }
+        ];
+      } else {
+        // Artist / Team Member: STRICT USER DATA ISOLATION (Only tasks assigned to req.user._id or where user is reviewer)
+        query.$or = [
+          { assignee: req.user._id },
+          { reviewer: req.user._id }
+        ];
+      }
     } else if (assignee) {
       query.assignee = assignee;
     }

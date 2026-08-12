@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { enquiryService } from '../services/enquiryService';
 import { userService } from '../services/userService';
+import { authService } from '../services/authService';
 import { Modal } from '../components/Modal';
 import { FormField } from '../components/FormField';
 import { Toast } from '../components/Toast';
@@ -16,6 +17,12 @@ const CLIENT_CATEGORIES = ['Aspirational', 'Regulation', 'Red Flag'];
 const STAGES = ['New Enquiry', 'Qualification', 'Meeting', 'Proposal', 'Negotiation', 'Won', 'Lost', 'Project Creation'];
 
 export const Enquiries = () => {
+  const currentUser = authService.getCurrentUser();
+  const userRoleName = typeof currentUser?.role === 'object'
+    ? (currentUser?.role?.name || 'Artist')
+    : (currentUser?.role || 'Artist');
+  const canManageBD = userRoleName.toLowerCase() === 'director' || userRoleName.toLowerCase() === 'business development manager';
+
   const [enquiries, setEnquiries] = useState([]);
   const [executives, setExecutives] = useState([]);
   const [summaryReport, setSummaryReport] = useState(null);
@@ -325,9 +332,11 @@ export const Enquiries = () => {
             </button>
           </div>
 
-          <button onClick={() => setIsCreateModalOpen(true)} className="btn-new-task">
-            <Plus size={16} /> New Enquiry
-          </button>
+          {canManageBD && (
+            <button onClick={() => setIsCreateModalOpen(true)} className="btn-new-task">
+              <Plus size={16} /> New Enquiry
+            </button>
+          )}
         </div>
       </div>
 

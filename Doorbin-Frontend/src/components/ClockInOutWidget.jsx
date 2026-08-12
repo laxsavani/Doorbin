@@ -2,14 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { Play, Square, Clock, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import { attendanceService } from '../services/attendanceService';
 import { authService } from '../services/authService';
+import { Toast } from './Toast';
 
 export const ClockInOutWidget = ({ variant = 'topbar', onStatusChange }) => {
   const [attendance, setAttendance] = useState(null);
   const [isClockedIn, setIsClockedIn] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [elapsedTime, setElapsedTime] = useState('00h 00m');
-  const [errorMsg, setErrorMsg] = useState('');
-  const [successMsg, setSuccessMsg] = useState('');
+  const [elapsedTime, setElapsedTime] = useState('00h 00m 00s');
+  const [toast, setToast] = useState({ message: '', type: 'info' });
 
   const currentUser = authService.getCurrentUser();
   const roleObj = currentUser?.role;
@@ -30,7 +30,7 @@ export const ClockInOutWidget = ({ variant = 'topbar', onStatusChange }) => {
   useEffect(() => {
     if (!isClockedIn || !attendance?.activeSession?.checkIn) return;
 
-    const interval = setInterval(() => {
+    const updateTimer = () => {
       const checkInTime = new Date(attendance.activeSession.checkIn).getTime();
       const now = new Date().getTime();
       const diffMs = Math.max(0, now - checkInTime);
@@ -40,7 +40,10 @@ export const ClockInOutWidget = ({ variant = 'topbar', onStatusChange }) => {
       const seconds = Math.floor((diffMs % 60000) / 1000);
 
       setElapsedTime(`${String(hours).padStart(2, '0')}h ${String(minutes).padStart(2, '0')}m ${String(seconds).padStart(2, '0')}s`);
-    }, 1000);
+    };
+
+    updateTimer();
+    const interval = setInterval(updateTimer, 1000);
 
     return () => clearInterval(interval);
   }, [isClockedIn, attendance]);
@@ -58,21 +61,39 @@ export const ClockInOutWidget = ({ variant = 'topbar', onStatusChange }) => {
     }
   };
 
+  const formatISTTime = (dateObj = new Date()) => {
+    try {
+      return new Date(dateObj).toLocaleTimeString('en-IN', {
+        timeZone: 'Asia/Kolkata',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: true
+      });
+    } catch (e) {
+      return new Date(dateObj).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    }
+  };
+
   const handleClockIn = async () => {
     setLoading(true);
-    setErrorMsg('');
-    setSuccessMsg('');
+    setToast({ message: '', type: 'info' });
 
     try {
       const res = await attendanceService.clockIn();
       setAttendance(res);
       setIsClockedIn(true);
-      setSuccessMsg(res.message || 'Successfully Clocked In!');
+      const currentTimeIST = formatISTTime();
+      setToast({
+        message: `Clocked In successfully at ${currentTimeIST} (Asia/Kolkata IST)`,
+        type: 'success'
+      });
       if (onStatusChange) onStatusChange(res);
-      setTimeout(() => setSuccessMsg(''), 4000);
     } catch (err) {
-      setErrorMsg(err.message || 'Clock In failed');
-      setTimeout(() => setErrorMsg(''), 4000);
+      setToast({
+        message: err.message || 'Clock In failed',
+        type: 'error'
+      });
     } finally {
       setLoading(false);
     }
@@ -80,19 +101,23 @@ export const ClockInOutWidget = ({ variant = 'topbar', onStatusChange }) => {
 
   const handleClockOut = async () => {
     setLoading(true);
-    setErrorMsg('');
-    setSuccessMsg('');
+    setToast({ message: '', type: 'info' });
 
     try {
       const res = await attendanceService.clockOut();
       setAttendance(res);
       setIsClockedIn(false);
-      setSuccessMsg(res.message || 'Successfully Clocked Out!');
+      const currentTimeIST = formatISTTime();
+      setToast({
+        message: `Clocked Out successfully at ${currentTimeIST} (Asia/Kolkata IST)`,
+        type: 'success'
+      });
       if (onStatusChange) onStatusChange(res);
-      setTimeout(() => setSuccessMsg(''), 4000);
     } catch (err) {
-      setErrorMsg(err.message || 'Clock Out failed');
-      setTimeout(() => setErrorMsg(''), 4000);
+      setToast({
+        message: err.message || 'Clock Out failed',
+        type: 'error'
+      });
     } finally {
       setLoading(false);
     }
@@ -100,79 +125,21 @@ export const ClockInOutWidget = ({ variant = 'topbar', onStatusChange }) => {
 
   // If Director (Admin role), hide Clock In/Out button as per requirement
   if (isDirector) {
-    if (variant === 'card') {
-      return (
-        <div style={{
-          padding: '1.25rem',
-          borderRadius: '12px',
-          background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(139, 92, 246, 0.08) 100%)',
-          border: '1px solid rgba(99, 102, 241, 0.2)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '1rem'
-        }}>
-          <div style={{
-            width: '42px',
-            height: '42px',
-            borderRadius: '10px',
-            backgroundColor: '#4F46E5',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: '#FFF'
-          }}>
-            <Clock size={22} />
-          </div>
-          <div>
-            <div style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--color-text-primary)' }}>
-              Director Admin Overview
-            </div>
-            <div style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
-              Attendance tracking active for all staff & artist team members.
-            </div>
-          </div>
-        </div>
-      );
-    }
     return null;
   }
 
-  const checkInFormatted = attendance?.activeSession?.checkInFormatted || (attendance?.activeSession?.checkIn ? new Date(attendance.activeSession.checkIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '');
-  const checkOutFormatted = attendance?.activeSession?.checkOutFormatted || (attendance?.activeSession?.checkOut ? new Date(attendance.activeSession.checkOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '');
+  const checkInFormatted = attendance?.activeSession?.checkIn ? formatISTTime(attendance.activeSession.checkIn) : '';
   const isShiftDone = !isClockedIn && attendance?.activeSession?.checkOut;
 
-  // Variant 1: Topbar Compact Badge Button
+  // Variant 1: Topbar Header Badge Button
   if (variant === 'topbar') {
     return (
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-        {errorMsg && (
-          <div style={{
-            fontSize: '0.75rem',
-            color: '#EF4444',
-            backgroundColor: 'rgba(239, 68, 68, 0.1)',
-            padding: '0.25rem 0.6rem',
-            borderRadius: '6px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.35rem'
-          }}>
-            <AlertCircle size={12} /> {errorMsg}
-          </div>
-        )}
-        {successMsg && (
-          <div style={{
-            fontSize: '0.75rem',
-            color: '#10B981',
-            backgroundColor: 'rgba(16, 185, 129, 0.1)',
-            padding: '0.25rem 0.6rem',
-            borderRadius: '6px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.35rem'
-          }}>
-            <CheckCircle2 size={12} /> {successMsg}
-          </div>
-        )}
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast({ message: '', type: 'info' })}
+        />
 
         {isClockedIn ? (
           <div style={{

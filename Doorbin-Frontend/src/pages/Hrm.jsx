@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { hrService } from '../services/hrService';
+import { authService } from '../services/authService';
 import { FormField } from '../components/FormField';
 import { Modal } from '../components/Modal';
 import { Toast } from '../components/Toast';
@@ -28,6 +29,18 @@ export const Hrm = () => {
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState(null);
   const [viewMode, setViewMode] = useViewMode();
+
+  // Extract Logged-in User Session Token Info
+  const currentUser = authService.getCurrentUser();
+  const currentUserId = currentUser?._id || currentUser?.id;
+  const currentUserName = typeof currentUser?.name === 'string'
+    ? currentUser.name
+    : (currentUser?.name?.name || currentUser?.email || 'Logged User');
+  const userRoleName = typeof currentUser?.role === 'object'
+    ? (currentUser?.role?.name || 'Artist')
+    : (currentUser?.role || 'Artist');
+
+  const isDirectorOrHR = userRoleName.toLowerCase() === 'director' || userRoleName.toLowerCase() === 'human resource';
 
   // Data states
   const [employees, setEmployees] = useState([]);
@@ -94,28 +107,34 @@ export const Hrm = () => {
     }
   };
 
-  // Apply Leave Handler
+  // Apply Leave Handler (Auto-extracts logged user ID from token)
   const handleApplyLeave = async (e) => {
     e.preventDefault();
-    if (!leaveForm.employeeId || !leaveForm.startDate || !leaveForm.endDate) {
-      setToast({ message: 'Please fill in leave duration & employee', type: 'error' });
+    if (!leaveForm.startDate || !leaveForm.endDate) {
+      setToast({ message: 'Please fill in leave start and end dates', type: 'error' });
       return;
     }
 
     try {
-      const selectedEmp = employees.find(emp => emp._id === leaveForm.employeeId);
+      const targetEmpId = isDirectorOrHR ? (leaveForm.employeeId || currentUserId) : currentUserId;
+      const selectedEmp = employees.find(emp => emp._id === targetEmpId || emp.userId === targetEmpId) || {
+        _id: targetEmpId,
+        name: currentUserName,
+        employeeCode: 'EMP-SELF'
+      };
+
       const newLeave = await hrService.applyLeave({
-        employee: selectedEmp ? { _id: selectedEmp._id, name: selectedEmp.name, employeeCode: selectedEmp.employeeCode } : { name: 'Staff' },
+        employee: { _id: selectedEmp._id, name: selectedEmp.name, employeeCode: selectedEmp.employeeCode || 'EMP-SELF' },
         leaveType: leaveForm.leaveType,
         startDate: leaveForm.startDate,
         endDate: leaveForm.endDate,
-        totalDays: 2,
+        totalDays: 1,
         reason: leaveForm.reason
       });
 
       setLeaveRequests(prev => [newLeave, ...prev]);
       setIsLeaveModalOpen(false);
-      setToast({ message: 'Leave application submitted!', type: 'success' });
+      setToast({ message: 'Leave application submitted successfully!', type: 'success' });
       setLeaveForm({ employeeId: '', leaveType: 'Casual Leave', startDate: '', endDate: '', reason: '' });
     } catch (err) {
       setToast({ message: err.message || 'Failed to apply leave', type: 'error' });
@@ -126,7 +145,7 @@ export const Hrm = () => {
   const handleLeaveStatus = async (id, status) => {
     try {
       const updated = await hrService.updateLeaveStatus(id, { status });
-      setLeaveRequests(prev => prev.map(l => l._id === id ? { ...l, status, approvedBy: { name: 'Lax Savani' } } : l));
+      setLeaveRequests(prev => prev.map(l => l._id === id ? { ...l, status, approvedBy: { name: currentUserName } } : l));
       setToast({ message: `Leave application ${status.toLowerCase()}!`, type: 'success' });
     } catch (err) {
       setToast({ message: 'Failed to update leave status', type: 'error' });
@@ -201,6 +220,53 @@ export const Hrm = () => {
     }
   };
 
+  const formatISTTimeStr = (dateVal) => {
+    if (!dateVal) return '--:--';
+    try {
+      return new Date(dateVal).toLocaleTimeString('en-IN', {
+        timeZone: 'Asia/Kolkata',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+      });
+    } catch (e) {
+      return '--:--';
+    }
+  };
+
+  const renderAttendanceTab = () => (
+    <div className="table-responsive">
+      <table className="table">
+        <thead>
+          <tr>
+            <th>EMPLOYEE</th>
+            <th>DATE</th>
+            <th>CLOCK IN</th>
+            <th>CLOCK OUT</th>
+            <th>HOURS WORKED</th>
+            <th>STATUS</th>
+          </tr>
+        </thead>
+        <tbody>
+          {attendanceLogs.map(att => (
+            <tr key={att._id}>
+              <td style={{ fontWeight: '600' }}>{att.employee?.name || currentUserName}</td>
+              <td>{att.dateFormatted || (att.date ? new Date(att.date).toLocaleDateString() : 'Today')}</td>
+              <td>{att.checkIn ? formatISTTimeStr(att.checkIn) : (att.activeSession?.checkInFormatted || '--:--')}</td>
+              <td>{att.checkOut ? formatISTTimeStr(att.checkOut) : (att.activeSession?.checkOutFormatted || '--:--')}</td>
+              <td style={{ fontWeight: '600' }}>{att.workingHours || 0} hrs</td>
+              <td>
+                <span className={`badge ${att.status === 'Present' ? 'badge-success' : att.status === 'Late' ? 'badge-warning' : 'badge-danger'}`}>
+                  {att.status || 'Present'}
+                </span>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+
   if (loading) {
     return <Loader message="Loading Module 10: Human Resource Management..." />;
   }
@@ -224,12 +290,16 @@ export const Hrm = () => {
           <button className="btn btn-secondary" onClick={() => setIsLeaveModalOpen(true)}>
             <Calendar size={16} /> Apply Leave
           </button>
-          <button className="btn btn-secondary" onClick={() => setIsReviewModalOpen(true)}>
-            <Award size={16} /> Performance Appraisal
-          </button>
-          <button className="btn btn-primary" onClick={() => setIsEmployeeModalOpen(true)}>
-            <Plus size={16} /> Onboard Staff
-          </button>
+          {isDirectorOrHR && (
+            <>
+              <button className="btn btn-secondary" onClick={() => setIsReviewModalOpen(true)}>
+                <Award size={16} /> Performance Appraisal
+              </button>
+              <button className="btn btn-primary" onClick={() => setIsEmployeeModalOpen(true)}>
+                <Plus size={16} /> Onboard Staff
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -296,148 +366,52 @@ export const Hrm = () => {
             </button>
           ))}
         </div>
-
-        {/* Mobile Filter Select Dropdown */}
-        <select
-          className="mobile-filter-select"
-          value={activeTab}
-          onChange={(e) => setActiveTab(e.target.value)}
-        >
-          <option value="employees">Employees Roster</option>
-          <option value="attendance">Daily Attendance Logs</option>
-          <option value="leave">Leave Applications</option>
-          <option value="holidays">Studio Holidays</option>
-          <option value="reviews">Performance Reviews</option>
-        </select>
-
-        {/* Dual View Toggle */}
-        <div className="view-toggle-container">
-          <button
-            className={`view-toggle-btn ${viewMode === 'stripe' ? 'active' : ''}`}
-            onClick={() => setViewMode('stripe')}
-          >
-            <List size={14} /> Stripe View
-          </button>
-          <button
-            className={`view-toggle-btn ${viewMode === 'card' ? 'active' : ''}`}
-            onClick={() => setViewMode('card')}
-          >
-            <LayoutGrid size={14} /> Card View
-          </button>
-        </div>
       </div>
 
-      {/* TAB 1: EMPLOYEES ROSTER */}
+      {/* TAB 1: EMPLOYEES DIRECTORY */}
       {activeTab === 'employees' && (
-        viewMode === 'card' ? (
-          <div className="responsive-cards-grid">
-            {employees.map(emp => (
-              <div key={emp._id} className="responsive-card-item">
-                <div className="responsive-card-header">
-                  <div>
-                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--color-primary)' }}>{emp.employeeCode}</span>
-                    <div className="responsive-card-title">{emp.name}</div>
-                    <div className="responsive-card-subtitle">{emp.designation} · <span className="badge badge-secondary">{emp.role}</span></div>
-                  </div>
-                  <span className="badge badge-success">{emp.status}</span>
-                </div>
-
-                <div className="responsive-card-body">
-                  <div><strong>Email:</strong> {emp.email}</div>
-                  <div><strong>Monthly Salary:</strong> ₹{emp.monthlySalary?.toLocaleString('en-IN') || '75,000'}</div>
-                </div>
-
-                <div className="responsive-card-footer">
-                  <button
-                    className="btn btn-secondary"
-                    style={{ padding: '0.35rem 0.5rem', fontSize: '0.75rem', color: '#dc2626', borderColor: '#fecaca', width: '100%', justifyContent: 'center' }}
-                    onClick={() => handleDeleteEmployee(emp._id)}
-                  >
-                    <Trash2 size={14} /> Remove Employee
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="table-responsive">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>CODE</th>
-                  <th>EMPLOYEE NAME</th>
-                  <th>DESIGNATION</th>
-                  <th>SYSTEM ROLE</th>
-                  <th>CONTACT EMAIL</th>
-                  <th>SALARY (₹)</th>
-                  <th>STATUS</th>
-                  <th>ACTIONS</th>
-                </tr>
-              </thead>
-              <tbody>
-                {employees.map(emp => (
-                  <tr key={emp._id}>
-                    <td style={{ fontWeight: '600', color: 'var(--color-primary)' }}>{emp.employeeCode}</td>
-                    <td style={{ fontWeight: '600' }}>{emp.name}</td>
-                    <td>{emp.designation}</td>
-                    <td><span className="badge badge-secondary">{emp.role}</span></td>
-                    <td>{emp.email}</td>
-                    <td>₹{emp.monthlySalary?.toLocaleString('en-IN') || '75,000'}</td>
-                    <td><span className="badge badge-success">{emp.status}</span></td>
-                    <td>
-                      <button
-                        className="btn btn-secondary"
-                        style={{ padding: '0.35rem 0.5rem', fontSize: '0.75rem', color: '#dc2626', borderColor: '#fecaca' }}
-                        onClick={() => handleDeleteEmployee(emp._id)}
-                        title="Delete Employee Record"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )
-      )}
-
-      {/* TAB 2: ATTENDANCE LOGS */}
-      {activeTab === 'attendance' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-          <ClockInOutWidget variant="card" onStatusChange={loadHrmData} />
-          <div className="table-responsive">
-            <table className="table">
+        <div className="table-responsive">
+          <table className="table">
             <thead>
               <tr>
                 <th>EMPLOYEE</th>
-                <th>DATE</th>
-                <th>CHECK IN</th>
-                <th>CHECK OUT</th>
-                <th>WORK HOURS</th>
+                <th>DESIGNATION</th>
+                <th>ROLE</th>
+                <th>EMAIL / CONTACT</th>
                 <th>STATUS</th>
+                {isDirectorOrHR && <th>ACTIONS</th>}
               </tr>
             </thead>
             <tbody>
-              {attendanceLogs.map(att => (
-                <tr key={att._id}>
-                  <td style={{ fontWeight: '600' }}>{att.employee?.name}</td>
-                  <td>{att.date}</td>
-                  <td>{att.checkIn || '--'}</td>
-                  <td>{att.checkOut || '--'}</td>
-                  <td>{att.workHours ? `${att.workHours} hrs` : '--'}</td>
+              {employees.map(emp => (
+                <tr key={emp._id}>
+                  <td style={{ fontWeight: '600' }}>
+                    {emp.name} <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>({emp.employeeCode})</span>
+                  </td>
+                  <td>{emp.designation}</td>
+                  <td><span className="badge badge-secondary">{emp.role}</span></td>
+                  <td>{emp.email}</td>
                   <td>
-                    <span className={`badge ${att.status === 'Present' ? 'badge-success' : 'badge-warning'}`}>
-                      {att.status}
+                    <span className={`badge ${emp.status === 'Active' ? 'badge-success' : 'badge-danger'}`}>
+                      {emp.status}
                     </span>
                   </td>
+                  {isDirectorOrHR && (
+                    <td>
+                      <button className="btn btn-secondary" style={{ padding: '0.25rem 0.5rem', color: 'var(--color-danger)' }} onClick={() => handleDeleteEmployee(emp._id)}>
+                        <Trash2 size={14} />
+                      </button>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-      </div>
       )}
+
+      {/* TAB 2: ATTENDANCE LOGS */}
+      {activeTab === 'attendance' && renderAttendanceTab()}
 
       {/* TAB 3: LEAVE REQUESTS */}
       {activeTab === 'leave' && (
@@ -451,7 +425,7 @@ export const Hrm = () => {
                 <th>END DATE</th>
                 <th>REASON</th>
                 <th>STATUS</th>
-                <th>ACTIONS</th>
+                {isDirectorOrHR && <th>ACTIONS</th>}
               </tr>
             </thead>
             <tbody>
@@ -467,18 +441,20 @@ export const Hrm = () => {
                       {l.status}
                     </span>
                   </td>
-                  <td>
-                    {l.status === 'Pending' && (
-                      <div style={{ display: 'flex', gap: '0.35rem' }}>
-                        <button className="btn btn-secondary" style={{ padding: '0.25rem 0.5rem', color: 'var(--color-success)' }} onClick={() => handleLeaveStatus(l._id, 'Approved')}>
-                          <CheckCircle2 size={14} /> Approve
-                        </button>
-                        <button className="btn btn-secondary" style={{ padding: '0.25rem 0.5rem', color: 'var(--color-danger)' }} onClick={() => handleLeaveStatus(l._id, 'Rejected')}>
-                          <XCircle size={14} /> Reject
-                        </button>
-                      </div>
-                    )}
-                  </td>
+                  {isDirectorOrHR && (
+                    <td>
+                      {l.status === 'Pending' && (
+                        <div style={{ display: 'flex', gap: '0.35rem' }}>
+                          <button className="btn btn-secondary" style={{ padding: '0.25rem 0.5rem', color: 'var(--color-success)' }} onClick={() => handleLeaveStatus(l._id, 'Approved')}>
+                            <CheckCircle2 size={14} /> Approve
+                          </button>
+                          <button className="btn btn-secondary" style={{ padding: '0.25rem 0.5rem', color: 'var(--color-danger)' }} onClick={() => handleLeaveStatus(l._id, 'Rejected')}>
+                            <XCircle size={14} /> Reject
+                          </button>
+                        </div>
+                      )}
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -572,12 +548,23 @@ export const Hrm = () => {
       {isLeaveModalOpen && (
         <Modal isOpen={isLeaveModalOpen} title="Apply Staff Leave Application" onClose={() => setIsLeaveModalOpen(false)}>
           <form onSubmit={handleApplyLeave}>
-            <FormField label="Employee" name="employeeId" type="select" value={leaveForm.employeeId} onChange={e => setLeaveForm({ ...leaveForm, employeeId: e.target.value })} required>
-              <option value="">-- Choose Employee --</option>
-              {employees.map(emp => (
-                <option key={emp._id} value={emp._id}>{emp.name} ({emp.employeeCode})</option>
-              ))}
-            </FormField>
+            {isDirectorOrHR ? (
+              <FormField label="Employee" name="employeeId" type="select" value={leaveForm.employeeId || currentUserId} onChange={e => setLeaveForm({ ...leaveForm, employeeId: e.target.value })} required>
+                <option value={currentUserId}>Self — {currentUserName} ({userRoleName})</option>
+                {employees.map(emp => (
+                  <option key={emp._id} value={emp._id}>{emp.name} ({emp.employeeCode || 'EMP'})</option>
+                ))}
+              </FormField>
+            ) : (
+              <div style={{ marginBottom: '1rem', padding: '0.75rem 1rem', backgroundColor: '#faf9f6', borderRadius: '10px', border: '1px solid #eeeae3' }}>
+                <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#8c8882', textTransform: 'uppercase', display: 'block', marginBottom: '0.25rem' }}>
+                  Applicant Employee (Auto-Detected from Token)
+                </label>
+                <div style={{ fontSize: '0.95rem', fontWeight: 700, color: '#1F1F1F' }}>
+                  {currentUserName} <span style={{ fontSize: '0.78rem', color: '#8c8882', fontWeight: 500 }}>({userRoleName})</span>
+                </div>
+              </div>
+            )}
 
             <FormField label="Leave Type" name="leaveType" type="select" value={leaveForm.leaveType} onChange={e => setLeaveForm({ ...leaveForm, leaveType: e.target.value })}>
               <option value="Casual Leave">Casual Leave</option>

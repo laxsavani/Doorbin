@@ -131,152 +131,242 @@ export const Dashboard = () => {
         <Loader text="Loading dashboard metrics..." />
       ) : (
         <>
-          {/* Role-Specific Metric Cards Grid (Page 16-17 PDF Requirement) */}
+          {/* Role-Tailored Metric Cards Grid */}
           <div className="dashboard-grid" style={{ marginBottom: '1.5rem' }}>
-            <div className="stat-card">
-              <div className="stat-card-title">TOTAL PROJECTS</div>
-              <div className="stat-card-value">{projectCards.length || 8}</div>
-              <div className="stat-card-subtext">Architecture, Interior & Animation</div>
-            </div>
-
-            <div className="stat-card">
-              <div className="stat-card-title">ACTIVE TASKS DUE</div>
-              <div className="stat-card-value" style={{ color: 'var(--color-primary)' }}>{tasks.length || 12}</div>
-              <div className="stat-card-subtext">Across active production stages</div>
-            </div>
-
-            {userRole === 'Director' || userRole === 'Business Development Manager' ? (
-              <div className="stat-card">
-                <div className="stat-card-title">OUTSTANDING DUES</div>
-                <div className="stat-card-value" style={{ color: '#c7452e' }}>₹3.90 L</div>
-                <div className="stat-card-subtext">Receivables balance</div>
-              </div>
-            ) : (
-              <div className="stat-card">
-                <div className="stat-card-title">TEAM UTILIZATION</div>
-                <div className="stat-card-value" style={{ color: 'var(--color-success)' }}>88.5%</div>
-                <div className="stat-card-subtext">Artist capacity allocated</div>
-              </div>
-            )}
-          </div>
-          {/* Dynamic Project Cards Grid */}
-      <div className="project-cards-scroll-container">
-        {projectCards.map((card) => (
-          <div key={card.id} className="project-card">
-            <div>
-              <div className="project-card-header">
-                <span className="project-category-text">{card.category}</span>
-                <span className={`status-badge-pill ${card.badgeClass}`}>{card.badge}</span>
-              </div>
-              <div className="project-card-title">{card.title}</div>
-              <div className="project-card-client">{card.client}</div>
-            </div>
-
-            <div className="project-progress-footer">
-              <div className="progress-bar-track">
-                <div
-                  className="progress-bar-fill"
-                  style={{ width: `${card.progress}%`, backgroundColor: card.barColor }}
-                />
-              </div>
-              <span className="progress-percent-text">{card.progress}%</span>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Split Main Section (2 Columns) */}
-      <div className="dashboard-split-grid">
-        {/* Left Column: Needs Attention & Tasks Due This Week */}
-        <div>
-          {/* Needs Attention Task Card */}
-          {(() => {
-            const urgentTask = tasks.find(t => t.status === 'Revision Required' || t.status === 'Pending') || tasks[0];
-            return (
+            {userRole === 'Artist' ? (
               <>
-                <div className="section-label-red">
-                  <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#c7452e' }} />
-                  Needs attention
+                <div className="stat-card">
+                  <div className="stat-card-title">MY ASSIGNED TASKS</div>
+                  <div className="stat-card-value" style={{ color: '#B68D40' }}>{tasks.length}</div>
+                  <div className="stat-card-subtext">3D Modeling, Renders & Subtasks</div>
                 </div>
-
-                <div className="overdue-card-item">
-                  <div>
-                    <div className="task-title-bold">{urgentTask?.title || 'System Status Check'}</div>
-                    <div className="task-subtitle-muted">{urgentTask?.projectStage || 'All project tasks on track'}</div>
+                <div className="stat-card">
+                  <div className="stat-card-title">TASKS IN PROGRESS</div>
+                  <div className="stat-card-value" style={{ color: '#2563eb' }}>
+                    {tasks.filter(t => t.status === 'In Progress' || t.status === 'Assigned').length}
                   </div>
-
-                  <div className="task-meta-right">
-                    <span className="task-date-red">{urgentTask?.date || 'Today'}</span>
-                    <div className="task-user-avatar" style={{ backgroundColor: urgentTask?.avatarBg || '#c7452e' }}>
-                      {urgentTask?.userAvatar || 'PM'}
-                    </div>
+                  <div className="stat-card-subtext">Active rendering & revisions</div>
+                </div>
+                <div className="stat-card">
+                  <div className="stat-card-title">REVISIONS REQUIRED</div>
+                  <div className="stat-card-value" style={{ color: '#dc2626' }}>
+                    {tasks.filter(t => t.status === 'Revision Required').length}
                   </div>
+                  <div className="stat-card-subtext">PM / Client revision feedback</div>
+                </div>
+                <div className="stat-card">
+                  <div className="stat-card-title">MY COMPLETED TASKS</div>
+                  <div className="stat-card-value" style={{ color: '#16a34a' }}>
+                    {tasks.filter(t => t.status === 'Completed' || t.status === 'Approved').length}
+                  </div>
+                  <div className="stat-card-subtext">Approved milestone deliverables</div>
                 </div>
               </>
-            );
-          })()}
-
-          {/* Due This Week Tasks List */}
-          <div className="section-label-dark">
-            Due this week <span style={{ color: '#8c8882', fontWeight: 500 }}>{tasks.length} tasks</span>
+            ) : userRole === 'Human Resource' ? (
+              <>
+                <div className="stat-card">
+                  <div className="stat-card-title">TOTAL EMPLOYEES</div>
+                  <div className="stat-card-value" style={{ color: '#B68D40' }}>{teamMembers.length || 14}</div>
+                  <div className="stat-card-subtext">Studio Artists & PM Staff</div>
+                </div>
+                <div className="stat-card">
+                  <div className="stat-card-title">TODAY'S ATTENDANCE</div>
+                  <div className="stat-card-value" style={{ color: '#16a34a' }}>
+                    {teamMembers.filter(m => m.status === 'Active').length || 12}
+                  </div>
+                  <div className="stat-card-subtext">Clocked-in & present today</div>
+                </div>
+                <div className="stat-card">
+                  <div className="stat-card-title">ON LEAVE TODAY</div>
+                  <div className="stat-card-value" style={{ color: '#dc2626' }}>
+                    {teamMembers.filter(m => m.status !== 'Active').length || 2}
+                  </div>
+                  <div className="stat-card-subtext">Approved leaves & PTO</div>
+                </div>
+              </>
+            ) : userRole === 'Business Development Manager' ? (
+              <>
+                <div className="stat-card">
+                  <div className="stat-card-title">TOTAL ENQUIRIES</div>
+                  <div className="stat-card-value" style={{ color: '#B68D40' }}>18</div>
+                  <div className="stat-card-subtext">Incoming client leads</div>
+                </div>
+                <div className="stat-card">
+                  <div className="stat-card-title">ACTIVE PROPOSALS</div>
+                  <div className="stat-card-value" style={{ color: '#2563eb' }}>7</div>
+                  <div className="stat-card-subtext">Under negotiation</div>
+                </div>
+                <div className="stat-card">
+                  <div className="stat-card-title">OUTSTANDING RECEIVABLES</div>
+                  <div className="stat-card-value" style={{ color: '#c7452e' }}>₹3.90 L</div>
+                  <div className="stat-card-subtext">Pending invoices balance</div>
+                </div>
+              </>
+            ) : userRole === 'Production Manager' ? (
+              <>
+                <div className="stat-card">
+                  <div className="stat-card-title">MANAGED PROJECTS</div>
+                  <div className="stat-card-value" style={{ color: '#B68D40' }}>{projectCards.length || 8}</div>
+                  <div className="stat-card-subtext">Active production stages</div>
+                </div>
+                <div className="stat-card">
+                  <div className="stat-card-title">STAGE TASKS DUE</div>
+                  <div className="stat-card-value" style={{ color: '#2563eb' }}>{tasks.length || 12}</div>
+                  <div className="stat-card-subtext">In progress & assigned</div>
+                </div>
+                <div className="stat-card">
+                  <div className="stat-card-title">TEAM UTILIZATION</div>
+                  <div className="stat-card-value" style={{ color: '#16a34a' }}>88.5%</div>
+                  <div className="stat-card-subtext">Artist capacity allocated</div>
+                </div>
+              </>
+            ) : (
+              // Director Executive Overview
+              <>
+                <div className="stat-card">
+                  <div className="stat-card-title">TOTAL STUDIO PROJECTS</div>
+                  <div className="stat-card-value" style={{ color: '#B68D40' }}>{projectCards.length || 8}</div>
+                  <div className="stat-card-subtext">Architecture, Interior & Animation</div>
+                </div>
+                <div className="stat-card">
+                  <div className="stat-card-title">ACTIVE TASKS DUE</div>
+                  <div className="stat-card-value" style={{ color: '#2563eb' }}>{tasks.length || 12}</div>
+                  <div className="stat-card-subtext">Across active production stages</div>
+                </div>
+                <div className="stat-card">
+                  <div className="stat-card-title">FINANCIAL RECEIVABLES</div>
+                  <div className="stat-card-value" style={{ color: '#c7452e' }}>₹3.90 L</div>
+                  <div className="stat-card-subtext">Billed invoices balance</div>
+                </div>
+              </>
+            )}
           </div>
 
-          <div className="tasks-list-container">
-            {tasks.map((task) => (
-              <div key={task.id} className="task-row-card">
+          {/* Dynamic Project Cards Grid */}
+          <div className="project-cards-scroll-container">
+            {projectCards.map((card) => (
+              <div key={card.id} className="project-card">
                 <div>
-                  <div className="task-title-bold">
-                    <span style={{ color: '#8c8882', marginRight: '6px' }}>•</span>
-                    {task.title}
+                  <div className="project-card-header">
+                    <span className="project-category-text">{card.category}</span>
+                    <span className={`status-badge-pill ${card.badgeClass}`}>{card.badge}</span>
                   </div>
-                  <div className="task-subtitle-muted" style={{ marginLeft: '14px' }}>
-                    {task.projectStage}
-                  </div>
+                  <div className="project-card-title">{card.title}</div>
+                  <div className="project-card-client">{card.client}</div>
                 </div>
 
-                <div className="task-meta-right">
-                  <span className={task.statusClass}>{task.status}</span>
-                  <span className="task-date-grey">{task.date}</span>
-                  <div className="task-user-avatar" style={{ backgroundColor: task.avatarBg }}>
-                    {task.userAvatar}
+                <div className="project-progress-footer">
+                  <div className="progress-bar-track">
+                    <div
+                      className="progress-bar-fill"
+                      style={{ width: `${card.progress}%`, backgroundColor: card.barColor }}
+                    />
                   </div>
+                  <span className="progress-percent-text">{card.progress}%</span>
                 </div>
               </div>
             ))}
           </div>
-        </div>
 
-        {/* Right Column: Attendance Shift Widget & Team This Week */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-          <ClockInOutWidget variant="card" />
-          <div className="team-widget-card">
-            <div className="team-widget-title">Team this week</div>
+          {/* Split Main Section (2 Columns) */}
+          <div className="dashboard-split-grid">
+            {/* Left Column: Role-Specific Actionable Tasks */}
+            <div>
+              {/* Needs Attention Task Card */}
+              {(() => {
+                const urgentTask = tasks.find(t => t.status === 'Revision Required' || t.status === 'Pending') || tasks[0];
+                return (
+                  <>
+                    <div className="section-label-red">
+                      <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#c7452e' }} />
+                      {userRole === 'Artist' ? 'My priority revision' : 'Needs attention'}
+                    </div>
 
-            {teamMembers.map((member, index) => (
-              <div key={index} className="team-member-row">
-                <div className="team-member-info">
-                  <div className="team-avatar" style={{ backgroundColor: member.bg }}>
-                    {member.avatar}
+                    <div className="overdue-card-item">
+                      <div>
+                        <div className="task-title-bold">{urgentTask?.title || '3D Render Asset Revision'}</div>
+                        <div className="task-subtitle-muted">{urgentTask?.projectStage || 'Veritas Penthouse 3D VR Walkthrough'}</div>
+                      </div>
+
+                      <div className="task-meta-right">
+                        <span className="task-date-red">{urgentTask?.date || 'Today'}</span>
+                        <div className="task-user-avatar" style={{ backgroundColor: urgentTask?.avatarBg || '#c7452e' }}>
+                          {urgentTask?.userAvatar || 'ART'}
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
+
+              {/* Due This Week Tasks List */}
+              <div className="section-label-dark">
+                {userRole === 'Artist' ? 'My assigned tasks due this week' : 'Due this week'} <span style={{ color: '#8c8882', fontWeight: 500 }}>({tasks.length} tasks)</span>
+              </div>
+
+              <div className="tasks-list-container">
+                {tasks.length > 0 ? (
+                  tasks.map((task) => (
+                    <div key={task.id} className="task-row-card">
+                      <div>
+                        <div className="task-title-bold">
+                          <span style={{ color: '#8c8882', marginRight: '6px' }}>•</span>
+                          {task.title}
+                        </div>
+                        <div className="task-subtitle-muted" style={{ marginLeft: '14px' }}>
+                          {task.projectStage}
+                        </div>
+                      </div>
+
+                      <div className="task-meta-right">
+                        <span className={task.statusClass}>{task.status}</span>
+                        <span className="task-date-grey">{task.date}</span>
+                        <div className="task-user-avatar" style={{ backgroundColor: task.avatarBg }}>
+                          {task.userAvatar}
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div style={{ padding: '1.5rem', textAlign: 'center', color: '#8c8882', backgroundColor: '#ffffff', borderRadius: '12px' }}>
+                    No assigned tasks due for your role. All clear!
                   </div>
-                  <span className="team-name">{member.name}</span>
+                )}
+              </div>
+            </div>
+
+            {/* Right Column: Team Availability Roster */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              <div className="team-widget-card">
+                <div className="team-widget-title">
+                  {userRole === 'Human Resource' ? 'Studio Staff Attendance Roster' : 'Team this week'}
                 </div>
 
-                <div className="team-status-indicator">
-                  <span className="team-status-label">{member.status}</span>
-                  <div className="team-bar-track">
-                    <div className={member.isBooked ? 'team-bar-booked' : 'team-bar-partial'} />
+                {teamMembers.map((member, index) => (
+                  <div key={index} className="team-member-row">
+                    <div className="team-member-info">
+                      <div className="team-avatar" style={{ backgroundColor: member.bg }}>
+                        {member.avatar}
+                      </div>
+                      <span className="team-name">{member.name}</span>
+                    </div>
+
+                    <div className="team-status-indicator">
+                      <span className="team-status-label">{member.status}</span>
+                      <div className="team-bar-track">
+                        <div className={member.isBooked ? 'team-bar-booked' : 'team-bar-partial'} />
+                      </div>
+                    </div>
                   </div>
+                ))}
+
+                <div className="team-availability-note">
+                  Studio team capacity allocated across active 3D Visualization stages.
                 </div>
               </div>
-            ))}
-
-            <div className="team-availability-note">
-              Dev frees up from Jul 27 — first slot for new-project work. See Timeline for full availability.
             </div>
           </div>
-        </div>
-      </div>
-      </>
+        </>
       )}
 
       {/* Modal for Creating New Task */}

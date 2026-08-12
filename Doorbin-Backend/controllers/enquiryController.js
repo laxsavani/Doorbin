@@ -154,6 +154,14 @@ const getEnquiries = async (req, res) => {
     const { status, priority, assignedExecutive, clientCategory, followUpDue, search, page = 1, limit = 20 } = req.query;
     const query = {};
 
+    const isDirectorOrBDManager = req.user?.role?.name === 'Director' || req.user?.role?.name === 'Business Development Manager';
+    if (!isDirectorOrBDManager) {
+      query.$or = [
+        { assignedExecutive: req.user._id },
+        { createdBy: req.user._id }
+      ];
+    }
+
     if (status) query.status = status;
     if (priority) query.priority = priority;
     if (assignedExecutive) query.assignedExecutive = assignedExecutive;

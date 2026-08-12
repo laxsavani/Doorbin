@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { authService } from '../services/authService';
 import { formatDate } from '../utils/dateUtils';
@@ -9,6 +9,7 @@ import {
   Building,
   Building2,
   ChevronRight,
+  ChevronDown,
   Shield,
   Activity,
   User,
@@ -156,28 +157,62 @@ export const MainLayout = ({ children }) => {
     return keys.some(key => Boolean(activePermissions[key]));
   };
 
-  // Clean Sidebar Groups matching All 12 Backend Modules & Permissions
-  const organizationModules = [
-    checkPerm(['userManagement', 'systemConfiguration']) ? { title: 'User Management', path: '/users', icon: Users } : null,
-    checkPerm(['departmentManagement', 'hrAccess', 'userManagement']) ? { title: 'Department Management', path: '/departments', icon: Building } : null,
-    checkPerm(['hrAccess', 'userManagement']) ? { title: 'HR & Attendance', path: '/hrm', icon: UserCheck } : null,
-    checkPerm(['businessDevAccess', 'userManagement', 'financeAccess']) ? { title: 'Clients & CRM', path: '/clients', icon: Building2 } : null,
-    checkPerm(['businessDevAccess', 'projectManagement', 'userManagement']) ? { title: 'Enquiries & BD', path: '/enquiries', icon: Briefcase } : null,
-    checkPerm(['projectManagement', 'userManagement']) ? { title: 'Projects & Stages', path: '/projects', icon: FolderKanban } : null,
-    checkPerm(['taskManagement', 'projectManagement']) ? { title: 'Task Management', path: '/tasks', icon: CheckSquare } : null,
-    checkPerm(['timelineAccess', 'projectManagement']) ? { title: 'Gantt Timeline', path: '/timeline', icon: GitCommit } : null,
-    checkPerm(['calendarAccess', 'taskManagement']) ? { title: 'Studio Calendar', path: '/calendar', icon: CalendarIcon } : null,
-    checkPerm(['resourceAllocation', 'systemConfiguration']) ? { title: 'Resource Allocation', path: '/resources', icon: PieChart } : null,
-    checkPerm(['financeAccess', 'userManagement']) ? { title: 'Finance Management', path: '/finance', icon: DollarSign } : null,
+  // Group Definitions matching Strict Role Access Matrix
+  const isDirectorRole = userRoleName.toLowerCase() === 'director';
+
+  const projectSubItems = [
+    (isDirectorRole || checkPerm('projectManagement')) ? { title: 'Projects & Stages', path: '/projects', icon: FolderKanban } : null,
+    (isDirectorRole || checkPerm(['taskManagement', 'projectManagement'])) ? { title: 'Task Management', path: '/tasks', icon: CheckSquare } : null,
+    (isDirectorRole || checkPerm(['timelineAccess', 'projectManagement'])) ? { title: 'Gantt Timeline', path: '/timeline', icon: GitCommit } : null,
+    (isDirectorRole || checkPerm(['calendarAccess', 'taskManagement', 'projectManagement'])) ? { title: 'Studio Calendar', path: '/calendar', icon: CalendarIcon } : null,
+    (isDirectorRole || checkPerm(['resourceAllocation', 'projectManagement'])) ? { title: 'Resource Allocation', path: '/resources', icon: PieChart } : null
   ].filter(Boolean);
 
-  const systemModules = [
-    checkPerm(['systemConfiguration', 'projectManagement']) ? { title: 'Workflow Templates', path: '/workflow-templates', icon: Layers } : null,
-    checkPerm(['reportsAccess', 'projectManagement', 'financeAccess']) ? { title: 'Reports & Analytics', path: '/reports', icon: BarChart2 } : null,
-    checkPerm(['systemConfiguration', 'userManagement']) ? { title: 'Role & Permissions', path: '/roles-permissions', icon: Shield } : null,
-    checkPerm(['systemConfiguration', 'reportsAccess']) ? { title: 'Activity Audit Logs', path: '/audit-logs', icon: Activity } : null,
+  const crmSubItems = [
+    (isDirectorRole || checkPerm('businessDevAccess')) ? { title: 'Lead Management', path: '/enquiries', icon: Briefcase } : null,
+    (isDirectorRole || checkPerm('businessDevAccess')) ? { title: 'Client Directory', path: '/clients', icon: Building2 } : null,
+    (isDirectorRole || checkPerm(['financeAccess', 'businessDevAccess'])) ? { title: 'Finance Management', path: '/finance', icon: DollarSign } : null
+  ].filter(Boolean);
+
+  const hrSubItems = [
+    (isDirectorRole || checkPerm('hrAccess')) ? { title: 'Attendance & HRM', path: '/hrm', icon: UserCheck } : null,
+    (isDirectorRole || checkPerm('userManagement')) ? { title: 'User Directory', path: '/users', icon: Users } : null,
+    (isDirectorRole || checkPerm('departmentManagement')) ? { title: 'Departments', path: '/departments', icon: Building } : null
+  ].filter(Boolean);
+
+  const systemSubItems = [
+    (isDirectorRole || checkPerm('reportsAccess')) ? { title: 'Analytics & Reports', path: '/reports', icon: BarChart2 } : null,
+    (isDirectorRole || checkPerm('systemConfiguration')) ? { title: 'Workflow Templates', path: '/workflow-templates', icon: Layers } : null,
+    (isDirectorRole || checkPerm('systemConfiguration')) ? { title: 'Role & Permissions', path: '/roles-permissions', icon: Shield } : null,
+    (isDirectorRole || checkPerm('systemConfiguration')) ? { title: 'Activity Audit Logs', path: '/audit-logs', icon: Activity } : null,
     { title: 'Account Settings', path: '/profile', icon: User }
   ].filter(Boolean);
+
+  // Accordion Expand/Collapse State
+  const [openGroups, setOpenGroups] = useState({
+    projects: true,
+    crm: true,
+    workforce: false,
+    system: false
+  });
+
+  // Auto-expand active route parent group
+  useEffect(() => {
+    const currentPath = location.pathname;
+    if (projectSubItems.some(i => i.path === currentPath)) {
+      setOpenGroups(prev => ({ ...prev, projects: true }));
+    } else if (crmSubItems.some(i => i.path === currentPath)) {
+      setOpenGroups(prev => ({ ...prev, crm: true }));
+    } else if (hrSubItems.some(i => i.path === currentPath)) {
+      setOpenGroups(prev => ({ ...prev, workforce: true }));
+    } else if (systemSubItems.some(i => i.path === currentPath)) {
+      setOpenGroups(prev => ({ ...prev, system: true }));
+    }
+  }, [location.pathname]);
+
+  const toggleGroup = (groupKey) => {
+    setOpenGroups(prev => ({ ...prev, [groupKey]: !prev[groupKey] }));
+  };
 
   // User initials calculation
   const userInitials = userName
@@ -218,76 +253,162 @@ export const MainLayout = ({ children }) => {
           </button>
         </div>
 
-        {/* SCROLLABLE MENU LIST */}
+        {/* SCROLLABLE NAV CONTENT WITH ACCORDION GROUPS */}
         <div className="sidebar-nav-content">
           {/* Main Item: Dashboard */}
-          <div className="sidebar-nav-group">
-            <ul className="sidebar-nav-list">
-              <li>
-                <div
-                  className={`sidebar-nav-item ${location.pathname === '/dashboard' ? 'active' : ''}`}
-                  onClick={() => handleNavClick('/dashboard')}
-                >
-                  <div className="sidebar-nav-item-left">
-                    <LayoutDashboard size={18} />
-                    <span>Dashboard</span>
-                  </div>
-                </div>
-              </li>
-            </ul>
+          <div className="sidebar-nav-group" style={{ marginBottom: '0.85rem' }}>
+            <div
+              className={`sidebar-nav-item ${location.pathname === '/dashboard' ? 'active' : ''}`}
+              onClick={() => handleNavClick('/dashboard')}
+            >
+              <div className="sidebar-nav-item-left">
+                <LayoutDashboard size={18} />
+                <span>Dashboard</span>
+              </div>
+            </div>
           </div>
 
-          {/* Group: ORGANIZATION */}
-          {organizationModules.length > 0 && (
+          {/* GROUP 1: PROJECTS & PRODUCTION */}
+          {projectSubItems.length > 0 && (
             <div className="sidebar-nav-group">
-              <div className="sidebar-group-label">ORGANIZATION</div>
-              <ul className="sidebar-nav-list">
-                {organizationModules.map((item, idx) => {
-                  const Icon = item.icon;
-                  const isActive = location.pathname === item.path;
-                  return (
-                    <li key={idx}>
-                      <div
-                        className={`sidebar-nav-item ${isActive ? 'active' : ''}`}
-                        onClick={() => handleNavClick(item.path)}
-                      >
-                        <div className="sidebar-nav-item-left">
-                          <Icon size={18} />
+              <div className="sidebar-group-label">PROJECTS & PRODUCTION</div>
+              <div
+                className="sidebar-parent-header"
+                onClick={() => toggleGroup('projects')}
+              >
+                <div className="sidebar-parent-header-left">
+                  <FolderKanban size={18} />
+                  <span>Projects & Execution</span>
+                </div>
+                {openGroups.projects ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+              </div>
+              {openGroups.projects && (
+                <ul className="sidebar-sub-nav-list">
+                  {projectSubItems.map((item, idx) => {
+                    const Icon = item.icon;
+                    const isActive = location.pathname === item.path;
+                    return (
+                      <li key={idx}>
+                        <div
+                          className={`sidebar-sub-nav-item ${isActive ? 'active' : ''}`}
+                          onClick={() => handleNavClick(item.path)}
+                        >
+                          <Icon size={15} />
                           <span>{item.title}</span>
                         </div>
-                        <ChevronRight size={14} className="sidebar-chevron-icon" />
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
             </div>
           )}
 
-          {/* Group: SYSTEM & GOVERNANCE */}
-          {systemModules.length > 0 && (
+          {/* GROUP 2: CRM MODULES */}
+          {crmSubItems.length > 0 && (
             <div className="sidebar-nav-group">
-              <div className="sidebar-group-label">SYSTEM & GOVERNANCE</div>
-              <ul className="sidebar-nav-list">
-                {systemModules.map((item, idx) => {
-                  const Icon = item.icon;
-                  const isActive = location.pathname === item.path;
-                  return (
-                    <li key={idx}>
-                      <div
-                        className={`sidebar-nav-item ${isActive ? 'active' : ''}`}
-                        onClick={() => handleNavClick(item.path)}
-                      >
-                        <div className="sidebar-nav-item-left">
-                          <Icon size={18} />
+              <div className="sidebar-group-label">CRM MODULES</div>
+              <div
+                className="sidebar-parent-header"
+                onClick={() => toggleGroup('crm')}
+              >
+                <div className="sidebar-parent-header-left">
+                  <Building2 size={18} />
+                  <span>Clients & CRM</span>
+                </div>
+                {openGroups.crm ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+              </div>
+              {openGroups.crm && (
+                <ul className="sidebar-sub-nav-list">
+                  {crmSubItems.map((item, idx) => {
+                    const Icon = item.icon;
+                    const isActive = location.pathname === item.path;
+                    return (
+                      <li key={idx}>
+                        <div
+                          className={`sidebar-sub-nav-item ${isActive ? 'active' : ''}`}
+                          onClick={() => handleNavClick(item.path)}
+                        >
+                          <Icon size={15} />
                           <span>{item.title}</span>
                         </div>
-                        <ChevronRight size={14} className="sidebar-chevron-icon" />
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+          )}
+
+          {/* GROUP 3: WORKFORCE GROUP */}
+          {hrSubItems.length > 0 && (
+            <div className="sidebar-nav-group">
+              <div className="sidebar-group-label">WORKFORCE GROUP</div>
+              <div
+                className="sidebar-parent-header"
+                onClick={() => toggleGroup('workforce')}
+              >
+                <div className="sidebar-parent-header-left">
+                  <UserCheck size={18} />
+                  <span>HR & Attendance</span>
+                </div>
+                {openGroups.workforce ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+              </div>
+              {openGroups.workforce && (
+                <ul className="sidebar-sub-nav-list">
+                  {hrSubItems.map((item, idx) => {
+                    const Icon = item.icon;
+                    const isActive = location.pathname === item.path;
+                    return (
+                      <li key={idx}>
+                        <div
+                          className={`sidebar-sub-nav-item ${isActive ? 'active' : ''}`}
+                          onClick={() => handleNavClick(item.path)}
+                        >
+                          <Icon size={15} />
+                          <span>{item.title}</span>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+          )}
+
+          {/* GROUP 4: ANALYTICS & SYSTEM */}
+          {systemSubItems.length > 0 && (
+            <div className="sidebar-nav-group">
+              <div className="sidebar-group-label">ANALYTICS & SYSTEM</div>
+              <div
+                className="sidebar-parent-header"
+                onClick={() => toggleGroup('system')}
+              >
+                <div className="sidebar-parent-header-left">
+                  <BarChart2 size={18} />
+                  <span>Analytics & Governance</span>
+                </div>
+                {openGroups.system ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+              </div>
+              {openGroups.system && (
+                <ul className="sidebar-sub-nav-list">
+                  {systemSubItems.map((item, idx) => {
+                    const Icon = item.icon;
+                    const isActive = location.pathname === item.path;
+                    return (
+                      <li key={idx}>
+                        <div
+                          className={`sidebar-sub-nav-item ${isActive ? 'active' : ''}`}
+                          onClick={() => handleNavClick(item.path)}
+                        >
+                          <Icon size={15} />
+                          <span>{item.title}</span>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
             </div>
           )}
         </div>

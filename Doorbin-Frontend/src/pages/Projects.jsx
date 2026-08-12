@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { projectService } from '../services/projectService';
 import { clientService } from '../services/clientService';
 import { userService } from '../services/userService';
+import { authService } from '../services/authService';
 import { Modal } from '../components/Modal';
 import { FormField } from '../components/FormField';
 import { Toast } from '../components/Toast';
@@ -17,6 +18,12 @@ const PRIORITIES = ['High', 'Medium', 'Low'];
 const PROJECT_STATUSES = ['Not Started', 'In Progress', 'On Hold', 'Completed', 'Delayed'];
 
 export const Projects = () => {
+  const currentUser = authService.getCurrentUser();
+  const userRoleName = typeof currentUser?.role === 'object'
+    ? (currentUser?.role?.name || 'Artist')
+    : (currentUser?.role || 'Artist');
+  const canManageProjects = userRoleName.toLowerCase() === 'director' || userRoleName.toLowerCase() === 'production manager';
+
   const [projects, setProjects] = useState([]);
   const [clientsList, setClientsList] = useState([]);
   const [usersList, setUsersList] = useState([]);
@@ -321,9 +328,11 @@ export const Projects = () => {
             </button>
           </div>
 
-          <button onClick={() => setIsCreateModalOpen(true)} className="btn-new-task">
-            <Plus size={16} /> New Project
-          </button>
+          {canManageProjects && (
+            <button onClick={() => setIsCreateModalOpen(true)} className="btn-new-task">
+              <Plus size={16} /> New Project
+            </button>
+          )}
         </div>
       </div>
 
