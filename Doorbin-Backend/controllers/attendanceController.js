@@ -1,9 +1,30 @@
 const Attendance = require('../models/Attendance');
 const User = require('../models/User');
+const Holiday = require('../models/Holiday');
 const logActivity = require('../utils/activityLogger');
 const { formatDDMMYYYY } = require('../utils/dateFormatter');
 const { calculateWorkingHours, checkLateArrival, checkEarlyLeave } = require('../utils/attendanceCalc');
 const { exportToExcel, exportToPDF, exportToCSV } = require('../services/exportEngine');
+
+// Helper to check if date is Sunday or Holiday
+const isTodaySundayOrHoliday = async (dateObj = new Date()) => {
+  if (dateObj.getDay() === 0) {
+    return { isBlocked: true, name: 'Sunday (Weekly Off)' };
+  }
+  const startOfDay = new Date(dateObj);
+  startOfDay.setHours(0, 0, 0, 0);
+  const endOfDay = new Date(dateObj);
+  endOfDay.setHours(23, 59, 59, 999);
+
+  const holiday = await Holiday.findOne({
+    date: { $gte: startOfDay, $lte: endOfDay }
+  });
+
+  if (holiday) {
+    return { isBlocked: true, name: holiday.name };
+  }
+  return { isBlocked: false };
+};
 
 // Helper to compute average working hours for an employee
 const calculateAverageWorkingHours = async (employeeId) => {
@@ -27,6 +48,15 @@ const clockIn = async (req, res) => {
   today.setHours(0, 0, 0, 0);
 
   try {
+    const holCheck = await isTodaySundayOrHoliday(today);
+    if (holCheck.isBlocked) {
+      return res.status(400).json({
+        success: false,
+        message: `Clock-in is disabled today (${holCheck.name}). Enjoy your day off!`,
+        isHoliday: true,
+        holidayName: holCheck.name
+      });
+    }
     let attendance = await Attendance.findOne({
       employee: userId,
       date: today
@@ -199,6 +229,20 @@ const getTodayAttendance = async (req, res) => {
   today.setHours(0, 0, 0, 0);
 
   try {
+    const holCheck = await isTodaySundayOrHoliday(today);
+    if (holCheck.isBlocked) {
+      return res.json({
+        success: true,
+        activeSession: null,
+        isClockedIn: false,
+        isHoliday: true,
+        holidayName: holCheck.name,
+        status: 'Holiday',
+        workingHours: 0,
+        averageWorkingHours: await calculateAverageWorkingHours(userId)
+      });
+    }
+
     const attendance = await Attendance.findOne({
       employee: userId,
       date: today

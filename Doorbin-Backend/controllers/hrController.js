@@ -958,7 +958,18 @@ const exportAttendance = async (req, res) => {
       ]);
     } else {
       // All Employees Monthly Attendance Export Summary
-      const activeUsers = await User.find({ status: 'Active' }).select('name email role department');
+      const activeUsers = await User.find({ status: 'Active' })
+        .populate('role', 'name')
+        .select('name email role department');
+
+      const employees = await Employee.find({ status: 'Active' }).select('user designation employeeCode');
+      const empDesignationMap = {};
+      employees.forEach(emp => {
+        if (emp.user) {
+          empDesignationMap[emp.user.toString()] = emp.designation;
+        }
+      });
+
       const userIds = activeUsers.map(u => u._id);
 
       const records = await Attendance.find({
@@ -967,14 +978,23 @@ const exportAttendance = async (req, res) => {
       });
 
       title = `Studio Monthly Attendance Summary — ${monthName}`;
-      headers = ['Employee Name', 'Email', 'Role', 'Present Days', 'Absent Days', 'Half Days', 'On Leave', 'Total Hours', 'Avg Daily Hours'];
+      headers = ['Employee Name', 'Email', 'Role / Designation', 'Present Days', 'Absent Days', 'Half Days', 'On Leave', 'Total Hours', 'Avg Daily Hours'];
 
       const userStatsMap = {};
       activeUsers.forEach(u => {
+        let roleTitle = 'Staff';
+        if (typeof u.role === 'object' && u.role?.name) {
+          roleTitle = u.role.name;
+        } else if (typeof u.role === 'string' && u.role) {
+          roleTitle = u.role;
+        } else if (empDesignationMap[u._id.toString()]) {
+          roleTitle = empDesignationMap[u._id.toString()];
+        }
+
         userStatsMap[u._id.toString()] = {
           name: u.name,
           email: u.email,
-          role: u.role?.name || 'Staff',
+          role: roleTitle,
           present: 0,
           absent: 0,
           halfDay: 0,

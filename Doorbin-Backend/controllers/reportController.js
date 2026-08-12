@@ -103,7 +103,10 @@ const getEmployeeReports = async (req, res) => {
     if (employee && mongoose.Types.ObjectId.isValid(employee)) userQuery._id = employee;
     if (department && mongoose.Types.ObjectId.isValid(department)) userQuery.department = department;
 
-    const employees = await User.find(userQuery).populate('department', 'name').select('name email role department');
+    const employees = await User.find(userQuery)
+      .populate('role', 'name')
+      .populate('department', 'name')
+      .select('name email role department');
 
     const now = new Date();
     const fromDate = from ? parseDateString(from) : new Date(now.getFullYear(), now.getMonth(), 1);
