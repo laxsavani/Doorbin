@@ -2,6 +2,9 @@ const Task = require('../models/Task');
 const Stage = require('../models/Stage');
 const Project = require('../models/Project');
 const RescheduleLog = require('../models/RescheduleLog');
+const Enquiry = require('../models/Enquiry');
+const Holiday = require('../models/Holiday');
+const Leave = require('../models/Leave');
 const logActivity = require('../utils/activityLogger');
 const { formatDDMMYYYY, parseDateString, calculateWorkingDays } = require('../utils/dateFormatter');
 const mongoose = require('mongoose');
@@ -592,11 +595,15 @@ const getStudioCalendar = async (req, res) => {
       .populate('reviewer', 'name email')
       .populate('stage', 'stageName');
 
+    // 1. Tasks
     const calendarEvents = tasks.map(t => ({
+      id: `task_${t._id}`,
       taskId: t._id,
       title: t.taskName,
-      project: t.project,
+      type: 'Task',
+      project: t.project?.projectName || 'General Task',
       stage: t.stage?.stageName,
+      assignedTo: t.assignee?.name || 'Unassigned',
       assignee: t.assignee,
       reviewer: t.reviewer,
       status: t.status,
@@ -604,53 +611,102 @@ const getStudioCalendar = async (req, res) => {
       startDateFormatted: formatDDMMYYYY(t.startDate),
       endDateFormatted: formatDDMMYYYY(t.endDate),
       startDate: t.startDate,
-      endDate: t.endDate
+      endDate: t.endDate,
+      dateStr: t.endDate ? new Date(t.endDate).toISOString().split('T')[0] : new Date(t.startDate).toISOString().split('T')[0],
+      time: '05:00 PM'
     }));
 
-    // Populate Module 10 Holiday and Approved Leave layers
-    const mongoose = require('mongoose');
+    // 2. Project Milestones
+    const milestoneEvents = visibleProjects
+      .filter(p => p.endDate && new Date(p.endDate) >= fromDate && new Date(p.endDate) <= toDate)
+      .map(p => ({
+        id: `proj_${p._id}`,
+        projectId: p._id,
+        title: `${p.projectName} Milestone Target`,
+        type: 'Milestone',
+        project: p.projectName,
+        assignedTo: 'PM Team',
+        status: p.status,
+        dateStr: new Date(p.endDate).toISOString().split('T')[0],
+        time: '11:00 AM'
+      }));
+
     let holidaysList = [];
     let leavesList = [];
+    let crmEvents = [];
 
-    if (mongoose.models.Holiday) {
-      const hDocs = await mongoose.models.Holiday.find({
-        date: { $gte: fromDate, $lte: toDate }
-      }).sort({ date: 1 });
+    // 3. CRM Meetings & Follow-ups
+    const enquiries = await Enquiry.find({
+      followUpDate: { $gte: fromDate, $lte: toDate }
+    }).populate('assignedExecutive', 'name email');
 
-      holidaysList = hDocs.map(h => ({
-        holidayId: h._id,
-        name: h.name,
-        dateFormatted: formatDDMMYYYY(h.date),
-        date: h.date
-      }));
+    crmEvents = enquiries.map(e => ({
+      id: `crm_${e._id}`,
+      enquiryId: e._id,
+      title: `${e.status === 'Meeting' ? 'Meeting' : 'Followup'}: ${e.projectName} (${e.clientName})`,
+      type: e.status === 'Meeting' ? 'Meeting' : 'Followup',
+      project: e.projectName,
+      assignedTo: e.assignedExecutive?.name || 'BD Team',
+      status: e.status,
+      dateStr: e.followUpDate ? new Date(e.followUpDate).toISOString().split('T')[0] : null,
+      time: '02:00 PM'
+    }));
+
+    // 4. Holidays
+    const hDocs = await Holiday.find({
+      date: { $gte: fromDate, $lte: toDate }
+    }).sort({ date: 1 });
+
+    holidaysList = hDocs.map(h => ({
+      id: `hol_${h._id}`,
+      holidayId: h._id,
+      title: `Holiday: ${h.name}`,
+      name: h.name,
+      type: 'Holiday',
+      project: 'Studio Holiday',
+      dateFormatted: formatDDMMYYYY(h.date),
+      date: h.date,
+      dateStr: new Date(h.date).toISOString().split('T')[0]
+    }));
+
+    // 5. Approved Leaves
+    const leaveQuery = {
+      status: 'Approved',
+      fromDate: { $lte: toDate },
+      toDate: { $gte: fromDate }
+    };
+
+    if (userRole === 'Artist') {
+      leaveQuery.employee = req.user._id;
     }
 
-    if (mongoose.models.Leave) {
-      const leaveQuery = {
-        status: 'Approved',
-        fromDate: { $lte: toDate },
-        toDate: { $gte: fromDate }
-      };
+    const lDocs = await Leave.find(leaveQuery)
+      .populate('employee', 'name email department')
+      .sort({ fromDate: 1 });
 
-      if (userRole === 'Artist') {
-        leaveQuery.employee = req.user._id;
-      }
+    leavesList = lDocs.map(l => ({
+      id: `leave_${l._id}`,
+      leaveId: l._id,
+      title: `Leave: ${l.employee?.name || 'Staff'} (${l.leaveType})`,
+      employee: l.employee,
+      type: 'Leave',
+      project: 'HR Leave',
+      fromDateFormatted: formatDDMMYYYY(l.fromDate),
+      toDateFormatted: formatDDMMYYYY(l.toDate),
+      fromDate: l.fromDate,
+      toDate: l.toDate,
+      dateStr: new Date(l.fromDate).toISOString().split('T')[0],
+      reason: l.reason
+    }));
 
-      const lDocs = await mongoose.models.Leave.find(leaveQuery)
-        .populate('employee', 'name email department')
-        .sort({ fromDate: 1 });
-
-      leavesList = lDocs.map(l => ({
-        leaveId: l._id,
-        employee: l.employee,
-        leaveType: l.leaveType,
-        fromDateFormatted: formatDDMMYYYY(l.fromDate),
-        toDateFormatted: formatDDMMYYYY(l.toDate),
-        fromDate: l.fromDate,
-        toDate: l.toDate,
-        reason: l.reason
-      }));
-    }
+    // Unified events collection for frontend calendar aggregation
+    const unifiedEvents = [
+      ...calendarEvents,
+      ...milestoneEvents,
+      ...crmEvents,
+      ...holidaysList,
+      ...leavesList
+    ];
 
     return res.json({
       view,
@@ -661,11 +717,12 @@ const getStudioCalendar = async (req, res) => {
         from: fromDate,
         to: toDate
       },
-      totalEventsCount: calendarEvents.length,
-      events: calendarEvents,
-      holidaysCount: holidaysList.length,
+      totalEventsCount: unifiedEvents.length,
+      events: unifiedEvents,
+      tasks: calendarEvents,
+      milestones: milestoneEvents,
+      crmEvents,
       holidays: holidaysList,
-      leavesCount: leavesList.length,
       leaves: leavesList
     });
   } catch (error) {

@@ -373,13 +373,20 @@ const addActivityLog = async (req, res) => {
       return res.status(404).json({ message: 'Enquiry not found' });
     }
 
+    const followUpDateObj = req.body.followUpDate ? new Date(req.body.followUpDate) : null;
+
     enquiry.activityLog.push({
       type,
       description: description.trim(),
       date: new Date(),
+      followUpDate: followUpDateObj,
       createdBy: req.user._id,
       attachments: Array.isArray(attachments) ? attachments : []
     });
+
+    if (followUpDateObj) {
+      enquiry.followUpDate = followUpDateObj;
+    }
 
     await enquiry.save();
 
@@ -392,8 +399,14 @@ const addActivityLog = async (req, res) => {
       metadata: { activityType: type }
     });
 
-    const updatedEnquiry = await Enquiry.findById(enquiry._id).populate('activityLog.createdBy', 'name email');
-    return res.status(201).json(updatedEnquiry.activityLog);
+    const updatedEnquiry = await Enquiry.findById(enquiry._id)
+      .populate('assignedExecutive', 'name email')
+      .populate('activityLog.createdBy', 'name email');
+
+    return res.status(201).json({
+      enquiry: updatedEnquiry,
+      activityLog: updatedEnquiry.activityLog
+    });
   } catch (error) {
     return res.status(500).json({ message: error.message });
   }

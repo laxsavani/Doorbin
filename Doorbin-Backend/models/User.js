@@ -10,6 +10,10 @@ const userSchema = new mongoose.Schema({
   phone:                { type: String },
   status:               { type: String, enum: ['Active', 'Inactive'], default: 'Active' },
   profileImage:         { type: String },
+  joiningDate:          { type: Date },
+  exitDate:             { type: Date },
+  exitReason:           { type: String },
+  documents:            [{ name: String, url: String, uploadedAt: { type: Date, default: Date.now } }],
   lastLogin:            { type: Date },
   passwordResetToken:   { type: String },
   passwordResetExpires: { type: Date }

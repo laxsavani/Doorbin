@@ -27,6 +27,14 @@ const {
 const { protect, checkPermission } = require('../middlewares/authMiddleware');
 
 const financeAccess = checkPermission('financeAccess');
+const financeOrBdAccess = (req, res, next) => {
+  const roleName = req.user?.role?.name;
+  const p = req.user?.role?.permissions;
+  if (roleName === 'Director' || p?.financeAccess || p?.businessDevAccess || p?.userManagement) {
+    return next();
+  }
+  return res.status(403).json({ message: 'Access denied. Finance, BD, or Director permission required.' });
+};
 const directorAccess = (req, res, next) => {
   const roleName = req.user?.role?.name;
   if (roleName === 'Director' || req.user?.role?.permissions?.systemConfiguration === true) {
@@ -168,9 +176,9 @@ router.route('/quotations')
  *         description: Quotation deleted
  */
 router.route('/quotations/:id')
-  .get(protect, financeAccess, getQuotationById)
-  .put(protect, financeAccess, updateQuotation)
-  .delete(protect, financeAccess, deleteQuotation);
+  .get(protect, financeOrBdAccess, getQuotationById)
+  .put(protect, financeOrBdAccess, updateQuotation)
+  .delete(protect, financeOrBdAccess, deleteQuotation);
 
 // --- INVOICES ---
 /**

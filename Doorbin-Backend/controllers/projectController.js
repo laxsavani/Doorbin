@@ -110,17 +110,41 @@ const createProject = async (req, res) => {
       createdBy: req.user._id
     });
 
-    // Fetch template & clone stages
-    const template = await WorkflowTemplate.findOne({ projectCategory });
-    if (template && Array.isArray(template.stages)) {
-      const createdStages = [];
-      const stageIdMap = {}; // maps template stage index to created Stage ObjectId
+    // Fetch template or fallback to standard Doorbin category templates (Section 6.5)
+    let template = await WorkflowTemplate.findOne({
+      projectCategory: new RegExp(`^${projectCategory}$`, 'i')
+    });
 
-      // First pass: create stages & substages
-      for (let i = 0; i < template.stages.length; i++) {
-        const tplStage = template.stages[i];
+    let stagesToClone = template && Array.isArray(template.stages) ? template.stages : null;
+
+    if (!stagesToClone) {
+      if (/architecture/i.test(projectCategory)) {
+        stagesToClone = [
+          { name: 'Scene Preparation', order: 1, subStages: [{ name: 'Building' }, { name: 'Site Development' }, { name: 'Vegetation & Landscape' }, { name: 'Context Development' }] },
+          { name: 'Sketch Development', order: 2, subStages: [{ name: 'Sketch 01 Composition' }, { name: 'Mood & Lighting' }, { name: 'Post Production' }] },
+          { name: 'Final Rendering', order: 3, subStages: [{ name: 'Client Feedback' }, { name: 'Post Production' }] }
+        ];
+      } else if (/interior/i.test(projectCategory)) {
+        stagesToClone = [
+          { name: 'First Draft', order: 1, subStages: [{ name: 'Modeling' }, { name: 'Texturing' }, { name: 'Lighting & Rendering' }, { name: 'Post Production' }] },
+          { name: 'Revision Cycle', order: 2, subStages: [{ name: 'Revision 1' }, { name: 'Revision 2' }, { name: 'Final Approval' }] }
+        ];
+      } else if (/animation/i.test(projectCategory)) {
+        stagesToClone = [
+          { name: 'Pre-Production', order: 1, subStages: [{ name: 'Story & Script' }, { name: 'Storyboard' }, { name: 'Moodboard' }] },
+          { name: 'Shot Composition', order: 2, subStages: [{ name: 'Camera Animation' }, { name: 'Scene Animation' }, { name: 'Rendering' }, { name: 'Post Production' }] }
+        ];
+      }
+    }
+
+    if (stagesToClone && stagesToClone.length > 0) {
+      const createdStages = [];
+      const stageIdMap = {};
+
+      for (let i = 0; i < stagesToClone.length; i++) {
+        const tplStage = stagesToClone[i];
         const subStagesToInsert = (tplStage.subStages || []).map((sub, sIdx) => ({
-          name: sub.name,
+          name: typeof sub === 'string' ? sub : sub.name,
           order: sub.order || (sIdx + 1),
           status: 'Pending',
           completionPercentage: 0,
@@ -142,7 +166,6 @@ const createProject = async (req, res) => {
         stageIdMap[i] = newStage._id;
       }
 
-      // Second pass: set sequential dependsOn linkages
       for (let i = 1; i < createdStages.length; i++) {
         const currentStage = createdStages[i];
         const prevStageId = stageIdMap[i - 1];

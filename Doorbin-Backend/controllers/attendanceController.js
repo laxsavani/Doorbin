@@ -196,8 +196,111 @@ const getTodayAttendance = async (req, res) => {
   }
 };
 
+// @desc    Get average clock-in, clock-out & working hours (Aggregation Pipeline - Section D.3)
+// @route   GET /api/attendance/average
+// @access  Private
+const getAverageAttendance = async (req, res) => {
+  try {
+    const employeeId = req.query.employeeId || req.user._id;
+    const { fromDate, toDate } = req.query;
+
+    const queryFrom = fromDate ? new Date(fromDate) : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    const queryTo = toDate ? new Date(toDate) : new Date();
+
+    const records = await Attendance.find({
+      employee: employeeId,
+      date: { $gte: queryFrom, $lte: queryTo },
+      checkIn: { $ne: null },
+      checkOut: { $ne: null }
+    });
+
+    if (!records.length) {
+      return res.json({
+        success: true,
+        data: {
+          averageClockIn: '09:00 AM',
+          averageClockOut: '06:00 PM',
+          averageWorkingHours: 0,
+          totalDaysPresent: 0
+        }
+      });
+    }
+
+    let totalCheckInMins = 0;
+    let totalCheckOutMins = 0;
+    let totalHours = 0;
+
+    records.forEach(r => {
+      const inDate = new Date(r.checkIn);
+      const outDate = new Date(r.checkOut);
+      totalCheckInMins += (inDate.getHours() * 60) + inDate.getMinutes();
+      totalCheckOutMins += (outDate.getHours() * 60) + outDate.getMinutes();
+      totalHours += (r.workingHours || 0);
+    });
+
+    const avgInMins = Math.round(totalCheckInMins / records.length);
+    const avgOutMins = Math.round(totalCheckOutMins / records.length);
+
+    const formatMinsToTime = (mins) => {
+      const h = Math.floor(mins / 60);
+      const m = mins % 60;
+      const ampm = h >= 12 ? 'PM' : 'AM';
+      const displayH = h % 12 || 12;
+      return `${displayH.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')} ${ampm}`;
+    };
+
+    return res.json({
+      success: true,
+      data: {
+        averageClockIn: formatMinsToTime(avgInMins),
+        averageClockOut: formatMinsToTime(avgOutMins),
+        averageWorkingHours: Number((totalHours / records.length).toFixed(2)),
+        totalDaysPresent: records.length
+      }
+    });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Edit particular day's attendance record (HR/Director manual correction - Section D.4)
+// @route   PUT /api/attendance/:id
+// @access  Private (HR / Director)
+const editAttendance = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { checkIn, checkOut, status, remarks } = req.body;
+
+    const attendance = await Attendance.findById(id);
+    if (!attendance) return res.status(404).json({ message: 'Attendance record not found' });
+
+    if (checkIn) attendance.checkIn = new Date(checkIn);
+    if (checkOut) attendance.checkOut = new Date(checkOut);
+    if (status) attendance.status = status;
+    if (remarks) attendance.remarks = remarks;
+
+    if (attendance.checkIn && attendance.checkOut) {
+      const diffMs = new Date(attendance.checkOut).getTime() - new Date(attendance.checkIn).getTime();
+      attendance.workingHours = Number((diffMs / (1000 * 60 * 60)).toFixed(2));
+    }
+
+    attendance.editedManually = true;
+    attendance.markedBy = req.user._id;
+    await attendance.save();
+
+    return res.json({
+      message: 'Attendance record updated successfully',
+      attendance
+    });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   clockIn,
   clockOut,
-  getTodayAttendance
+  getTodayAttendance,
+  getAverageAttendance,
+  editAttendance
 };

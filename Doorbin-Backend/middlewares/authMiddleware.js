@@ -32,8 +32,13 @@ const protect = async (req, res, next) => {
 
 const checkPermission = (permission) => {
   return (req, res, next) => {
-    if (req.user && req.user.role && req.user.role.permissions && req.user.role.permissions[permission]) {
-      return next();
+    if (req.user && req.user.role) {
+      if (req.user.role.name === 'Director' || req.user.role.name === 'Super Admin') {
+        return next();
+      }
+      if (req.user.role.permissions && req.user.role.permissions[permission]) {
+        return next();
+      }
     }
     return res.status(403).json({ message: 'Access denied. Insufficient permissions.' });
   };

@@ -37,6 +37,8 @@ const taskSchema = new mongoose.Schema({
   estimatedHours: { type: Number, min: 0 },
   actualHours:    { type: Number, default: 0, min: 0 },
   workingDays:    { type: Number, default: 0, min: 0 },
+  clientReviewRequired: { type: Boolean, default: false },
+  clientReviewStatus:   { type: String, enum: ['Pending', 'Approved', 'Changes Requested'], default: 'Pending' },
 
   dependencies: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Task' }],
 

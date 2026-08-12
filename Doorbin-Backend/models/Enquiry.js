@@ -4,6 +4,7 @@ const activityLogSchema = new mongoose.Schema({
   type:        { type: String, enum: ['Call', 'Email', 'Meeting', 'Note'], required: true },
   description: { type: String, required: true },
   date:        { type: Date, default: Date.now },
+  followUpDate:{ type: Date },
   createdBy:   { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   attachments: [{ type: String }]
 }, { _id: true });
