@@ -16,10 +16,11 @@ export const downloadPdfDocument = ({
   subtotal = 0,
   gstAmount = 0,
   totalAmount = 0,
-  status = 'Approved'
+  status = 'Approved',
+  isPaymentReceipt = false
 }) => {
   // 1. Calculate Financials & GST (18%: CGST 9% + SGST 9%)
-  const isReceipt = isPaymentReceipt || String(title).toUpperCase().includes('RECEIPT');
+  const isReceipt = Boolean(isPaymentReceipt) || String(title).toUpperCase().includes('RECEIPT');
 
   let finalTotal = Number(totalAmount || 0);
   let finalSubtotal = Number(subtotal || 0);

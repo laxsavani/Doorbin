@@ -8,6 +8,7 @@ import { Toast } from '../components/Toast';
 import { Loader } from '../components/Loader';
 import { formatDate } from '../utils/dateUtils';
 import { downloadPdfDocument } from '../utils/pdfGenerator';
+import { reportService } from '../services/reportService';
 import {
   FileText,
   IndianRupee,
@@ -23,7 +24,9 @@ import {
   Trash2,
   Edit,
   LayoutGrid,
-  List
+  List,
+  FileSpreadsheet,
+  Calendar
 } from 'lucide-react';
 import { useViewMode } from '../hooks/useViewMode';
 import './Dashboard.css';
@@ -46,6 +49,9 @@ export const Finance = () => {
   // Search & Filters
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
+  const [dateFilter, setDateFilter] = useState('all'); // 'all' | 'today' | 'this_month' | 'last_month' | 'custom'
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
 
   // Modal states
   const [isQuotationModalOpen, setIsQuotationModalOpen] = useState(false);
@@ -225,15 +231,171 @@ export const Finance = () => {
   const safeClients = Array.isArray(clientsRoster) ? clientsRoster : [];
   const safeProjects = Array.isArray(projectsRoster) ? projectsRoster : [];
 
+  // Date Filter Logic
+  const filterByDate = (item, dateField) => {
+    if (dateFilter === 'all') return true;
+    const rawVal = item[dateField] || item.createdAt || item.issueDate || item.paymentDate || item.date || item.quotationDate;
+    if (!rawVal) return true;
+    const d = new Date(rawVal);
+    const now = new Date();
+
+    if (dateFilter === 'today') {
+      return d.toDateString() === now.toDateString();
+    }
+    if (dateFilter === 'this_month') {
+      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+    }
+    if (dateFilter === 'last_month') {
+      const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      return d.getMonth() === lastMonth.getMonth() && d.getFullYear() === lastMonth.getFullYear();
+    }
+    if (dateFilter === 'custom') {
+      let match = true;
+      if (fromDate) match = match && d >= new Date(fromDate);
+      if (toDate) match = match && d <= new Date(toDate + 'T23:59:59');
+      return match;
+    }
+    return true;
+  };
+
+  const filteredQuotations = safeQuotations.filter(q => filterByDate(q, 'quotationDate'));
+  const filteredInvoices = safeInvoices.filter(i => filterByDate(i, 'issueDate'));
+  const filteredPayments = safePayments.filter(p => filterByDate(p, 'paymentDate'));
+
   // Calculate metrics
-  const totalInvoiced = safeInvoices.reduce((sum, i) => sum + (i?.totalAmount || i?.amount || 0), 0);
-  const totalCollected = safePayments.reduce((sum, p) => sum + (p?.amountPaid || 0), 0);
-  const totalOutstanding = safeInvoices.reduce((sum, i) => {
+  const totalInvoiced = filteredInvoices.reduce((sum, i) => sum + (i?.totalAmount || i?.amount || 0), 0);
+  const totalCollected = filteredPayments.reduce((sum, p) => sum + (p?.amountPaid || 0), 0);
+  const totalOutstanding = filteredInvoices.reduce((sum, i) => {
     const paid = i?.paidAmount !== undefined ? i.paidAmount : (i?.status === 'Paid' ? (i?.totalAmount || 0) : 0);
     const tot = i?.totalAmount || i?.amount || 0;
     const due = i?.remainingBalance !== undefined ? i.remainingBalance : Math.max(0, tot - paid);
     return sum + due;
   }, 0);
+
+  const handleExportFinance = async (format) => {
+    try {
+      if (activeTab === 'quotations') {
+        if (format === 'pdf') {
+          const items = filteredQuotations.map(q => ({
+            description: `${q.quotationNumber || 'DV/Q/001'} - ${q.client?.companyName || q.clientName || 'Client'} (${q.projectTitle || 'Project'}) [Status: ${q.status || 'Draft'}]`,
+            qty: 1,
+            rate: q.totalAmount || (q.itemRate ? Math.round(q.itemRate * 1.18) : 1180000)
+          }));
+          downloadPdfDocument({
+            title: 'QUOTATIONS EXECUTIVE REPORT',
+            documentNumber: `REP-QTN-${Date.now().toString().slice(-6)}`,
+            clientName: 'Doorbin Visuals Finance Division',
+            projectTitle: `Quotations Overview (${filteredQuotations.length} Records - Filter: ${dateFilter.toUpperCase()})`,
+            date: new Date().toLocaleDateString(),
+            items: items.length > 0 ? items : [{ description: 'General Client Quotation Record', qty: 1, rate: 1180000 }],
+            totalAmount: items.reduce((acc, i) => acc + i.rate, 0),
+            status: 'Generated'
+          });
+        } else {
+          let csvData = `Doorbin Visuals - QUOTATIONS REPORT (${dateFilter.toUpperCase()})\nGenerated Date: ${new Date().toLocaleString()}\n\n`;
+          csvData += `Quotation Number,Client Name,Project Title,Subtotal (INR),GST (18%),Total Amount (INR),Status\n`;
+          filteredQuotations.forEach(q => {
+            const sub = q.subtotal || q.itemRate || 1000000;
+            const gst = q.gstAmount || Math.round(sub * 0.18);
+            const tot = q.totalAmount || (sub + gst);
+            csvData += `"${q.quotationNumber || 'DV/Q/001'}","${q.client?.companyName || q.clientName || 'N/A'}","${q.projectTitle || 'N/A'}",${sub},${gst},${tot},"${q.status || 'Draft'}"\n`;
+          });
+          const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
+          const url = window.URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.setAttribute('download', `Doorbin_Quotations_Report_${Date.now()}.csv`);
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+        }
+        setToast({ message: `Quotations exported (${format.toUpperCase()}) successfully!`, type: 'success' });
+        return;
+      }
+
+      if (activeTab === 'invoices') {
+        if (format === 'pdf') {
+          const items = filteredInvoices.map(inv => ({
+            description: `Invoice ${inv.invoiceNumber} - ${inv.client?.companyName || inv.clientName || 'Client'} (${inv.project?.projectName || inv.milestoneName || 'Project'}) [Due: ₹${inv.remainingBalance || 0}]`,
+            qty: 1,
+            rate: inv.totalAmount || inv.amount || 0
+          }));
+          downloadPdfDocument({
+            title: 'TAX INVOICES EXECUTIVE REPORT',
+            documentNumber: `REP-INV-${Date.now().toString().slice(-6)}`,
+            clientName: 'Doorbin Visuals Billing Division',
+            projectTitle: `Invoices Summary (${filteredInvoices.length} Invoices - Filter: ${dateFilter.toUpperCase()})`,
+            date: new Date().toLocaleDateString(),
+            items: items.length > 0 ? items : [{ description: 'General Invoices Summary Record', qty: 1, rate: 500000 }],
+            totalAmount: items.reduce((acc, i) => acc + i.rate, 0),
+            status: 'Generated'
+          });
+        } else {
+          let csvData = `Doorbin Visuals - TAX INVOICES REPORT (${dateFilter.toUpperCase()})\nGenerated Date: ${new Date().toLocaleString()}\n\n`;
+          csvData += `Invoice Number,Client Name,Project / Milestone,Issue Date,Due Date,Total Amount (INR),Paid Amount (INR),Remaining Due (INR),Status\n`;
+          filteredInvoices.forEach(inv => {
+            const paid = inv.paidAmount !== undefined ? inv.paidAmount : (inv.status === 'Paid' ? (inv.totalAmount || 0) : 0);
+            const due = inv.remainingBalance !== undefined ? inv.remainingBalance : Math.max(0, (inv.totalAmount || inv.amount || 0) - paid);
+            csvData += `"${inv.invoiceNumber}","${inv.client?.companyName || inv.clientName || 'N/A'}","${inv.project?.projectName || inv.milestoneName || 'N/A'}","${inv.issueDateFormatted || ''}","${inv.dueDateFormatted || ''}",${inv.totalAmount || inv.amount || 0},${paid},${due},"${inv.status}"\n`;
+          });
+          const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
+          const url = window.URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.setAttribute('download', `Doorbin_Invoices_Report_${Date.now()}.csv`);
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+        }
+        setToast({ message: `Invoices exported (${format.toUpperCase()}) successfully!`, type: 'success' });
+        return;
+      }
+
+      if (activeTab === 'payments') {
+        if (format === 'pdf') {
+          const items = filteredPayments.map(p => ({
+            description: `Receipt ${p.receiptNumber || 'REC-001'} (Inv: ${p.invoice?.invoiceNumber || p.invoiceNumber || 'N/A'}) - ${p.client?.companyName || 'Client'} [Mode: ${p.paymentMode || 'Bank Transfer'}]`,
+            qty: 1,
+            rate: p.amountPaid || p.amount || 0
+          }));
+          downloadPdfDocument({
+            title: 'PAYMENT RECEIPTS REPORT',
+            documentNumber: `REP-PMT-${Date.now().toString().slice(-6)}`,
+            clientName: 'Doorbin Visuals Accounts',
+            projectTitle: `Payment Receipts Summary (${filteredPayments.length} Receipts - Filter: ${dateFilter.toUpperCase()})`,
+            date: new Date().toLocaleDateString(),
+            items: items.length > 0 ? items : [{ description: 'Payment Realized Record', qty: 1, rate: 500000 }],
+            totalAmount: items.reduce((acc, i) => acc + i.rate, 0),
+            status: 'Completed',
+            isPaymentReceipt: true
+          });
+        } else {
+          let csvData = `Doorbin Visuals - PAYMENT RECEIPTS REPORT (${dateFilter.toUpperCase()})\nGenerated Date: ${new Date().toLocaleString()}\n\n`;
+          csvData += `Receipt Number,Invoice Reference,Client Name,Payment Date,Payment Mode,Reference / Cheque No,Amount Paid (INR)\n`;
+          filteredPayments.forEach(p => {
+            csvData += `"${p.receiptNumber || 'REC-001'}","${p.invoice?.invoiceNumber || p.invoiceNumber || 'N/A'}","${p.client?.companyName || 'N/A'}","${p.paymentDateFormatted || ''}","${p.paymentMode || 'Bank Transfer'}","${p.referenceNumber || 'N/A'}",${p.amountPaid || 0}\n`;
+          });
+          const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
+          const url = window.URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.setAttribute('download', `Doorbin_Payments_Report_${Date.now()}.csv`);
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+        }
+        setToast({ message: `Payments exported (${format.toUpperCase()}) successfully!`, type: 'success' });
+        return;
+      }
+
+      // Default / Ageing Tab
+      await reportService.exportReport('finance', 'all', format);
+      setToast({ message: `Finance Report exported (${format.toUpperCase()}) successfully!`, type: 'success' });
+    } catch (err) {
+      console.error('Error exporting finance report:', err);
+      setToast({ message: 'Failed to export finance report', type: 'error' });
+    }
+  };
 
   return (
     <div className="main-content smooth-fade-in">
@@ -250,16 +412,27 @@ export const Finance = () => {
           </p>
         </div>
 
-        <div className="page-header-actions">
-          <button className="btn btn-secondary" onClick={() => setIsQuotationModalOpen(true)}>
-            <Plus size={16} /> New Quotation
-          </button>
-          <button className="btn btn-secondary" onClick={() => setIsInvoiceModalOpen(true)}>
-            <FileText size={16} /> Raise Invoice
-          </button>
-          <button className="btn btn-primary" onClick={() => setIsPaymentModalOpen(true)}>
-            <CreditCard size={16} /> Record Payment
-          </button>
+        <div className="page-header-actions" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+          <div style={{ display: 'inline-flex', gap: '0.4rem' }}>
+            <button className="btn btn-secondary" style={{ padding: '0.45rem 0.85rem', fontSize: '0.8rem' }} onClick={() => handleExportFinance('excel')}>
+              <FileSpreadsheet size={15} /> Export Excel
+            </button>
+            <button className="btn btn-secondary" style={{ padding: '0.45rem 0.85rem', fontSize: '0.8rem' }} onClick={() => handleExportFinance('pdf')}>
+              <FileText size={15} /> Export PDF
+            </button>
+          </div>
+
+          <div style={{ display: 'inline-flex', gap: '0.4rem' }}>
+            <button className="btn btn-secondary" style={{ padding: '0.45rem 0.85rem', fontSize: '0.8rem' }} onClick={() => setIsQuotationModalOpen(true)}>
+              <Plus size={15} /> New Quotation
+            </button>
+            <button className="btn btn-secondary" style={{ padding: '0.45rem 0.85rem', fontSize: '0.8rem' }} onClick={() => setIsInvoiceModalOpen(true)}>
+              <FileText size={15} /> Raise Invoice
+            </button>
+            <button className="btn btn-primary" style={{ padding: '0.45rem 0.95rem', fontSize: '0.8rem' }} onClick={() => setIsPaymentModalOpen(true)}>
+              <CreditCard size={15} /> Record Payment
+            </button>
+          </div>
         </div>
       </div>
 
@@ -303,8 +476,8 @@ export const Finance = () => {
         </div>
       </div>
 
-      {/* NAVIGATION TABS & DUAL VIEW TOGGLE */}
-      <div className="responsive-filter-bar">
+      {/* NAVIGATION TABS & DATE FILTER TOOLBAR */}
+      <div className="responsive-filter-bar" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.25rem' }}>
         {/* Desktop Tabs */}
         <div className="desktop-tabs-container">
           <button
@@ -319,7 +492,7 @@ export const Finance = () => {
               cursor: 'pointer'
             }}
           >
-            Quotations ({safeQuotations.length})
+            Quotations ({filteredQuotations.length})
           </button>
 
           <button
@@ -334,7 +507,7 @@ export const Finance = () => {
               cursor: 'pointer'
             }}
           >
-            Invoices ({safeInvoices.length})
+            Invoices ({filteredInvoices.length})
           </button>
 
           <button
@@ -349,7 +522,7 @@ export const Finance = () => {
               cursor: 'pointer'
             }}
           >
-            Payments ({safePayments.length})
+            Payments ({filteredPayments.length})
           </button>
 
           <button
@@ -374,26 +547,61 @@ export const Finance = () => {
           value={activeTab}
           onChange={(e) => setActiveTab(e.target.value)}
         >
-          <option value="quotations">Quotations ({safeQuotations.length})</option>
-          <option value="invoices">Invoices ({safeInvoices.length})</option>
-          <option value="payments">Payments ({safePayments.length})</option>
+          <option value="quotations">Quotations ({filteredQuotations.length})</option>
+          <option value="invoices">Invoices ({filteredInvoices.length})</option>
+          <option value="payments">Payments ({filteredPayments.length})</option>
           <option value="ageing">Receivables Ageing</option>
         </select>
 
-        {/* Dual View Toggle */}
-        <div className="view-toggle-container">
-          <button
-            className={`view-toggle-btn ${viewMode === 'stripe' ? 'active' : ''}`}
-            onClick={() => setViewMode('stripe')}
-          >
-            <List size={14} /> Stripe View
-          </button>
-          <button
-            className={`view-toggle-btn ${viewMode === 'card' ? 'active' : ''}`}
-            onClick={() => setViewMode('card')}
-          >
-            <LayoutGrid size={14} /> Card View
-          </button>
+        {/* Date Filter & Dual View Toggle */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', backgroundColor: '#ffffff', border: '1px solid #dcd8cf', borderRadius: '10px', padding: '0.35rem 0.75rem' }}>
+            <Calendar size={14} style={{ color: 'var(--color-primary)' }} />
+            <select
+              value={dateFilter}
+              onChange={e => setDateFilter(e.target.value)}
+              style={{ border: 'none', background: 'transparent', outline: 'none', fontSize: '0.825rem', fontWeight: '600', color: 'var(--color-secondary)', cursor: 'pointer' }}
+            >
+              <option value="all">📅 All Time</option>
+              <option value="today">📆 Today</option>
+              <option value="this_month">📅 This Month</option>
+              <option value="last_month">📅 Last Month</option>
+              <option value="custom">🗓️ Custom Date Range</option>
+            </select>
+          </div>
+
+          {dateFilter === 'custom' && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', backgroundColor: '#ffffff', padding: '0.25rem 0.5rem', borderRadius: '8px', border: '1px solid #dcd8cf' }}>
+              <input
+                type="date"
+                value={fromDate}
+                onChange={e => setFromDate(e.target.value)}
+                style={{ padding: '0.25rem 0.4rem', borderRadius: '6px', border: '1px solid #dcd8cf', fontSize: '0.78rem' }}
+              />
+              <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>to</span>
+              <input
+                type="date"
+                value={toDate}
+                onChange={e => setToDate(e.target.value)}
+                style={{ padding: '0.25rem 0.4rem', borderRadius: '6px', border: '1px solid #dcd8cf', fontSize: '0.78rem' }}
+              />
+            </div>
+          )}
+
+          <div className="view-toggle-container">
+            <button
+              className={`view-toggle-btn ${viewMode === 'stripe' ? 'active' : ''}`}
+              onClick={() => setViewMode('stripe')}
+            >
+              <List size={14} /> Stripe View
+            </button>
+            <button
+              className={`view-toggle-btn ${viewMode === 'card' ? 'active' : ''}`}
+              onClick={() => setViewMode('card')}
+            >
+              <LayoutGrid size={14} /> Card View
+            </button>
+          </div>
         </div>
       </div>
 
@@ -401,7 +609,7 @@ export const Finance = () => {
       {activeTab === 'quotations' && (
         viewMode === 'card' ? (
           <div className="responsive-cards-grid">
-            {safeQuotations.map(q => (
+            {filteredQuotations.map(q => (
               <div key={q._id} className="responsive-card-item">
                 <div className="responsive-card-header">
                   <div>
@@ -467,7 +675,7 @@ export const Finance = () => {
                 </tr>
               </thead>
               <tbody>
-                {safeQuotations.map(q => {
+                {filteredQuotations.map(q => {
                   const qNum = q.quotationNumber || q.quotationNo || 'Q-001';
                   const clientName = q.client?.companyName || q.client?.clientName || q.clientName || 'N/A';
                   const projTitle = q.project?.projectName || q.projectTitle || q.projectCategory || 'General Project';
@@ -533,7 +741,7 @@ export const Finance = () => {
       {activeTab === 'invoices' && (
         viewMode === 'card' ? (
           <div className="responsive-cards-grid">
-            {safeInvoices.map(inv => (
+            {filteredInvoices.map(inv => (
               <div key={inv._id} className="responsive-card-item">
                 <div className="responsive-card-header">
                   <div>
@@ -601,7 +809,7 @@ export const Finance = () => {
                 </tr>
               </thead>
               <tbody>
-                {safeInvoices.map(inv => {
+                {filteredInvoices.map(inv => {
                   const invNum = inv.invoiceNumber || 'INV-001';
                   const clientName = inv.client?.companyName || inv.client?.clientName || 'N/A';
                   const milestone = inv.project?.projectName || inv.milestoneName || 'Milestone Services';
@@ -671,7 +879,7 @@ export const Finance = () => {
       {activeTab === 'payments' && (
         viewMode === 'card' ? (
           <div className="responsive-cards-grid">
-            {safePayments.map(p => (
+            {filteredPayments.map(p => (
               <div key={p._id} className="responsive-card-item">
                 <div className="responsive-card-header">
                   <div>
@@ -725,7 +933,7 @@ export const Finance = () => {
                 </tr>
               </thead>
               <tbody>
-                {safePayments.map(p => {
+                {filteredPayments.map(p => {
                   const rcpt = p.paymentNumber || p.receiptNumber || p._id?.slice(-6)?.toUpperCase() || 'RCT-001';
                   const invRef = p.invoice?.invoiceNumber || p.invoiceRef || p.invoiceNumber || 'N/A';
                   const clientName = p.client?.companyName || p.client?.clientName || 'N/A';
@@ -772,39 +980,110 @@ export const Finance = () => {
       )}
 
       {/* TAB CONTENT 4: RECEIVABLES AGEING ANALYSIS */}
-      {activeTab === 'ageing' && ageingData && ageingData.ageingBuckets && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.25rem' }}>
-          <div className="stat-card" style={{ borderTop: '4px solid var(--color-success)' }}>
-            <div className="stat-card-title">0 - 30 DAYS (CURRENT)</div>
-            <div className="stat-card-value">₹{((ageingData.ageingBuckets.current_0_30 || 0) / 100000).toFixed(2)} L</div>
-            <div className="stat-card-subtext">Within standard payment credit period</div>
-          </div>
+      {activeTab === 'ageing' && (() => {
+        let age0_30 = 0, age31_60 = 0, age61_90 = 0, age90_plus = 0;
+        const now = new Date();
+        safeInvoices.forEach(inv => {
+          const paid = inv.paidAmount !== undefined ? inv.paidAmount : (inv.status === 'Paid' ? (inv.totalAmount || 0) : 0);
+          const due = inv.remainingBalance !== undefined ? inv.remainingBalance : Math.max(0, (inv.totalAmount || inv.amount || 0) - paid);
+          if (due <= 0) return;
 
-          <div className="stat-card" style={{ borderTop: '4px solid var(--color-warning)' }}>
-            <div className="stat-card-title">31 - 60 DAYS OVERDUE</div>
-            <div className="stat-card-value" style={{ color: 'var(--color-warning)' }}>
-              ₹{((ageingData.ageingBuckets.days_31_60 || 0) / 100000).toFixed(2)} L
-            </div>
-            <div className="stat-card-subtext">First reminder notification sent</div>
-          </div>
+          const dueDate = inv.dueDate ? new Date(inv.dueDate) : now;
+          const diffDays = Math.floor((now.getTime() - dueDate.getTime()) / (1000 * 3600 * 24));
 
-          <div className="stat-card" style={{ borderTop: '4px solid #f97316' }}>
-            <div className="stat-card-title">61 - 90 DAYS OVERDUE</div>
-            <div className="stat-card-value" style={{ color: '#f97316' }}>
-              ₹{((ageingData.ageingBuckets.days_61_90 || 0) / 100000).toFixed(2)} L
-            </div>
-            <div className="stat-card-subtext">Escalation required</div>
-          </div>
+          if (diffDays <= 30) age0_30 += due;
+          else if (diffDays <= 60) age31_60 += due;
+          else if (diffDays <= 90) age61_90 += due;
+          else age90_plus += due;
+        });
 
-          <div className="stat-card" style={{ borderTop: '4px solid var(--color-danger)' }}>
-            <div className="stat-card-title">90+ DAYS OVERDUE</div>
-            <div className="stat-card-value" style={{ color: 'var(--color-danger)' }}>
-              ₹{((ageingData.ageingBuckets.days_90_plus || 0) / 100000).toFixed(2)} L
+        if (ageingData && ageingData.ageingBuckets) {
+          age0_30 = ageingData.ageingBuckets.current_0_30 || age0_30;
+          age31_60 = ageingData.ageingBuckets.days_31_60 || age31_60;
+          age61_90 = ageingData.ageingBuckets.days_61_90 || age61_90;
+          age90_plus = ageingData.ageingBuckets.days_90_plus || age90_plus;
+        }
+
+        const pendingDueInvoices = safeInvoices.filter(inv => {
+          const paid = inv.paidAmount !== undefined ? inv.paidAmount : (inv.status === 'Paid' ? (inv.totalAmount || 0) : 0);
+          const due = inv.remainingBalance !== undefined ? inv.remainingBalance : Math.max(0, (inv.totalAmount || inv.amount || 0) - paid);
+          return due > 0 || inv.status !== 'Paid';
+        });
+
+        return (
+          <div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.25rem', marginBottom: '1.5rem' }}>
+              <div className="stat-card" style={{ borderTop: '4px solid var(--color-success)' }}>
+                <div className="stat-card-title">0 - 30 DAYS (CURRENT)</div>
+                <div className="stat-card-value">₹{(age0_30 / 100000).toFixed(2)} L</div>
+                <div className="stat-card-subtext">Within standard credit period</div>
+              </div>
+
+              <div className="stat-card" style={{ borderTop: '4px solid var(--color-warning)' }}>
+                <div className="stat-card-title">31 - 60 DAYS OVERDUE</div>
+                <div className="stat-card-value" style={{ color: 'var(--color-warning)' }}>
+                  ₹{(age31_60 / 100000).toFixed(2)} L
+                </div>
+                <div className="stat-card-subtext">First reminder notification sent</div>
+              </div>
+
+              <div className="stat-card" style={{ borderTop: '4px solid #f97316' }}>
+                <div className="stat-card-title">61 - 90 DAYS OVERDUE</div>
+                <div className="stat-card-value" style={{ color: '#f97316' }}>
+                  ₹{(age61_90 / 100000).toFixed(2)} L
+                </div>
+                <div className="stat-card-subtext">Escalation required</div>
+              </div>
+
+              <div className="stat-card" style={{ borderTop: '4px solid var(--color-danger)' }}>
+                <div className="stat-card-title">90+ DAYS OVERDUE</div>
+                <div className="stat-card-value" style={{ color: 'var(--color-danger)' }}>
+                  ₹{(age90_plus / 100000).toFixed(2)} L
+                </div>
+                <div className="stat-card-subtext">High risk receivables</div>
+              </div>
             </div>
-            <div className="stat-card-subtext">High risk receivables</div>
+
+            <div className="table-responsive">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>INVOICE #</th>
+                    <th>CLIENT</th>
+                    <th>PROJECT</th>
+                    <th>DUE DATE</th>
+                    <th>DAYS OVERDUE</th>
+                    <th>TOTAL AMOUNT</th>
+                    <th>OUTSTANDING BALANCE</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pendingDueInvoices.map(inv => {
+                    const paid = inv.paidAmount !== undefined ? inv.paidAmount : (inv.status === 'Paid' ? (inv.totalAmount || 0) : 0);
+                    const due = inv.remainingBalance !== undefined ? inv.remainingBalance : Math.max(0, (inv.totalAmount || inv.amount || 0) - paid);
+                    const dueDate = inv.dueDate ? new Date(inv.dueDate) : new Date();
+                    const diffDays = Math.max(0, Math.floor((new Date().getTime() - dueDate.getTime()) / (1000 * 3600 * 24)));
+
+                    return (
+                      <tr key={inv._id}>
+                        <td style={{ fontWeight: '600', color: 'var(--color-secondary)' }}>{inv.invoiceNumber}</td>
+                        <td>{inv.client?.companyName || inv.client?.clientName || 'N/A'}</td>
+                        <td>{inv.project?.projectName || inv.milestoneName || 'General Project'}</td>
+                        <td>{inv.dueDateFormatted || formatDate(inv.dueDate)}</td>
+                        <td style={{ color: diffDays > 30 ? 'var(--color-danger)' : 'var(--color-warning)', fontWeight: '600' }}>{diffDays} days</td>
+                        <td>₹{(inv.totalAmount || inv.amount || 0).toLocaleString('en-IN')}</td>
+                        <td style={{ fontWeight: '700', color: due > 0 ? 'var(--color-danger)' : 'var(--color-success)' }}>
+                          ₹{due.toLocaleString('en-IN')}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* CREATE QUOTATION MODAL */}
       {isQuotationModalOpen && (

@@ -135,15 +135,17 @@ export const ReportsAnalytics = () => {
           </p>
         </div>
 
-        <div className="page-header-actions">
-          <button className="btn btn-secondary" onClick={() => handleExport(activeTab, 'excel')}>
-            <FileSpreadsheet size={16} /> Export Excel
-          </button>
-          <button className="btn btn-secondary" onClick={() => handleExport(activeTab, 'pdf')}>
-            <FileText size={16} /> Export PDF
-          </button>
-          <button className="btn btn-primary" onClick={() => setIsScheduleModalOpen(true)}>
-            <Mail size={16} /> Schedule Digest
+        <div className="page-header-actions" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+          <div style={{ display: 'inline-flex', gap: '0.4rem' }}>
+            <button className="btn btn-secondary" style={{ padding: '0.45rem 0.85rem', fontSize: '0.8rem' }} onClick={() => handleExport(activeTab, 'excel')}>
+              <FileSpreadsheet size={15} /> Export Excel
+            </button>
+            <button className="btn btn-secondary" style={{ padding: '0.45rem 0.85rem', fontSize: '0.8rem' }} onClick={() => handleExport(activeTab, 'pdf')}>
+              <FileText size={15} /> Export PDF
+            </button>
+          </div>
+          <button className="btn btn-primary" style={{ padding: '0.45rem 0.95rem', fontSize: '0.8rem' }} onClick={() => setIsScheduleModalOpen(true)}>
+            <Mail size={15} /> Schedule Digest
           </button>
         </div>
       </div>
