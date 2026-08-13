@@ -13,7 +13,14 @@ const {
 } = require('../controllers/reportController');
 const { protect, checkPermission } = require('../middlewares/authMiddleware');
 
-const reportsAccess = checkPermission('reportsAccess');
+const reportsAccess = (req, res, next) => {
+  const roleName = req.user?.role?.name;
+  const p = req.user?.role?.permissions;
+  if (roleName === 'Director' || roleName === 'Production Manager' || roleName === 'HR' || roleName === 'Project Manager' || p?.reportsAccess || p?.projectManagement || p?.financeAccess || p?.userManagement) {
+    return next();
+  }
+  return res.status(403).json({ message: 'Access denied. Reports permission required.' });
+};
 const financeAccess = checkPermission('financeAccess');
 
 /**

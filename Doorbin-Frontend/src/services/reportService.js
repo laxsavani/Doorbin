@@ -249,6 +249,27 @@ export const reportService = {
         return { success: true };
       }
 
+      if (category === 'scheduled') {
+        const schedData = await reportService.getScheduledReports();
+        const items = (schedData || []).map(s => ({
+          description: `Digest: ${s.reportTitle} — Freq: ${s.frequency}, Format: ${s.exportFormat?.toUpperCase() || 'PDF'}, Recipients: ${Array.isArray(s.recipients) ? s.recipients.join(', ') : s.recipients}`,
+          qty: 1,
+          rate: 0
+        }));
+
+        downloadPdfDocument({
+          title: 'SCHEDULED DIGESTS REPORT',
+          documentNumber: `REP-SCH-${Date.now().toString().slice(-6)}`,
+          clientName: 'Doorbin Visuals Executive Management',
+          projectTitle: `Automated Email Digest Configurations (${schedData.length || 0} Scheduled)`,
+          date: new Date().toLocaleDateString(),
+          items: items.length > 0 ? items : [{ description: 'Weekly Production Digest (director@doorbin.com)', qty: 1, rate: 0 }],
+          totalAmount: 0,
+          status: 'Active'
+        });
+        return { success: true };
+      }
+
       // Default fallback PDF
       downloadPdfDocument({
         title: `DOORBIN ${category.toUpperCase()} REPORT`,
@@ -300,6 +321,13 @@ export const reportService = {
         csvData += `"Collected Revenue",${fData.totalCollected}\n`;
         csvData += `"Outstanding Dues",${fData.totalOutstanding}\n`;
         csvData += `"Est. Profit Margin","${fData.estimatedProfitabilityMargin}"\n`;
+      } else if (category === 'scheduled') {
+        const sData = await reportService.getScheduledReports();
+        csvData += `Title,Frequency,Time,Recipients,Format\n`;
+        (sData || []).forEach(s => {
+          const rec = Array.isArray(s.recipients) ? s.recipients.join(';') : s.recipients;
+          csvData += `"${s.reportTitle || 'Digest'}","${s.frequency || 'Weekly'}","${s.time || '08:00 AM'}","${rec || ''}","${s.exportFormat || 'pdf'}"\n`;
+        });
       } else {
         csvData += `Department / Metric,Efficiency / Value\n`;
         csvData += `"Average Turnaround Days","2 Days"\n`;
