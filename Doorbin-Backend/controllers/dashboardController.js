@@ -166,7 +166,7 @@ const getDirectorDashboard = async (req, res) => {
       pipelineRaw.forEach(p => pipelineMap[p._id] = { count: p.count, totalEstimatedValue: p.totalEstimatedValue || 0 });
     }
 
-    return res.json({
+    const responsePayload = {
       role: 'Director',
       year: currentYear,
       dateFormat: 'DD/MM/YYYY',
@@ -275,7 +275,7 @@ const getPMDashboard = async (req, res) => {
       ? Number((totalProgressSum / visibleProjects.length).toFixed(1))
       : 0;
 
-    return res.json({
+    const responsePayload = {
       role: req.user?.role?.name || 'Production Manager',
       dateFormat: 'DD/MM/YYYY',
       kpis: {
@@ -340,20 +340,19 @@ const getArtistDashboard = async (req, res) => {
       upcomingDeadlinesRes,
       productivityRes
     ] = await Promise.allSettled([
-      // 1. All Assigned Non-Terminal Tasks
+      // 1. Assigned Active Tasks
       Task.find({
         assignee: artistUserId,
         status: { $nin: ['Completed', 'Approved', 'Cancelled'] }
       }).populate('project', 'projectName projectCategory').sort({ endDate: 1 }),
 
-      // 2. Today's Tasks
+      // 2. Today's Due Tasks
       Task.find({
         assignee: artistUserId,
-        startDate: { $lte: endOfToday },
-        endDate: { $gte: startOfToday }
+        endDate: { $gte: startOfToday, $lte: endOfToday }
       }).populate('project', 'projectName'),
 
-      // 3. Pending Reviews (Work submitted, awaiting verdict)
+      // 3. Pending Review Submissions
       Task.find({
         assignee: artistUserId,
         status: 'Under Review'
@@ -364,23 +363,17 @@ const getArtistDashboard = async (req, res) => {
         assignee: artistUserId,
         endDate: { $gte: now, $lte: sevenDaysLater },
         status: { $nin: ['Completed', 'Approved', 'Cancelled'] }
-      }).populate('project', 'projectName').sort({ endDate: 1 }),
+      }).sort({ endDate: 1 }),
 
-      // 5. Personal 30-Day Productivity Summary
+      // 5. Personal Productivity Rate (Last 30 Days)
       (async () => {
-        const completedCount = await Task.countDocuments({
+        const tasks30Days = await Task.find({
           assignee: artistUserId,
-          updatedAt: { $gte: thirtyDaysAgo },
-          status: { $in: ['Completed', 'Approved'] }
+          updatedAt: { $gte: thirtyDaysAgo }
         });
-
-        const totalAssignedIn30Days = await Task.countDocuments({
-          assignee: artistUserId,
-          createdAt: { $gte: thirtyDaysAgo }
-        });
-
-        const ratePercentage = totalAssignedIn30Days > 0 ? Number(((completedCount / totalAssignedIn30Days) * 100).toFixed(1)) : 100;
-        return { completedIn30Days: completedCount, totalAssignedIn30Days, completionRatePercentage: ratePercentage };
+        const completed = tasks30Days.filter(t => ['Completed', 'Approved'].includes(t.status)).length;
+        const rate = tasks30Days.length > 0 ? Number(((completed / tasks30Days.length) * 100).toFixed(1)) : 100;
+        return { completedIn30Days: completed, totalAssignedIn30Days: tasks30Days.length, completionRatePercentage: rate };
       })()
     ]);
 
@@ -390,7 +383,7 @@ const getArtistDashboard = async (req, res) => {
     const upcomingDeadlines = unpackSettled(upcomingDeadlinesRes, []);
     const productivity = unpackSettled(productivityRes, { completedIn30Days: 0, totalAssignedIn30Days: 0, completionRatePercentage: 100 });
 
-    return res.json({
+    const responsePayload = {
       role: req.user?.role?.name || 'Artist',
       artist: { _id: req.user._id, name: req.user.name, email: req.user.email },
       dateFormat: 'DD/MM/YYYY',

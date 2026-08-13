@@ -1,5 +1,6 @@
 const Enquiry = require('../models/Enquiry');
 const Client = require('../models/Client');
+const Project = require('../models/Project');
 const User = require('../models/User');
 const logActivity = require('../utils/activityLogger');
 const mongoose = require('mongoose');
@@ -474,25 +475,45 @@ const convertEnquiry = async (req, res) => {
       await enquiry.save();
     }
 
+    // Step 3: Auto-create Project in pending_approval status & link convertedProject
+    let projectObj;
+    if (enquiry.convertedProject) {
+      projectObj = await Project.findById(enquiry.convertedProject);
+    }
+
+    if (!projectObj) {
+      projectObj = await Project.create({
+        projectName: enquiry.projectName,
+        client: clientObj._id,
+        originEnquiry: enquiry._id,
+        projectCategory: enquiry.projectType || 'Architecture',
+        budget: enquiry.estimatedValue || 0,
+        startDate: new Date(),
+        endDate: new Date(Date.now() + 30 * 86400000),
+        productionManager: req.user._id,
+        status: 'pending_approval',
+        createdBy: req.user._id
+      });
+
+      enquiry.convertedProject = projectObj._id;
+      enquiry.status = 'Project Creation';
+      await enquiry.save();
+    }
+
     await logActivity({
       req,
       userId: req.user._id,
-      action: 'ENQUIRY_CONVERTED_CLIENT_RESOLVED',
+      action: 'ENQUIRY_CONVERTED_PROJECT_CREATED',
       targetType: 'Enquiry',
       targetId: enquiry._id,
-      metadata: { clientId: clientObj._id, companyName: clientObj.companyName }
+      metadata: { clientId: clientObj._id, projectId: projectObj._id }
     });
 
     return res.json({
-      message: 'Enquiry client resolved successfully. Ready for Project creation (Module 5 handoff).',
+      message: 'Enquiry converted successfully! New Project created in pending_approval status.',
       clientId: clientObj._id,
-      suggestedProjectData: {
-        projectName: enquiry.projectName,
-        projectCategory: enquiry.projectType,
-        budget: enquiry.estimatedValue || 0,
-        originEnquiry: enquiry._id,
-        client: clientObj._id
-      }
+      projectId: projectObj._id,
+      project: projectObj
     });
   } catch (error) {
     return res.status(500).json({ message: error.message });
