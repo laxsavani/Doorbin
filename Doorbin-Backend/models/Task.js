@@ -50,5 +50,11 @@ const taskSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 taskSchema.index({ taskName: 'text' });
+taskSchema.index({ project: 1, status: 1 });
+taskSchema.index({ assignee: 1, status: 1 });
+taskSchema.index({ reviewer: 1, status: 1 });
+taskSchema.index({ stage: 1 });
+taskSchema.index({ endDate: 1 });
+taskSchema.index({ startDate: 1 });
 
 module.exports = mongoose.model('Task', taskSchema);

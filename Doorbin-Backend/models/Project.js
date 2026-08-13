@@ -38,5 +38,9 @@ const projectSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 projectSchema.index({ projectName: 'text', projectSubType: 'text' });
+projectSchema.index({ isDeleted: 1, status: 1 });
+projectSchema.index({ client: 1, isDeleted: 1 });
+projectSchema.index({ productionManager: 1, isDeleted: 1 });
+projectSchema.index({ assignedTeam: 1, isDeleted: 1 });
 
 module.exports = mongoose.model('Project', projectSchema);

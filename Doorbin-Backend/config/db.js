@@ -21,7 +21,11 @@ const connectDB = async () => {
   }
 
   try {
-    const conn = await mongoose.connect(dbUri);
+    const conn = await mongoose.connect(dbUri, {
+      maxPoolSize: 10,
+      serverSelectionTimeoutMS: 5000,
+      socketTimeoutMS: 45000
+    });
     console.log(`✅ MongoDB Connected: ${conn.connection.host} (${dbType})`);
     return conn;
   } catch (error) {

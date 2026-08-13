@@ -13,6 +13,8 @@ const ArtistProfile = require('../models/ArtistProfile');
 const { formatDDMMYYYY, parseDateString, calculateWorkingDays } = require('../utils/dateFormatter');
 const mongoose = require('mongoose');
 
+const { getCache, setCache } = require('../utils/cacheEngine');
+
 // Helper: Safely unpack Promise.allSettled result with fallback
 const unpackSettled = (result, fallback = null) => {
   if (result.status === 'fulfilled') return result.value;
@@ -35,6 +37,12 @@ const isDirector = (user) => {
 const getDirectorDashboard = async (req, res) => {
   if (!isDirector(req.user)) {
     return res.status(403).json({ message: 'Access denied. Director role required for Director Dashboard.' });
+  }
+
+  const cacheKey = `dashboard_director_${req.user._id}`;
+  const cachedData = getCache(cacheKey);
+  if (cachedData) {
+    return res.json(cachedData);
   }
 
   try {
@@ -179,7 +187,10 @@ const getDirectorDashboard = async (req, res) => {
         departmentPerformance: unpackSettled(deptPerformanceRes, []),
         businessPipeline: pipelineMap
       }
-    });
+    };
+
+    setCache(cacheKey, responsePayload, 120);
+    return res.json(responsePayload);
   } catch (error) {
     return res.status(500).json({ message: error.message });
   }
@@ -196,6 +207,12 @@ const getPMDashboard = async (req, res) => {
   const isPM = req.user?.role?.name === 'Production Manager' || isDirector(req.user) || req.user?.role?.permissions?.projectManagement === true;
   if (!isPM) {
     return res.status(403).json({ message: 'Access denied. Production Manager or Director role required.' });
+  }
+
+  const cacheKey = `dashboard_pm_${req.user._id}`;
+  const cachedData = getCache(cacheKey);
+  if (cachedData) {
+    return res.json(cachedData);
   }
 
   try {
@@ -285,7 +302,10 @@ const getPMDashboard = async (req, res) => {
         })),
         teamSize: teamMembers.length
       }
-    });
+    };
+
+    setCache(cacheKey, responsePayload, 120);
+    return res.json(responsePayload);
   } catch (error) {
     return res.status(500).json({ message: error.message });
   }
@@ -299,6 +319,12 @@ const getPMDashboard = async (req, res) => {
 // @route   GET /api/dashboard/artist
 // @access  Private (Artist or Director oversight)
 const getArtistDashboard = async (req, res) => {
+  const cacheKey = `dashboard_artist_${req.user._id}`;
+  const cachedData = getCache(cacheKey);
+  if (cachedData) {
+    return res.json(cachedData);
+  }
+
   try {
     const artistUserId = req.user._id;
     const now = new Date();
@@ -388,7 +414,10 @@ const getArtistDashboard = async (req, res) => {
         upcomingDeadlines: upcomingDeadlines.map(t => ({ taskId: t._id, taskName: t.taskName, endDateFormatted: formatDDMMYYYY(t.endDate), status: t.status })),
         personalProductivitySummary: productivity
       }
-    });
+    };
+
+    setCache(cacheKey, responsePayload, 120);
+    return res.json(responsePayload);
   } catch (error) {
     return res.status(500).json({ message: error.message });
   }

@@ -6,6 +6,7 @@ const Holiday = require('../models/Holiday');
 const logActivity = require('../utils/activityLogger');
 const { recalculateProjectProgress } = require('./projectController');
 const { formatDDMMYYYY, parseDateString, calculateWorkingDays } = require('../utils/dateFormatter');
+const { delCache } = require('../utils/cacheEngine');
 const mongoose = require('mongoose');
 
 // Helper: Check if a date falls on Sunday or an active Studio Holiday
@@ -207,11 +208,7 @@ const createTask = async (req, res) => {
       metadata: { taskName: task.taskName, status: initialStatus }
     });
 
-    const populatedTask = await Task.findById(task._id)
-      .populate('assignee', 'name email role')
-      .populate('reviewer', 'name email role')
-      .populate('createdBy', 'name email');
-
+    delCache('dashboard');
     return res.status(201).json(populatedTask);
   } catch (error) {
     return res.status(500).json({ message: error.message });

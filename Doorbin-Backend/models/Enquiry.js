@@ -44,5 +44,8 @@ const enquirySchema = new mongoose.Schema({
 }, { timestamps: true });
 
 enquirySchema.index({ projectName: 'text', clientName: 'text', architectName: 'text' });
+enquirySchema.index({ status: 1, followUpDate: 1 });
+enquirySchema.index({ assignedExecutive: 1, status: 1 });
+enquirySchema.index({ followUpDate: 1 });
 
 module.exports = mongoose.model('Enquiry', enquirySchema);
