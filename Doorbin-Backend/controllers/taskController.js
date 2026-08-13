@@ -121,9 +121,6 @@ const createTask = async (req, res) => {
   if (!project || !mongoose.Types.ObjectId.isValid(project)) {
     return res.status(400).json({ message: 'Valid project ID is required' });
   }
-  if (!stage || !mongoose.Types.ObjectId.isValid(stage)) {
-    return res.status(400).json({ message: 'Valid stage ID is required' });
-  }
   if (!taskName || !taskName.trim()) {
     return res.status(400).json({ message: 'Task name is required' });
   }
@@ -134,14 +131,31 @@ const createTask = async (req, res) => {
       return res.status(400).json({ message: 'Project not found or deleted' });
     }
 
-    const stageObj = await Stage.findOne({ _id: stage, project });
-    if (!stageObj) {
-      return res.status(400).json({ message: 'Stage not found in specified project' });
+    let stageObj = null;
+    if (stage && mongoose.Types.ObjectId.isValid(stage)) {
+      stageObj = await Stage.findOne({ _id: stage, project });
     }
+
+    if (!stageObj) {
+      // Auto-fallback: Pick the first available stage of the project
+      stageObj = await Stage.findOne({ project }).sort({ order: 1 });
+      if (!stageObj) {
+        // Create default Stage 1 for project if none exists yet
+        stageObj = await Stage.create({
+          project,
+          stageName: 'General Production',
+          order: 1,
+          status: 'In Progress',
+          subStages: [{ name: 'Task Execution', order: 1, status: 'In Progress', completionPercentage: 0 }]
+        });
+      }
+    }
+
+    const resolvedStageId = stageObj._id;
 
     let subStageId = null;
     if (subStage && mongoose.Types.ObjectId.isValid(subStage)) {
-      const foundSub = stageObj.subStages.id(subStage);
+      const foundSub = stageObj.subStages ? stageObj.subStages.id(subStage) : null;
       if (foundSub) subStageId = subStage;
     }
 
@@ -167,7 +181,7 @@ const createTask = async (req, res) => {
 
     const task = await Task.create({
       project,
-      stage,
+      stage: resolvedStageId,
       subStage: subStageId,
       taskName: taskName.trim(),
       parentTask: parentTask && mongoose.Types.ObjectId.isValid(parentTask) ? parentTask : null,
@@ -418,6 +432,11 @@ const updateTask = async (req, res) => {
       const isReviewer = task.reviewer && task.reviewer.toString() === req.user._id.toString();
       if (!isAssignee && !isReviewer) {
         return res.status(403).json({ message: 'Access denied. You can only update tasks assigned to or reviewed by you.' });
+      }
+
+      // Item 7.3: Lock date changes from non-PM/Director users (Artists)
+      if (startDate !== undefined || endDate !== undefined) {
+        return res.status(403).json({ message: 'Task dates are locked from artist editing. Only Production Manager or Director can reschedule task start and due dates.' });
       }
     }
 

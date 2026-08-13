@@ -1,21 +1,27 @@
+
 import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { clientService } from '../services/clientService';
+import { enquiryService } from '../services/enquiryService';
 import { Modal } from '../components/Modal';
 import { FormField } from '../components/FormField';
 import { Toast } from '../components/Toast';
 import { Loader } from '../components/Loader';
 import { validators, focusFirstErrorField } from '../utils/validation';
-import { Plus, Search, Building2, Phone, Mail, MessageSquare, Trash2, UserPlus, Edit3, LayoutGrid, List } from 'lucide-react';
+import { Plus, Search, Building2, Phone, Mail, MessageSquare, Trash2, UserPlus, Edit3, LayoutGrid, List, Loader2 } from 'lucide-react';
 import { useViewMode } from '../hooks/useViewMode';
 import './Dashboard.css';
 
 export const Clients = () => {
+  const location = useLocation();
   const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useViewMode();
 
   // Modals & Active Client State
+  const [convertedEnquiry, setConvertedEnquiry] = useState(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingClient, setEditingClient] = useState(null);
@@ -57,7 +63,24 @@ export const Clients = () => {
 
   useEffect(() => {
     fetchClientsData();
-  }, []);
+
+    // Check if navigated from "Convert to Client" button in Enquiries
+    if (location.state?.autoOpenCreate && location.state?.enquiryData) {
+      const enq = location.state.enquiryData;
+      setConvertedEnquiry(enq);
+      setNewClient(prev => ({
+        ...prev,
+        companyName: enq.clientName || '',
+        clientName: enq.architectName || enq.clientName || '',
+        notes: `Converted from Won Enquiry: ${enq.projectName || ''}. ${enq.notes || ''}`.trim()
+      }));
+      setIsCreateModalOpen(true);
+      setToast({
+        message: `Opened Client Creation form pre-filled from Enquiry "${enq.projectName}"!`,
+        type: 'info'
+      });
+    }
+  }, [location.state]);
 
   const fetchClientsData = async () => {
     setLoading(true);
@@ -87,13 +110,20 @@ export const Clients = () => {
     const phoneErr = validators.required(newClient.phone, 'Phone Number');
     if (phoneErr) errors.phone = phoneErr;
 
+    if (newClient.gstDetails && newClient.gstDetails.trim().length > 15) {
+      errors.gstDetails = 'GSTIN Details cannot exceed 15 characters';
+    }
+
     setFormErrors(errors);
     if (Object.keys(errors).length > 0) {
       focusFirstErrorField(errors);
       return;
     }
 
+    setSubmitting(true);
     try {
+      await new Promise(resolve => setTimeout(resolve, 1500));
+
       const response = await clientService.createClient(newClient);
       const createdItem = response.client || response || {
         _id: response._id || `66b0a1f8e91d2c345678${Date.now().toString().slice(-4)}`,
@@ -104,7 +134,25 @@ export const Clients = () => {
       };
 
       setClients([createdItem, ...clients]);
-      setToast({ message: 'Client record created successfully!', type: 'success' });
+
+      const targetEnquiry = convertedEnquiry || location.state?.enquiryData;
+      const targetId = targetEnquiry?._id || location.state?.sourceEnquiryId;
+      const targetName = targetEnquiry?.projectName;
+
+      if (targetId || targetName) {
+        if (targetId) localStorage.setItem(`enquiry_status_${targetId}`, 'Project Creation');
+        if (targetName) localStorage.setItem(`enquiry_status_by_name_${targetName}`, 'Project Creation');
+
+        try {
+          await enquiryService.updateEnquiryStatus(targetId || targetName, 'Project Creation');
+          setToast({ message: 'Client created successfully & Enquiry status updated to Project Creation!', type: 'success' });
+        } catch (enqErr) {
+          setToast({ message: 'Client created & Enquiry status updated locally to Project Creation!', type: 'success' });
+        }
+      } else {
+        setToast({ message: 'Client record created successfully!', type: 'success' });
+      }
+
       setNewClient({
         companyName: '',
         clientName: '',
@@ -119,6 +167,8 @@ export const Clients = () => {
       setIsCreateModalOpen(false);
     } catch (err) {
       setToast({ message: err.message || 'Failed to create client', type: 'error' });
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -162,7 +212,10 @@ export const Clients = () => {
       return;
     }
 
+    setSubmitting(true);
     try {
+      await new Promise(resolve => setTimeout(resolve, 1500));
+
       const response = await clientService.updateClient(editingClient._id, newClient);
       const updatedItem = response.client || response;
 
@@ -176,6 +229,8 @@ export const Clients = () => {
       setEditingClient(null);
     } catch (err) {
       setToast({ message: err.message || 'Failed to update client record', type: 'error' });
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -305,37 +360,37 @@ export const Clients = () => {
           {/* DUAL VIEW RENDER */}
           {viewMode === 'stripe' ? (
             <div className="team-widget-card" style={{ padding: 0, overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem', whiteSpace: 'nowrap' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', whiteSpace: 'nowrap' }}>
                 <thead>
                   <tr style={{ backgroundColor: '#faf9f6', borderBottom: '1px solid #eeeae3', color: '#8c8882', textTransform: 'uppercase', fontSize: '0.68rem', letterSpacing: '0.05em' }}>
-                    <th style={{ padding: '1rem 1.25rem' }}>Company</th>
-                    <th style={{ padding: '1rem 1.25rem' }}>Primary Contact</th>
-                    <th style={{ padding: '1rem 1.25rem' }}>Email & Phone</th>
-                    <th style={{ padding: '1rem 1.25rem' }}>Industry</th>
-                    <th style={{ padding: '1rem 1.25rem' }}>Status</th>
-                    <th style={{ padding: '1rem 1.25rem', textAlign: 'right' }}>Actions</th>
+                    <th style={{ padding: '1rem 1.25rem', textAlign: 'left' }}>Company</th>
+                    <th style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>Primary Contact</th>
+                    <th style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>Email & Phone</th>
+                    <th style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>Industry</th>
+                    <th style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>Status</th>
+                    <th style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredClients.map((client) => (
                     <tr key={client._id} style={{ borderBottom: '1px solid #f2ece4' }}>
-                      <td style={{ padding: '1rem 1.25rem' }}>
+                      <td style={{ padding: '1rem 1.25rem', textAlign: 'left', wordBreak: 'break-word' }}>
                         <div style={{ fontWeight: 700, color: '#1a1918' }}>{client.companyName}</div>
                         {client.gstDetails && <div style={{ fontSize: '0.725rem', color: '#8c8882' }}>GSTIN: {client.gstDetails}</div>}
                       </td>
-                      <td style={{ padding: '1rem 1.25rem', fontWeight: 600, color: '#4a4742' }}>{client.clientName}</td>
-                      <td style={{ padding: '1rem 1.25rem' }}>
+                      <td style={{ padding: '1rem 1.25rem', textAlign: 'center', fontWeight: 600, color: '#4a4742' }}>{client.clientName}</td>
+                      <td style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>
                         <div>{client.email}</div>
                         <div style={{ fontSize: '0.75rem', color: '#8c8882' }}>{client.phone}</div>
                       </td>
-                      <td style={{ padding: '1rem 1.25rem' }}>{client.industry || 'Real Estate'}</td>
-                      <td style={{ padding: '1rem 1.25rem' }}>
+                      <td style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>{client.industry || 'Real Estate'}</td>
+                      <td style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>
                         <span className={`status-badge-pill ${client.status === 'Active' ? 'badge-on-track' : 'badge-at-risk'}`}>
                           {client.status || 'Active'}
                         </span>
                       </td>
-                      <td style={{ padding: '1rem 1.25rem', textAlign: 'right' }}>
-                        <div style={{ display: 'inline-flex', gap: '0.5rem' }}>
+                      <td style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>
+                        <div style={{ display: 'inline-flex', gap: '0.5rem', justifyContent: 'center' }}>
                           <button onClick={() => { setSelectedClient(client); setIsDetailModalOpen(true); }} className="btn btn-secondary" style={{ padding: '0.35rem 0.65rem', fontSize: '0.75rem' }}>
                             <MessageSquare size={14} /> Logs ({client.communicationLog?.length || 0})
                           </button>
@@ -429,8 +484,10 @@ export const Clients = () => {
         title="Add New Client Record"
         footer={
           <>
-            <button className="btn btn-secondary" onClick={() => setIsCreateModalOpen(false)}>Cancel</button>
-            <button className="btn btn-primary" onClick={handleCreateClient}>Save Client</button>
+            <button className="btn btn-secondary" onClick={() => setIsCreateModalOpen(false)} disabled={submitting}>Cancel</button>
+            <button className="btn btn-primary" onClick={handleCreateClient} disabled={submitting} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+              {submitting ? <><Loader2 className="animate-spin" size={14} /> Creating...</> : 'Save Client'}
+            </button>
           </>
         }
       >
@@ -480,11 +537,13 @@ export const Clients = () => {
             onChange={(e) => setNewClient({ ...newClient, industry: e.target.value })}
           />
           <FormField
-            label="GSTIN Details"
+            label="GSTIN Details (Max 15 Characters)"
             name="gstDetails"
             placeholder="e.g. 24AAAAA0000A1Z5"
+            maxLength={15}
             value={newClient.gstDetails}
-            onChange={(e) => setNewClient({ ...newClient, gstDetails: e.target.value })}
+            onChange={(e) => setNewClient({ ...newClient, gstDetails: e.target.value.toUpperCase().slice(0, 15) })}
+            error={formErrors.gstDetails}
           />
           <FormField
             label="Address"
@@ -511,8 +570,10 @@ export const Clients = () => {
         title="Edit Client Record"
         footer={
           <>
-            <button className="btn btn-secondary" onClick={() => setIsEditModalOpen(false)}>Cancel</button>
-            <button className="btn btn-primary" onClick={handleUpdateClient}>Update Client</button>
+            <button className="btn btn-secondary" onClick={() => setIsEditModalOpen(false)} disabled={submitting}>Cancel</button>
+            <button className="btn btn-primary" onClick={handleUpdateClient} disabled={submitting} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+              {submitting ? <><Loader2 className="animate-spin" size={14} /> Updating...</> : 'Update Client'}
+            </button>
           </>
         }
       >
@@ -578,11 +639,12 @@ export const Clients = () => {
             <option value="Inactive">Inactive</option>
           </FormField>
           <FormField
-            label="GSTIN Details"
+            label="GSTIN Details (Max 15 Characters)"
             name="gstDetails"
             placeholder="e.g. 24AAAAA0000A1Z5"
+            maxLength={15}
             value={newClient.gstDetails}
-            onChange={(e) => setNewClient({ ...newClient, gstDetails: e.target.value })}
+            onChange={(e) => setNewClient({ ...newClient, gstDetails: e.target.value.toUpperCase().slice(0, 15) })}
           />
           <FormField
             label="Address"

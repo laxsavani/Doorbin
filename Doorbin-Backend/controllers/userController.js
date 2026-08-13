@@ -146,9 +146,88 @@ const updateUserRole = async (req, res) => {
   }
 };
 
+// @desc    Update full user account details
+// @route   PUT /api/users/:id
+// @access  Private (Director / HR - userManagement)
+const updateUser = async (req, res) => {
+  const { name, email, phone, role, department, status, password } = req.body;
+
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    if (name) user.name = name;
+    if (email) user.email = email;
+    if (phone !== undefined) user.phone = phone;
+    if (role) user.role = role;
+    if (department) user.department = department;
+    if (status && ['Active', 'Inactive'].includes(status)) user.status = status;
+    if (password && password.trim().length >= 6) {
+      user.password = password;
+    }
+
+    await user.save();
+
+    await logActivity({
+      req,
+      userId: req.user._id,
+      action: 'USER_UPDATED',
+      targetType: 'User',
+      targetId: user._id,
+      metadata: { name: user.name, email: user.email, role: user.role, status: user.status }
+    });
+
+    const updatedUser = await User.findById(user._id)
+      .select('-password')
+      .populate('role department');
+
+    return res.json(updatedUser);
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Admin Reset User Password (Director only)
+// @route   PUT /api/users/:id/reset-password
+// @access  Private (Director - userManagement)
+const resetUserPassword = async (req, res) => {
+  const { newPassword } = req.body;
+
+  if (!newPassword || newPassword.trim().length < 6) {
+    return res.status(400).json({ message: 'New password must be at least 6 characters long' });
+  }
+
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    user.password = newPassword.trim();
+    await user.save();
+
+    await logActivity({
+      req,
+      userId: req.user._id,
+      action: 'PASSWORD_RESET_BY_ADMIN',
+      targetType: 'User',
+      targetId: user._id,
+      metadata: { targetUserEmail: user.email }
+    });
+
+    return res.json({ message: `Password for ${user.name} (${user.email}) has been reset successfully.` });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   getUsers,
   getUserById,
   updateUserStatus,
-  updateUserRole
+  updateUserRole,
+  updateUser,
+  resetUserPassword
 };

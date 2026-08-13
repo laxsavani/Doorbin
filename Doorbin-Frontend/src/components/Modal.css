@@ -70,6 +70,8 @@
 .modal-content {
   padding: var(--spacing-6);
   overflow-y: auto;
+  max-height: calc(85vh - 130px);
+  -webkit-overflow-scrolling: touch;
   flex: 1;
 }
 

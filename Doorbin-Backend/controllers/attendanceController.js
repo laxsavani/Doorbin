@@ -447,6 +447,12 @@ const getEmployeeAttendance = async (req, res) => {
     const { employeeId } = req.params;
     const { month, year } = req.query;
 
+    const isSelf = req.user._id.toString() === employeeId;
+    const isHR = req.user.role?.permissions?.hrAccess || req.user.role?.permissions?.userManagement || req.user.role?.name === 'Director';
+    if (!isSelf && !isHR) {
+      return res.status(403).json({ success: false, message: 'Access denied. You can only view your own attendance records.' });
+    }
+
     const query = { employee: employeeId };
 
     if (month && year) {
@@ -477,6 +483,12 @@ const getAttendanceSummary = async (req, res) => {
   try {
     const { employeeId } = req.params;
     const { month, year } = req.query;
+
+    const isSelf = req.user._id.toString() === employeeId;
+    const isHR = req.user.role?.permissions?.hrAccess || req.user.role?.permissions?.userManagement || req.user.role?.name === 'Director';
+    if (!isSelf && !isHR) {
+      return res.status(403).json({ success: false, message: 'Access denied. You can only view your own attendance summary.' });
+    }
 
     const m = month ? parseInt(month, 10) : new Date().getMonth() + 1;
     const y = year ? parseInt(year, 10) : new Date().getFullYear();

@@ -68,23 +68,60 @@ export const Projects = () => {
   }, []);
 
   useEffect(() => {
-    if (newProject.startDate && newProject.endDate) {
+    if (isEditModalOpen && editingProject?._id && newProject.startDate && newProject.endDate) {
+      fetchTeamAvailability(newProject.startDate, newProject.endDate, editingProject._id);
+    } else if (newProject.startDate && newProject.endDate) {
       fetchTeamAvailability(newProject.startDate, newProject.endDate);
     }
-  }, [newProject.startDate, newProject.endDate]);
+  }, [newProject.startDate, newProject.endDate, isEditModalOpen, editingProject?._id]);
 
-  const fetchTeamAvailability = async (from, to) => {
+  const fetchTeamAvailability = async (from, to, excludeProjectId = null) => {
+    if (!from || !to) {
+      setTeamAvailabilityMap({});
+      return;
+    }
     try {
-      const data = await resourceService.getArtistAvailability({ from, to });
+      const params = { from, to };
+      if (excludeProjectId) params.excludeProjectId = excludeProjectId;
+
+      const data = await resourceService.getArtistAvailability(params);
       const artistsArr = Array.isArray(data) ? data : (data?.artists || []);
       const map = {};
+
       artistsArr.forEach(a => {
         const id = (a.artistId || a._id || '').toString();
-        const isFullyBooked = a.dailySchedule ? a.dailySchedule.some(d => d.status === 'Fully Booked' || d.status === 'Over-Allocated') : false;
+        const sched = a.dailySchedule || [];
+        const totalDays = sched.length;
+        const bookedDays = sched.filter(d => d.status === 'Fully Booked' || d.status === 'Over-Allocated' || d.allocatedHours >= (a.dailyCapacityHours || 8)).length;
+        const freeDays = Math.max(0, totalDays - bookedDays);
+
+        let badgeStatus = 'available'; // 'available' | 'partial' | 'unavailable'
+        let statusText = '🟢 Available';
+
+        if (totalDays > 0) {
+          if (bookedDays >= totalDays || freeDays === 0) {
+            badgeStatus = 'unavailable';
+            statusText = '🔴 Unavailable (Fully Booked)';
+          } else if (bookedDays > 0) {
+            badgeStatus = 'partial';
+            statusText = `🟡 ${freeDays} Days Available (${bookedDays} Days Conflict)`;
+          } else {
+            badgeStatus = 'available';
+            statusText = '🟢 Available';
+          }
+        }
+
         map[id] = {
           name: a.name,
-          isFullyBooked,
-          statusText: isFullyBooked ? 'Unavailable' : 'Available'
+          badgeStatus,
+          statusText,
+          freeDays,
+          bookedDays,
+          totalDays,
+          freeDatesSummary: a.freeDatesSummary || '',
+          conflictDatesSummary: a.conflictDatesSummary || '',
+          isFullyBooked: badgeStatus === 'unavailable',
+          isPartial: badgeStatus === 'partial'
         };
       });
       setTeamAvailabilityMap(map);
@@ -328,6 +365,11 @@ export const Projects = () => {
     return matchesSearch && matchesCategory && matchesStatus;
   });
 
+  const artistUsersList = usersList.filter(u => {
+    const rName = typeof u.role === 'object' ? (u.role?.name || '') : (u.role || '');
+    return !rName || rName.toLowerCase().includes('artist') || rName.toLowerCase().includes('visualizer') || rName.toLowerCase().includes('3d') || rName.toLowerCase().includes('designer');
+  });
+
   return (
     <div className="dashboard-main-container smooth-fade-in">
       <Toast message={toast.message} type={toast.type} onClose={() => setToast({ message: '', type: 'info' })} />
@@ -406,15 +448,15 @@ export const Projects = () => {
           {/* DUAL VIEW RENDER: STRIPE TABLE OR CARD GRID */}
           {viewMode === 'stripe' ? (
             <div className="team-widget-card" style={{ padding: 0, overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem', whiteSpace: 'nowrap' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', whiteSpace: 'nowrap' }}>
                 <thead>
                   <tr style={{ backgroundColor: '#faf9f6', borderBottom: '1px solid #eeeae3', color: '#8c8882', textTransform: 'uppercase', fontSize: '0.68rem', letterSpacing: '0.05em' }}>
-                    <th style={{ padding: '1rem 1.25rem' }}>Project Name</th>
-                    <th style={{ padding: '1rem 1.25rem' }}>Client & PM</th>
-                    <th style={{ padding: '1rem 1.25rem' }}>Progress</th>
-                    <th style={{ padding: '1rem 1.25rem' }}>Budget (₹)</th>
-                    <th style={{ padding: '1rem 1.25rem' }}>Status</th>
-                    <th style={{ padding: '1rem 1.25rem', textAlign: 'right' }}>Actions</th>
+                    <th style={{ padding: '1rem 1.25rem', textAlign: 'left' }}>Project Name</th>
+                    <th style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>Client & PM</th>
+                    <th style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>Progress</th>
+                    <th style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>Budget (₹)</th>
+                    <th style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>Status</th>
+                    <th style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -424,27 +466,27 @@ export const Projects = () => {
 
                     return (
                       <tr key={proj._id} style={{ borderBottom: '1px solid #f2ece4' }}>
-                        <td style={{ padding: '1rem 1.25rem' }}>
+                        <td style={{ padding: '1rem 1.25rem', textAlign: 'left', wordBreak: 'break-word' }}>
                           <div style={{ fontWeight: 700, color: '#1a1918' }}>{proj.projectName}</div>
                           <span className="task-status-blue" style={{ fontSize: '0.65rem' }}>{proj.projectCategory}</span>
                         </td>
-                        <td style={{ padding: '1rem 1.25rem', fontWeight: 600, color: '#4a4742' }}>
+                        <td style={{ padding: '1rem 1.25rem', textAlign: 'center', fontWeight: 600, color: '#4a4742' }}>
                           <div>{clientName}</div>
                           <div style={{ fontSize: '0.75rem', color: '#8c8882' }}>PM: {pmName}</div>
                         </td>
-                        <td style={{ padding: '1rem 1.25rem', fontWeight: 700, color: '#B68D40' }}>
+                        <td style={{ padding: '1rem 1.25rem', textAlign: 'center', fontWeight: 700, color: '#B68D40' }}>
                           {proj.progressPercentage || 0}%
                         </td>
-                        <td style={{ padding: '1rem 1.25rem', fontWeight: 700, color: '#15803d' }}>
+                        <td style={{ padding: '1rem 1.25rem', textAlign: 'center', fontWeight: 700, color: '#15803d' }}>
                           ₹{Number(proj.budget || 0).toLocaleString()}
                         </td>
-                        <td style={{ padding: '1rem 1.25rem' }}>
+                        <td style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>
                           <span className={`status-badge-pill ${proj.status === 'Completed' ? 'badge-on-track' : 'badge-at-risk'}`}>
                             {proj.status}
                           </span>
                         </td>
-                        <td style={{ padding: '1rem 1.25rem', textAlign: 'right' }}>
-                          <div style={{ display: 'inline-flex', gap: '0.5rem' }}>
+                        <td style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>
+                          <div style={{ display: 'inline-flex', gap: '0.5rem', justifyContent: 'center' }}>
                             <button onClick={() => { setSelectedProject(proj); setIsDetailModalOpen(true); }} className="btn btn-secondary" style={{ padding: '0.35rem 0.65rem', fontSize: '0.75rem' }}>
                               Stages Drawer
                             </button>
@@ -659,11 +701,31 @@ export const Projects = () => {
               Assign Project Team Members (Live Availability Check)
             </label>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: '160px', overflowY: 'auto', border: '1px solid #e2ded8', borderRadius: '8px', padding: '0.75rem', backgroundColor: '#faf8f5' }}>
-              {usersList.map(u => {
+              {artistUsersList.map(u => {
                 const uId = u._id.toString();
                 const isSelected = (newProject.assignedTeam || []).includes(uId);
                 const avail = teamAvailabilityMap[uId];
-                const isUnavailable = avail?.isFullyBooked;
+
+                let badgeText = '🟢 Available';
+                let badgeBg = '#f0fdf4';
+                let badgeColor = '#16a34a';
+
+                if (avail) {
+                  if (avail.badgeStatus === 'unavailable') {
+                    badgeText = `🔴 Unavailable (Fully Booked)`;
+                    badgeBg = '#fef2f2';
+                    badgeColor = '#dc2626';
+                  } else if (avail.badgeStatus === 'partial') {
+                    const datesInfo = avail.freeDatesSummary ? `Free: ${avail.freeDatesSummary}` : `${avail.bookedDays} Days Conflict`;
+                    badgeText = `🟡 ${avail.freeDays} Days Available (${datesInfo})`;
+                    badgeBg = '#fffbebf0';
+                    badgeColor = '#b45309';
+                  } else {
+                    badgeText = '🟢 Available';
+                    badgeBg = '#f0fdf4';
+                    badgeColor = '#16a34a';
+                  }
+                }
 
                 return (
                   <label key={uId} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.825rem', cursor: 'pointer', padding: '0.35rem 0.5rem', borderRadius: '6px', backgroundColor: isSelected ? '#f5efe6' : 'transparent' }}>
@@ -674,8 +736,10 @@ export const Projects = () => {
                         onChange={(e) => {
                           const currentTeam = newProject.assignedTeam || [];
                           if (e.target.checked) {
-                            if (isUnavailable) {
-                              setToast({ message: `${u.name} is currently fully booked / unavailable during selected project dates!`, type: 'error' });
+                            if (avail?.badgeStatus === 'unavailable') {
+                              setToast({ message: `Warning: ${u.name} is fully booked / unavailable from ${newProject.startDate} to ${newProject.endDate}!`, type: 'error' });
+                            } else if (avail?.badgeStatus === 'partial') {
+                              setToast({ message: `Notice: ${u.name} is only available for ${avail.freeDays} days out of ${avail.totalDays} days in this date range (${avail.bookedDays} days booked in another project/task).`, type: 'info' });
                             }
                             setNewProject({ ...newProject, assignedTeam: [...currentTeam, uId] });
                           } else {
@@ -691,10 +755,10 @@ export const Projects = () => {
                       fontWeight: 700,
                       padding: '0.15rem 0.55rem',
                       borderRadius: '9999px',
-                      backgroundColor: isUnavailable ? '#fef2f2' : '#f0fdf4',
-                      color: isUnavailable ? '#dc2626' : '#16a34a'
+                      backgroundColor: badgeBg,
+                      color: badgeColor
                     }}>
-                      {isUnavailable ? '🔴 Unavailable (Fully Booked)' : '🟢 Available'}
+                      {badgeText}
                     </span>
                   </label>
                 );
@@ -816,11 +880,31 @@ export const Projects = () => {
               Assign Project Team Members (1, 2, 3, 4+ Persons)
             </label>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: '160px', overflowY: 'auto', border: '1px solid #e2ded8', borderRadius: '8px', padding: '0.75rem', backgroundColor: '#faf8f5' }}>
-              {usersList.map(u => {
+              {artistUsersList.map(u => {
                 const uId = u._id.toString();
                 const isSelected = (newProject.assignedTeam || []).includes(uId);
                 const avail = teamAvailabilityMap[uId];
-                const isUnavailable = avail?.isFullyBooked;
+
+                let badgeText = '🟢 Available';
+                let badgeBg = '#f0fdf4';
+                let badgeColor = '#16a34a';
+
+                if (avail) {
+                  if (avail.badgeStatus === 'unavailable') {
+                    badgeText = `🔴 Unavailable (Fully Booked)`;
+                    badgeBg = '#fef2f2';
+                    badgeColor = '#dc2626';
+                  } else if (avail.badgeStatus === 'partial') {
+                    const datesInfo = avail.freeDatesSummary ? `Free: ${avail.freeDatesSummary}` : `${avail.bookedDays} Days Conflict`;
+                    badgeText = `🟡 ${avail.freeDays} Days Available (${datesInfo})`;
+                    badgeBg = '#fffbebf0';
+                    badgeColor = '#b45309';
+                  } else {
+                    badgeText = '🟢 Available';
+                    badgeBg = '#f0fdf4';
+                    badgeColor = '#16a34a';
+                  }
+                }
 
                 return (
                   <label key={uId} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.825rem', cursor: 'pointer', padding: '0.35rem 0.5rem', borderRadius: '6px', backgroundColor: isSelected ? '#f5efe6' : 'transparent' }}>
@@ -831,8 +915,10 @@ export const Projects = () => {
                         onChange={(e) => {
                           const currentTeam = newProject.assignedTeam || [];
                           if (e.target.checked) {
-                            if (isUnavailable) {
-                              setToast({ message: `${u.name} is currently fully booked / unavailable during selected project dates!`, type: 'error' });
+                            if (avail?.badgeStatus === 'unavailable') {
+                              setToast({ message: `Warning: ${u.name} is fully booked / unavailable from ${newProject.startDate} to ${newProject.endDate}!`, type: 'error' });
+                            } else if (avail?.badgeStatus === 'partial') {
+                              setToast({ message: `Notice: ${u.name} is only available for ${avail.freeDays} days out of ${avail.totalDays} days in this date range (${avail.bookedDays} days booked in another project/task).`, type: 'info' });
                             }
                             setNewProject({ ...newProject, assignedTeam: [...currentTeam, uId] });
                           } else {
@@ -848,10 +934,10 @@ export const Projects = () => {
                       fontWeight: 700,
                       padding: '0.15rem 0.55rem',
                       borderRadius: '9999px',
-                      backgroundColor: isUnavailable ? '#fef2f2' : '#f0fdf4',
-                      color: isUnavailable ? '#dc2626' : '#16a34a'
+                      backgroundColor: badgeBg,
+                      color: badgeColor
                     }}>
-                      {isUnavailable ? '🔴 Unavailable (Fully Booked)' : '🟢 Available'}
+                      {badgeText}
                     </span>
                   </label>
                 );

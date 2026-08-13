@@ -113,6 +113,7 @@ const createEnquiry = async (req, res) => {
       followUpDate: followUpDate ? new Date(followUpDate) : undefined,
       priority: priority || 'Medium',
       clientCategory: clientCategory || undefined,
+      leadTemperature: req.body.leadTemperature || 'Warm',
       notes,
       existingClient: validClient,
       status: initialStatus,
@@ -274,6 +275,9 @@ const updateEnquiry = async (req, res) => {
     if (priority && ['High', 'Medium', 'Low'].includes(priority)) enquiry.priority = priority;
     if (clientCategory && ['Aspirational', 'Regulation', 'Red Flag'].includes(clientCategory)) {
       enquiry.clientCategory = clientCategory;
+    }
+    if (req.body.leadTemperature && ['Hot', 'Warm', 'Cold'].includes(req.body.leadTemperature)) {
+      enquiry.leadTemperature = req.body.leadTemperature;
     }
     if (notes !== undefined) enquiry.notes = notes;
 

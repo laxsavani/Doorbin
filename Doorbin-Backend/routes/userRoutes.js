@@ -4,7 +4,9 @@ const {
   getUsers,
   getUserById,
   updateUserStatus,
-  updateUserRole
+  updateUserRole,
+  updateUser,
+  resetUserPassword
 } = require('../controllers/userController');
 const { protect, checkPermission } = require('../middlewares/authMiddleware');
 
@@ -152,5 +154,22 @@ router.put('/:id/status', protect, checkPermission('userManagement'), updateUser
  *         description: Director permission required
  */
 router.put('/:id/role', protect, checkPermission('userManagement'), updateUserRole);
+
+/**
+ * @swagger
+ * /users/{id}:
+ *   put:
+ *     summary: Update full user details (name, email, phone, role, department, status, password)
+ *     tags: [User Management]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: User updated
+ *       403:
+ *         description: Access denied
+ */
+router.put('/:id', protect, checkPermission('userManagement'), updateUser);
+router.put('/:id/reset-password', protect, checkPermission('userManagement'), resetUserPassword);
 
 module.exports = router;

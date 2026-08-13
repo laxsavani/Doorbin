@@ -486,15 +486,15 @@ export const Tasks = () => {
           {/* DUAL VIEW RENDER: STRIPE TABLE OR CARD GRID */}
           {viewMode === 'stripe' ? (
             <div className="team-widget-card" style={{ padding: 0, overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem', whiteSpace: 'nowrap' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', whiteSpace: 'nowrap' }}>
                 <thead>
                   <tr style={{ backgroundColor: '#faf9f6', borderBottom: '1px solid #eeeae3', color: '#8c8882', textTransform: 'uppercase', fontSize: '0.68rem', letterSpacing: '0.05em' }}>
-                    <th style={{ padding: '1rem 1.25rem' }}>Task Name</th>
-                    <th style={{ padding: '1rem 1.25rem' }}>Project & Assignee</th>
-                    <th style={{ padding: '1rem 1.25rem' }}>Due Date</th>
-                    <th style={{ padding: '1rem 1.25rem' }}>Priority</th>
-                    <th style={{ padding: '1rem 1.25rem' }}>Status</th>
-                    <th style={{ padding: '1rem 1.25rem', textAlign: 'right' }}>Actions</th>
+                    <th style={{ padding: '1rem 1.25rem', textAlign: 'left' }}>Task Name</th>
+                    <th style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>Project & Assignee</th>
+                    <th style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>Due Date</th>
+                    <th style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>Priority</th>
+                    <th style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>Status</th>
+                    <th style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -504,22 +504,22 @@ export const Tasks = () => {
 
                     return (
                       <tr key={task._id} style={{ borderBottom: '1px solid #f2ece4' }}>
-                        <td style={{ padding: '1rem 1.25rem' }}>
+                        <td style={{ padding: '1rem 1.25rem', textAlign: 'left', wordBreak: 'break-word' }}>
                           <div style={{ fontWeight: 700, color: '#1a1918' }}>{task.taskName}</div>
                         </td>
-                        <td style={{ padding: '1rem 1.25rem', fontWeight: 600, color: '#4a4742' }}>
+                        <td style={{ padding: '1rem 1.25rem', textAlign: 'center', fontWeight: 600, color: '#4a4742' }}>
                           <div>{projName}</div>
                           <div style={{ fontSize: '0.75rem', color: '#8c8882' }}>Assignee: {assigneeName}</div>
                         </td>
-                        <td style={{ padding: '1rem 1.25rem' }}>{formatDate(task.dueDate)}</td>
-                        <td style={{ padding: '1rem 1.25rem' }}>
+                        <td style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>{formatDate(task.dueDate)}</td>
+                        <td style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>
                           <span style={{ fontSize: '0.75rem', fontWeight: 700, color: task.priority === 'High' ? '#dc2626' : '#16a34a' }}>{task.priority}</span>
                         </td>
-                        <td style={{ padding: '1rem 1.25rem' }}>
+                        <td style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>
                           <span className="status-badge-pill badge-on-track">{task.status}</span>
                         </td>
-                        <td style={{ padding: '1rem 1.25rem', textAlign: 'right' }}>
-                          <div style={{ display: 'inline-flex', gap: '0.5rem' }}>
+                        <td style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>
+                          <div style={{ display: 'inline-flex', gap: '0.5rem', justifyContent: 'center' }}>
                             <button onClick={() => { setSelectedTask(task); setIsDetailModalOpen(true); }} className="btn btn-secondary" style={{ padding: '0.35rem 0.65rem', fontSize: '0.75rem' }}>
                               Details
                             </button>

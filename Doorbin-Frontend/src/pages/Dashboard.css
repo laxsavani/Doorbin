@@ -1,5 +1,19 @@
 /* Doorbin Studio Dashboard CSS - Matching Exact Layout & Retaining Doorbin Colors */
 
+/* ANIMATE SPIN KEYFRAME FOR ALL LOADERS */
+.animate-spin {
+  animation: spin 1s linear infinite !important;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .dashboard-layout {
   display: flex;
   height: 100vh;
@@ -1400,24 +1414,45 @@ select option,
   }
 }
 
-/* STRIPE VIEW UNIVERSAL CENTER ALIGNMENT ACROSS ALL PAGES */
-.table-responsive table,
-.team-widget-card table {
-  text-align: center !important;
+/* STRIPE VIEW ALIGNMENT RULES: COLUMN 1 LEFT-ALIGNED, ALL OTHER COLUMNS CENTER-ALIGNED */
+.table-responsive table th:first-child,
+.table-responsive table td:first-child,
+.team-widget-card table th:first-child,
+.team-widget-card table td:first-child {
+  text-align: left !important;
+  vertical-align: middle !important;
 }
 
-.table-responsive table th,
-.table-responsive table td,
-.team-widget-card table th,
-.team-widget-card table td {
+.table-responsive table th:first-child div,
+.table-responsive table td:first-child div,
+.team-widget-card table th:first-child div,
+.team-widget-card table td:first-child div {
+  justify-content: flex-start !important;
+  text-align: left !important;
+}
+
+.table-responsive table th:not(:first-child),
+.table-responsive table td:not(:first-child),
+.team-widget-card table th:not(:first-child),
+.team-widget-card table td:not(:first-child) {
   text-align: center !important;
   vertical-align: middle !important;
 }
 
-.table-responsive table th div,
-.table-responsive table td div,
-.team-widget-card table th div,
-.team-widget-card table td div {
+.table-responsive table th:not(:first-child) div,
+.table-responsive table td:not(:first-child) div,
+.team-widget-card table th:not(:first-child) div,
+.team-widget-card table td:not(:first-child) div {
   justify-content: center !important;
   text-align: center !important;
+}
+
+/* CARD VIEW UNIVERSAL OVERFLOW FIX */
+.responsive-cards-grid .responsive-card-item,
+.responsive-cards-grid .team-widget-card,
+.team-widget-card {
+  word-break: break-word !important;
+  overflow-wrap: anywhere !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
 }

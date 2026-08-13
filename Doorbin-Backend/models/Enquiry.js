@@ -26,6 +26,7 @@ const enquirySchema = new mongoose.Schema({
   followUpDate:       { type: Date },
   priority:           { type: String, enum: ['High', 'Medium', 'Low'], default: 'Medium' },
   clientCategory:     { type: String, enum: ['Aspirational', 'Regulation', 'Red Flag'] },
+  leadTemperature:    { type: String, enum: ['Hot', 'Warm', 'Cold'], default: 'Warm' },
   notes:              { type: String },
 
   status: {

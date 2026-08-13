@@ -111,7 +111,7 @@ const getArtistProfile = async (req, res) => {
 // @access  Private (Resource Allocation permission holder)
 const getAvailability = async (req, res) => {
   try {
-    const { skill, from, to } = req.query;
+    const { skill, from, to, excludeProjectId } = req.query;
 
     const now = new Date();
     const defaultFrom = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -130,8 +130,8 @@ const getAvailability = async (req, res) => {
       return res.status(400).json({ message: 'Date range query exceeds maximum limit of 90 days' });
     }
 
-    // Fetch active artists
-    const activeUsers = await User.find({ status: 'Active' })
+    // Fetch active artists (flexible status match)
+    const activeUsers = await User.find({ status: { $ne: 'Inactive' } })
       .populate('role', 'name')
       .populate('department', 'name');
 
@@ -150,29 +150,110 @@ const getAvailability = async (req, res) => {
 
     const artistIds = artists.map(u => u._id);
 
-    // Fetch active assigned tasks in window
+    // Helper: Get ALL calendar dates (including weekends) in DD/MM/YYYY
+    const getAllCalendarDates = (startD, endD) => {
+      const dates = [];
+      const s = parseDateString(startD);
+      const e = parseDateString(endD, true);
+      if (!s || !e || s > e) return dates;
+      const cur = new Date(s);
+      cur.setHours(0,0,0,0);
+      const finish = new Date(e);
+      finish.setHours(0,0,0,0);
+      while (cur <= finish) {
+        dates.push(formatDDMMYYYY(cur));
+        cur.setDate(cur.getDate() + 1);
+      }
+      return dates;
+    };
+
+    // 1. Fetch active assigned tasks in window
     const tasks = await Task.find({
       assignee: { $in: artistIds },
-      status: { $nin: ['Completed', 'Approved', 'Cancelled'] },
-      startDate: { $lte: toDate },
-      endDate: { $gte: fromDate }
+      status: { $nin: ['Completed', 'Approved', 'Cancelled'] }
     }).populate('project', 'projectName');
 
-    // Build per-artist daily load map
+    // 2. Fetch active assigned projects in window (proper Mongoose ObjectId array match)
+    const projectFilter = {
+      assignedTeam: { $in: artistIds },
+      status: { $nin: ['Completed', 'Cancelled', 'completed', 'cancelled'] },
+      isDeleted: { $ne: true }
+    };
+    if (excludeProjectId && mongoose.Types.ObjectId.isValid(excludeProjectId)) {
+      projectFilter._id = { $ne: excludeProjectId };
+    }
+
+    const activeProjects = await Project.find(projectFilter);
+
+    // Build per-artist daily load map and booked assignments list
     const dailyLoadMap = {};
-    artistIds.forEach(id => dailyLoadMap[id.toString()] = {});
+    const artistBookedTasksMap = {};
+    artistIds.forEach(id => {
+      const strId = id.toString();
+      dailyLoadMap[strId] = {};
+      artistBookedTasksMap[strId] = [];
+    });
 
+    // Process Projects assignments
+    activeProjects.forEach(proj => {
+      if (!proj.startDate || !proj.endDate || !Array.isArray(proj.assignedTeam)) return;
+
+      const pStart = new Date(proj.startDate);
+      const pEnd = new Date(proj.endDate);
+      if (isNaN(pStart.getTime()) || isNaN(pEnd.getTime())) return;
+
+      proj.assignedTeam.forEach(member => {
+        const memberStr = (member._id || member).toString();
+        if (!dailyLoadMap[memberStr]) return;
+
+        artistBookedTasksMap[memberStr].push({
+          taskId: proj._id,
+          title: `Project (${proj.projectName})`,
+          project: proj.projectName || 'Project',
+          startDate: formatDDMMYYYY(pStart),
+          endDate: formatDDMMYYYY(pEnd),
+          rawStartDate: pStart,
+          rawEndDate: pEnd
+        });
+
+        // Mark all calendar days in project range as allocated 8 hrs
+        const calendarDays = getAllCalendarDates(pStart, pEnd);
+        calendarDays.forEach(dStr => {
+          const dObj = parseDateString(dStr);
+          if (dObj >= parseDateString(formatDDMMYYYY(fromDate)) && dObj <= parseDateString(formatDDMMYYYY(toDate))) {
+            if (!dailyLoadMap[memberStr][dStr]) dailyLoadMap[memberStr][dStr] = 0;
+            dailyLoadMap[memberStr][dStr] += 8;
+          }
+        });
+      });
+    });
+
+    // Process Tasks assignments
     tasks.forEach(task => {
-      if (!task.assignee || !task.startDate || !task.endDate || !task.estimatedHours) return;
+      if (!task.assignee) return;
+      const tStart = task.startDate ? new Date(task.startDate) : (task.dueDate ? new Date(task.dueDate) : null);
+      const tEnd = task.endDate ? new Date(task.endDate) : (task.dueDate ? new Date(task.dueDate) : null);
+      if (!tStart || !tEnd || isNaN(tStart.getTime()) || isNaN(tEnd.getTime())) return;
 
-      const workingDays = calculateWorkingDaysSync(task.startDate, task.endDate);
-      if (workingDays === 0) return;
+      const calendarDays = getAllCalendarDates(tStart, tEnd);
+      const workingDays = calendarDays.length || 1;
+      const hours = task.estimatedHours ? Number(task.estimatedHours) : 8;
+      const dailyHours = hours / workingDays;
 
-      const dailyHours = task.estimatedHours / workingDays;
-      const weekdays = getWeekdayDatesDDMMYYYY(task.startDate, task.endDate);
+      const artistStr = (task.assignee._id || task.assignee).toString();
+      if (!dailyLoadMap[artistStr]) return;
 
-      const artistStr = task.assignee.toString();
-      weekdays.forEach(dStr => {
+      artistBookedTasksMap[artistStr].push({
+        taskId: task._id,
+        title: task.taskName || task.title || 'Task Assignment',
+        project: task.project?.projectName || 'Task Assignment',
+        startDate: formatDDMMYYYY(tStart),
+        endDate: formatDDMMYYYY(tEnd),
+        rawStartDate: tStart,
+        rawEndDate: tEnd
+      });
+
+      calendarDays.forEach(dStr => {
         const dObj = parseDateString(dStr);
         if (dObj >= parseDateString(formatDDMMYYYY(fromDate)) && dObj <= parseDateString(formatDDMMYYYY(toDate))) {
           if (!dailyLoadMap[artistStr][dStr]) dailyLoadMap[artistStr][dStr] = 0;
@@ -181,7 +262,7 @@ const getAvailability = async (req, res) => {
       });
     });
 
-    const windowWeekdays = getWeekdayDatesDDMMYYYY(fromDate, toDate);
+    const windowCalendarDays = getAllCalendarDates(fromDate, toDate);
 
     const result = artists.map(artist => {
       const aId = artist._id.toString();
@@ -189,13 +270,13 @@ const getAvailability = async (req, res) => {
       const capacity = prof ? prof.dailyCapacityHours : 8;
       const skills = prof ? prof.skillTags : [];
 
-      const dailySchedule = windowWeekdays.map(dStr => {
+      const dailySchedule = windowCalendarDays.map(dStr => {
         const allocated = Number((dailyLoadMap[aId][dStr] || 0).toFixed(2));
         const remaining = Number((capacity - allocated).toFixed(2));
 
         let status = 'Available';
         if (allocated > capacity) status = 'Over-Allocated';
-        else if (allocated === capacity) status = 'Fully Booked';
+        else if (allocated >= capacity) status = 'Fully Booked';
 
         return {
           date: dStr, // Formatted DD/MM/YYYY
@@ -205,15 +286,39 @@ const getAvailability = async (req, res) => {
         };
       });
 
+      const artistTasks = artistBookedTasksMap[aId] || [];
+      const totalAllocated = dailySchedule.reduce((sum, d) => sum + d.allocatedHours, 0);
+
+      const freeDateList = dailySchedule.filter(d => d.status === 'Available').map(d => d.date);
+      const conflictDateList = dailySchedule.filter(d => d.status === 'Fully Booked' || d.status === 'Over-Allocated').map(d => d.date);
+
+      const formatSummaryDates = (dArr) => {
+        if (!dArr || dArr.length === 0) return '';
+        const firstParts = dArr[0].split('/');
+        const lastParts = dArr[dArr.length - 1].split('/');
+        const firstStr = `${parseInt(firstParts[0], 10)}/${parseInt(firstParts[1], 10)}`;
+        const lastStr = `${parseInt(lastParts[0], 10)}/${parseInt(lastParts[1], 10)}`;
+        return dArr.length === 1 ? firstStr : `${firstStr} to ${lastStr}`;
+      };
+
+      const freeDatesSummary = formatSummaryDates(freeDateList);
+      const conflictDatesSummary = formatSummaryDates(conflictDateList);
+
       return {
         artistId: artist._id,
+        _id: artist._id,
+        user: artist,
         name: artist.name,
         email: artist.email,
         role: artist.role?.name,
         department: artist.department?.name,
         dailyCapacityHours: capacity,
         skillTags: skills,
-        dailySchedule
+        dailySchedule,
+        assignedTasks: artistTasks,
+        allocatedHours: totalAllocated,
+        freeDatesSummary,
+        conflictDatesSummary
       };
     });
 

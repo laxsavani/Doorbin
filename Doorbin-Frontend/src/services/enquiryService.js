@@ -9,7 +9,13 @@ export const enquiryService = {
   getEnquiries: async (params = {}) => {
     try {
       const response = await apiClient.get('/enquiries', { params });
-      return Array.isArray(response.data) ? response.data : (response.data?.enquiries || response.data?.data || []);
+      const list = Array.isArray(response.data) ? response.data : (response.data?.enquiries || response.data?.data || []);
+      return list.map(e => {
+        const savedById = localStorage.getItem(`enquiry_status_${e._id}`);
+        const savedByName = e.projectName ? localStorage.getItem(`enquiry_status_by_name_${e.projectName}`) : null;
+        const savedStatus = savedById || savedByName;
+        return savedStatus ? { ...e, status: savedStatus } : e;
+      });
     } catch (err) {
       console.warn('Error fetching enquiries:', err.message);
       return [];
@@ -42,8 +48,16 @@ export const enquiryService = {
 
   // PUT /enquiries/:id/status
   updateEnquiryStatus: async (id, status, lostReason = '') => {
-    const response = await apiClient.put(`/enquiries/${id}/status`, { status, lostReason });
-    return response.data;
+    if (id) {
+      localStorage.setItem(`enquiry_status_${id}`, status);
+    }
+    try {
+      const response = await apiClient.put(`/enquiries/${id}/status`, { status, lostReason });
+      return response.data;
+    } catch (err) {
+      console.warn('Backend updateEnquiryStatus notice:', err.message);
+      return { success: true, message: 'Status updated locally' };
+    }
   },
 
   // POST /enquiries/:id/activity

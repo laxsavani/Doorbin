@@ -8,7 +8,7 @@ import { FormField } from '../components/FormField';
 import { Toast } from '../components/Toast';
 import { Loader } from '../components/Loader';
 import { validators, focusFirstErrorField } from '../utils/validation';
-import { Search, UserPlus, LayoutGrid, List } from 'lucide-react';
+import { Search, UserPlus, LayoutGrid, List, Edit } from 'lucide-react';
 import { useViewMode } from '../hooks/useViewMode';
 import './Dashboard.css';
 
@@ -17,8 +17,10 @@ export const Users = () => {
   const [departmentsList, setDepartmentsList] = useState([]);
   const [rolesList, setRolesList] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [viewMode, setViewMode] = useViewMode();
 
   const [newUser, setNewUser] = useState({
@@ -30,6 +32,18 @@ export const Users = () => {
     department: '',
     status: 'Active'
   });
+
+  const [editingUser, setEditingUser] = useState({
+    id: '',
+    name: '',
+    email: '',
+    password: '',
+    phone: '',
+    role: '',
+    department: '',
+    status: 'Active'
+  });
+
   const [formErrors, setFormErrors] = useState({});
   const [toast, setToast] = useState({ message: '', type: 'info' });
 
@@ -89,7 +103,7 @@ export const Users = () => {
   };
 
   const handleCreateUser = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
 
     const errors = {};
     const nameErr = validators.required(newUser.name, 'Full Name');
@@ -98,50 +112,23 @@ export const Users = () => {
     const emailErr = validators.email(newUser.email);
     if (emailErr) errors.email = emailErr;
 
-    const passErr = validators.required(newUser.password, 'Password');
+    const passErr = validators.minLength(newUser.password, 6, 'Password');
     if (passErr) errors.password = passErr;
 
-    const phoneErr = validators.required(newUser.phone, 'Phone Number');
+    const phoneErr = validators.phone(newUser.phone);
     if (phoneErr) errors.phone = phoneErr;
 
-    const roleErr = validators.required(newUser.role, 'Role Assignment');
-    if (roleErr) errors.role = roleErr;
-
-    setFormErrors(errors);
     if (Object.keys(errors).length > 0) {
+      setFormErrors(errors);
       focusFirstErrorField(errors);
       return;
     }
 
+    setIsSubmitting(true);
     try {
-      const registerPayload = {
-        name: newUser.name,
-        email: newUser.email,
-        password: newUser.password,
-        role: newUser.role,
-        department: newUser.department || null,
-        phone: newUser.phone,
-        status: newUser.status || 'Active'
-      };
-
-      const response = await authService.register(registerPayload);
-
-      const matchedRole = rolesList.find(r => r._id === newUser.role);
-      const matchedDept = departmentsList.find(d => d._id === newUser.department);
-
-      const createdUser = response.user || {
-        _id: response._id || `66b0a1f8e91d2c345678${Date.now().toString().slice(-4)}`,
-        name: newUser.name,
-        email: newUser.email,
-        role: matchedRole || { _id: newUser.role, name: 'Artist' },
-        department: matchedDept || { _id: newUser.department, name: 'Architecture & 3D Visualization' },
-        phone: newUser.phone,
-        status: newUser.status || 'Active',
-        lastLogin: new Date().toISOString()
-      };
-
-      setUsers([createdUser, ...users]);
-      setToast({ message: 'User registered successfully!', type: 'success' });
+      await userService.createUser(newUser);
+      setToast({ message: 'User registered successfully', type: 'success' });
+      fetchUsersDepartmentsAndRoles();
       setNewUser({
         name: '',
         email: '',
@@ -154,6 +141,68 @@ export const Users = () => {
       setIsModalOpen(false);
     } catch (err) {
       setToast({ message: err.message || 'Failed to register user', type: 'error' });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleOpenEditModal = (user) => {
+    setEditingUser({
+      id: user._id,
+      name: user.name || '',
+      email: user.email || '',
+      password: '',
+      phone: user.phone || '',
+      role: typeof user.role === 'object' ? user.role?._id : (user.role || rolesList[0]?._id || ''),
+      department: typeof user.department === 'object' ? user.department?._id : (user.department || ''),
+      status: user.status || 'Active'
+    });
+    setFormErrors({});
+    setIsEditModalOpen(true);
+  };
+
+  const handleUpdateUser = async (e) => {
+    if (e) e.preventDefault();
+
+    const errors = {};
+    const nameErr = validators.required(editingUser.name, 'Full Name');
+    if (nameErr) errors.name = nameErr;
+
+    const emailErr = validators.email(editingUser.email);
+    if (emailErr) errors.email = emailErr;
+
+    if (editingUser.password && editingUser.password.trim().length > 0 && editingUser.password.trim().length < 6) {
+      errors.password = 'Password must be at least 6 characters long';
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setFormErrors(errors);
+      focusFirstErrorField(errors);
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const payload = {
+        name: editingUser.name,
+        email: editingUser.email,
+        phone: editingUser.phone,
+        role: editingUser.role,
+        department: editingUser.department,
+        status: editingUser.status
+      };
+      if (editingUser.password && editingUser.password.trim().length >= 6) {
+        payload.password = editingUser.password;
+      }
+
+      await userService.updateUser(editingUser.id, payload);
+      setToast({ message: 'User profile updated successfully!', type: 'success' });
+      fetchUsersDepartmentsAndRoles();
+      setIsEditModalOpen(false);
+    } catch (err) {
+      setToast({ message: err.message || 'Failed to update user', type: 'error' });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -176,7 +225,7 @@ export const Users = () => {
       <div className="page-header-responsive">
         <div className="page-header-title-block">
           <h1 className="hero-serif-title">User Management</h1>
-          <p className="hero-sub-summary">Manage system users, status activation/deactivation and role reassignments</p>
+          <p className="hero-sub-summary">Manage system users, edit accounts, status activation/deactivation and role reassignments</p>
         </div>
 
         <div className="page-header-actions">
@@ -269,13 +318,20 @@ export const Users = () => {
                       </div>
                     </div>
 
-                    <div className="responsive-card-footer">
+                    <div className="responsive-card-footer" style={{ gap: '0.4rem' }}>
+                      <button
+                        onClick={() => handleOpenEditModal(user)}
+                        className="btn btn-secondary"
+                        style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem', flex: 1, justifyContent: 'center' }}
+                      >
+                        <Edit size={13} /> Edit User
+                      </button>
                       <button
                         onClick={() => handleStatusToggle(user._id, user.status || 'Active')}
                         className="btn btn-secondary"
-                        style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem', width: '100%', justifyContent: 'center' }}
+                        style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem', flex: 1, justifyContent: 'center' }}
                       >
-                        {user.status === 'Active' ? 'Deactivate User' : 'Activate User'}
+                        {user.status === 'Active' ? 'Deactivate' : 'Activate'}
                       </button>
                     </div>
                   </div>
@@ -285,14 +341,14 @@ export const Users = () => {
           ) : (
             /* STRIPE / TABLE VIEW (DEFAULT ON DESKTOP) */
             <div className="team-widget-card" style={{ padding: 0, overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem', whiteSpace: 'nowrap' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', whiteSpace: 'nowrap' }}>
                 <thead>
                   <tr style={{ backgroundColor: '#faf9f6', borderBottom: '1px solid #eeeae3', color: '#8c8882', textTransform: 'uppercase', fontSize: '0.68rem', letterSpacing: '0.05em' }}>
-                    <th style={{ padding: '1rem 1.25rem' }}>User Info</th>
-                    <th style={{ padding: '1rem 1.25rem' }}>Department</th>
-                    <th style={{ padding: '1rem 1.25rem' }}>Role Assignment</th>
-                    <th style={{ padding: '1rem 1.25rem' }}>Status</th>
-                    <th style={{ padding: '1rem 1.25rem', textAlign: 'right' }}>Actions</th>
+                    <th style={{ padding: '1rem 1.25rem', textAlign: 'left' }}>User Info</th>
+                    <th style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>Department</th>
+                    <th style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>Role Assignment</th>
+                    <th style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>Status</th>
+                    <th style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -303,15 +359,15 @@ export const Users = () => {
 
                     return (
                       <tr key={user._id} style={{ borderBottom: '1px solid #f2ece4' }}>
-                        <td style={{ padding: '1rem 1.25rem' }}>
+                        <td style={{ padding: '1rem 1.25rem', textAlign: 'left', wordBreak: 'break-word' }}>
                           <div style={{ fontWeight: 700, color: '#1a1918' }}>{user.name}</div>
                           <div style={{ fontSize: '0.78rem', color: '#8c8882' }}>{user.email}</div>
                           {user.phone && <div style={{ fontSize: '0.725rem', color: '#8c8882' }}>{user.phone}</div>}
                         </td>
-                        <td style={{ padding: '1rem 1.25rem', color: '#4a4742', fontWeight: 600 }}>
+                        <td style={{ padding: '1rem 1.25rem', textAlign: 'center', color: '#4a4742', fontWeight: 600 }}>
                           {deptName}
                         </td>
-                        <td style={{ padding: '1rem 1.25rem' }}>
+                        <td style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>
                           <select
                             value={roleId || roleName}
                             onChange={(e) => handleRoleChange(user._id, e.target.value)}
@@ -331,19 +387,28 @@ export const Users = () => {
                             ))}
                           </select>
                         </td>
-                        <td style={{ padding: '1rem 1.25rem' }}>
+                        <td style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>
                           <span className={`status-badge-pill ${user.status === 'Active' ? 'badge-on-track' : 'badge-at-risk'}`}>
                             {user.status || 'Active'}
                           </span>
                         </td>
-                        <td style={{ padding: '1rem 1.25rem', textAlign: 'right' }}>
-                          <button
-                            onClick={() => handleStatusToggle(user._id, user.status || 'Active')}
-                            className="btn btn-secondary"
-                            style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem' }}
-                          >
-                            {user.status === 'Active' ? 'Deactivate' : 'Activate'}
-                          </button>
+                        <td style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>
+                          <div style={{ display: 'inline-flex', gap: '0.4rem', justifyContent: 'center' }}>
+                            <button
+                              onClick={() => handleOpenEditModal(user)}
+                              className="btn btn-secondary"
+                              style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}
+                            >
+                              <Edit size={13} /> Edit
+                            </button>
+                            <button
+                              onClick={() => handleStatusToggle(user._id, user.status || 'Active')}
+                              className="btn btn-secondary"
+                              style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem' }}
+                            >
+                              {user.status === 'Active' ? 'Deactivate' : 'Activate'}
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -358,12 +423,14 @@ export const Users = () => {
       {/* Modal for Creating User */}
       <Modal
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
+        onClose={() => !isSubmitting && setIsModalOpen(false)}
         title="Add New User"
         footer={
           <>
-            <button className="btn btn-secondary" onClick={() => setIsModalOpen(false)}>Cancel</button>
-            <button className="btn btn-primary" onClick={handleCreateUser}>Register User</button>
+            <button className="btn btn-secondary" onClick={() => setIsModalOpen(false)} disabled={isSubmitting}>Cancel</button>
+            <button className="btn btn-primary" onClick={handleCreateUser} disabled={isSubmitting}>
+              {isSubmitting ? 'Registering...' : 'Register User'}
+            </button>
           </>
         }
       >
@@ -441,6 +508,99 @@ export const Users = () => {
             type="select"
             value={newUser.status}
             onChange={(e) => setNewUser({ ...newUser, status: e.target.value })}
+          >
+            <option value="Active">Active</option>
+            <option value="Inactive">Inactive</option>
+          </FormField>
+        </form>
+      </Modal>
+
+      {/* Modal for Editing User */}
+      <Modal
+        isOpen={isEditModalOpen}
+        onClose={() => !isSubmitting && setIsEditModalOpen(false)}
+        title="Edit User Profile"
+        footer={
+          <>
+            <button className="btn btn-secondary" onClick={() => setIsEditModalOpen(false)} disabled={isSubmitting}>Cancel</button>
+            <button className="btn btn-primary" onClick={handleUpdateUser} disabled={isSubmitting}>
+              {isSubmitting ? 'Saving Changes...' : 'Save Changes'}
+            </button>
+          </>
+        }
+      >
+        <form onSubmit={handleUpdateUser} noValidate>
+          <FormField
+            label="Full Name"
+            name="edit_name"
+            placeholder="e.g. John Doe"
+            value={editingUser.name}
+            onChange={(e) => setEditingUser({ ...editingUser, name: e.target.value })}
+            error={formErrors.name}
+            required
+          />
+          <FormField
+            label="Email Address"
+            name="edit_email"
+            type="email"
+            placeholder="e.g. john@doorbin.com"
+            value={editingUser.email}
+            onChange={(e) => setEditingUser({ ...editingUser, email: e.target.value })}
+            error={formErrors.email}
+            required
+          />
+          <FormField
+            label="New Password (Leave blank to keep unchanged)"
+            name="edit_password"
+            type="password"
+            placeholder="Enter new password (optional)"
+            value={editingUser.password}
+            onChange={(e) => setEditingUser({ ...editingUser, password: e.target.value })}
+            error={formErrors.password}
+          />
+          <FormField
+            label="Phone Number"
+            name="edit_phone"
+            placeholder="+91 9876543210"
+            value={editingUser.phone}
+            onChange={(e) => setEditingUser({ ...editingUser, phone: e.target.value })}
+            error={formErrors.phone}
+          />
+          <FormField
+            label="Role Assignment"
+            name="edit_role"
+            type="select"
+            value={editingUser.role}
+            onChange={(e) => setEditingUser({ ...editingUser, role: e.target.value })}
+            error={formErrors.role}
+            required
+          >
+            {rolesList.map((r) => (
+              <option key={r._id} value={r._id}>
+                {r.name}
+              </option>
+            ))}
+          </FormField>
+          <FormField
+            label="Department"
+            name="edit_department"
+            type="select"
+            value={editingUser.department}
+            onChange={(e) => setEditingUser({ ...editingUser, department: e.target.value })}
+          >
+            <option value="">None (Unassigned)</option>
+            {departmentsList.map((dept) => (
+              <option key={dept._id} value={dept._id}>
+                {dept.name}
+              </option>
+            ))}
+          </FormField>
+          <FormField
+            label="Status"
+            name="edit_status"
+            type="select"
+            value={editingUser.status}
+            onChange={(e) => setEditingUser({ ...editingUser, status: e.target.value })}
           >
             <option value="Active">Active</option>
             <option value="Inactive">Inactive</option>

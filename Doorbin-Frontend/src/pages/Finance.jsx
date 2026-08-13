@@ -414,15 +414,6 @@ export const Finance = () => {
 
         <div className="page-header-actions" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
           <div style={{ display: 'inline-flex', gap: '0.4rem' }}>
-            <button className="btn btn-secondary" style={{ padding: '0.45rem 0.85rem', fontSize: '0.8rem' }} onClick={() => handleExportFinance('excel')}>
-              <FileSpreadsheet size={15} /> Export Excel
-            </button>
-            <button className="btn btn-secondary" style={{ padding: '0.45rem 0.85rem', fontSize: '0.8rem' }} onClick={() => handleExportFinance('pdf')}>
-              <FileText size={15} /> Export PDF
-            </button>
-          </div>
-
-          <div style={{ display: 'inline-flex', gap: '0.4rem' }}>
             <button className="btn btn-secondary" style={{ padding: '0.45rem 0.85rem', fontSize: '0.8rem' }} onClick={() => setIsQuotationModalOpen(true)}>
               <Plus size={15} /> New Quotation
             </button>
@@ -602,6 +593,30 @@ export const Finance = () => {
               <LayoutGrid size={14} /> Card View
             </button>
           </div>
+
+          {/* Export Action Buttons (Item 7.1) */}
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+            <button
+              className="btn btn-secondary"
+              style={{ padding: '0.45rem 0.75rem', fontSize: '0.78rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+              onClick={() => {
+                reportService.exportReport('excel', activeTab, { from: fromDate, to: toDate });
+                setToast({ message: `Exporting ${activeTab.toUpperCase()} report to Excel...`, type: 'success' });
+              }}
+            >
+              <FileSpreadsheet size={14} color="#15803d" /> Excel
+            </button>
+            <button
+              className="btn btn-secondary"
+              style={{ padding: '0.45rem 0.75rem', fontSize: '0.78rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+              onClick={() => {
+                reportService.exportReport('pdf', activeTab, { from: fromDate, to: toDate });
+                setToast({ message: `Exporting ${activeTab.toUpperCase()} report to PDF...`, type: 'success' });
+              }}
+            >
+              <FileText size={14} color="#dc2626" /> PDF
+            </button>
+          </div>
         </div>
       </div>
 
@@ -664,14 +679,14 @@ export const Finance = () => {
             <table className="table">
               <thead>
                 <tr>
-                  <th>QUOTATION #</th>
-                  <th>CLIENT NAME</th>
-                  <th>PROJECT TITLE</th>
-                  <th>SUBTOTAL</th>
-                  <th>GST (18%)</th>
-                  <th>TOTAL AMOUNT</th>
-                  <th>STATUS</th>
-                  <th>ACTIONS</th>
+                  <th style={{ textAlign: 'left' }}>QUOTATION #</th>
+                  <th style={{ textAlign: 'center' }}>CLIENT NAME</th>
+                  <th style={{ textAlign: 'center' }}>PROJECT TITLE</th>
+                  <th style={{ textAlign: 'center' }}>SUBTOTAL</th>
+                  <th style={{ textAlign: 'center' }}>GST (18%)</th>
+                  <th style={{ textAlign: 'center' }}>TOTAL AMOUNT</th>
+                  <th style={{ textAlign: 'center' }}>STATUS</th>
+                  <th style={{ textAlign: 'center' }}>ACTIONS</th>
                 </tr>
               </thead>
               <tbody>
@@ -685,18 +700,18 @@ export const Finance = () => {
 
                   return (
                     <tr key={q._id}>
-                      <td style={{ fontWeight: '600', color: 'var(--color-primary)' }}>{qNum}</td>
-                      <td>{clientName}</td>
-                      <td>{projTitle}</td>
-                      <td>₹{subtotal.toLocaleString('en-IN')}</td>
-                      <td>₹{gst.toLocaleString('en-IN')}</td>
-                      <td style={{ fontWeight: '600' }}>₹{total.toLocaleString('en-IN')}</td>
-                      <td>
+                      <td style={{ textAlign: 'left', fontWeight: '600', color: 'var(--color-primary)' }}>{qNum}</td>
+                      <td style={{ textAlign: 'center' }}>{clientName}</td>
+                      <td style={{ textAlign: 'center' }}>{projTitle}</td>
+                      <td style={{ textAlign: 'center' }}>₹{subtotal.toLocaleString('en-IN')}</td>
+                      <td style={{ textAlign: 'center' }}>₹{gst.toLocaleString('en-IN')}</td>
+                      <td style={{ textAlign: 'center', fontWeight: '600' }}>₹{total.toLocaleString('en-IN')}</td>
+                      <td style={{ textAlign: 'center' }}>
                         <span className={`badge ${q.status === 'Accepted' || q.status === 'Approved' ? 'badge-success' : q.status === 'Sent' ? 'badge-warning' : 'badge-secondary'}`}>
                           {q.status || 'Draft'}
                         </span>
                       </td>
-                      <td>
+                      <td style={{ textAlign: 'center' }}>
                         <div style={{ display: 'flex', gap: '0.35rem' }}>
                           <button
                             className="btn btn-secondary"
@@ -797,15 +812,15 @@ export const Finance = () => {
             <table className="table">
               <thead>
                 <tr>
-                  <th>INVOICE #</th>
-                  <th>CLIENT</th>
-                  <th>MILESTONE</th>
-                  <th>DUE DATE</th>
-                  <th>TOTAL INVOICED</th>
-                  <th>PAID</th>
-                  <th>DUE BALANCE</th>
-                  <th>STATUS</th>
-                  <th>ACTIONS</th>
+                  <th style={{ textAlign: 'left' }}>INVOICE #</th>
+                  <th style={{ textAlign: 'center' }}>CLIENT</th>
+                  <th style={{ textAlign: 'center' }}>MILESTONE</th>
+                  <th style={{ textAlign: 'center' }}>DUE DATE</th>
+                  <th style={{ textAlign: 'center' }}>TOTAL INVOICED</th>
+                  <th style={{ textAlign: 'center' }}>PAID</th>
+                  <th style={{ textAlign: 'center' }}>DUE BALANCE</th>
+                  <th style={{ textAlign: 'center' }}>STATUS</th>
+                  <th style={{ textAlign: 'center' }}>ACTIONS</th>
                 </tr>
               </thead>
               <tbody>
@@ -820,21 +835,21 @@ export const Finance = () => {
 
                   return (
                     <tr key={inv._id}>
-                      <td style={{ fontWeight: '600', color: 'var(--color-secondary)' }}>{invNum}</td>
-                      <td>{clientName}</td>
-                      <td>{milestone}</td>
-                      <td>{dueD}</td>
-                      <td>₹{total.toLocaleString('en-IN')}</td>
-                      <td style={{ color: 'var(--color-success)' }}>₹{paid.toLocaleString('en-IN')}</td>
-                      <td style={{ color: due > 0 ? 'var(--color-danger)' : 'var(--color-text-muted)', fontWeight: '600' }}>
+                      <td style={{ textAlign: 'left', fontWeight: '600', color: 'var(--color-secondary)' }}>{invNum}</td>
+                      <td style={{ textAlign: 'center' }}>{clientName}</td>
+                      <td style={{ textAlign: 'center' }}>{milestone}</td>
+                      <td style={{ textAlign: 'center' }}>{dueD}</td>
+                      <td style={{ textAlign: 'center' }}>₹{total.toLocaleString('en-IN')}</td>
+                      <td style={{ textAlign: 'center', color: 'var(--color-success)' }}>₹{paid.toLocaleString('en-IN')}</td>
+                      <td style={{ textAlign: 'center', color: due > 0 ? 'var(--color-danger)' : 'var(--color-text-muted)', fontWeight: '600' }}>
                         ₹{due.toLocaleString('en-IN')}
                       </td>
-                      <td>
+                      <td style={{ textAlign: 'center' }}>
                         <span className={`badge ${inv.status === 'Paid' ? 'badge-success' : inv.status === 'Partially Paid' ? 'badge-warning' : 'badge-danger'}`}>
                           {inv.status || 'Pending'}
                         </span>
                       </td>
-                      <td>
+                      <td style={{ textAlign: 'center' }}>
                         <div style={{ display: 'flex', gap: '0.35rem' }}>
                           <button
                             className="btn btn-secondary"
@@ -922,14 +937,14 @@ export const Finance = () => {
             <table className="table">
               <thead>
                 <tr>
-                  <th>RECEIPT #</th>
-                  <th>INVOICE REF</th>
-                  <th>CLIENT</th>
-                  <th>PAYMENT DATE</th>
-                  <th>MODE</th>
-                  <th>REF NO.</th>
-                  <th>AMOUNT PAID</th>
-                  <th>ACTIONS</th>
+                  <th style={{ textAlign: 'left' }}>RECEIPT #</th>
+                  <th style={{ textAlign: 'center' }}>INVOICE REF</th>
+                  <th style={{ textAlign: 'center' }}>CLIENT</th>
+                  <th style={{ textAlign: 'center' }}>PAYMENT DATE</th>
+                  <th style={{ textAlign: 'center' }}>MODE</th>
+                  <th style={{ textAlign: 'center' }}>REF NO.</th>
+                  <th style={{ textAlign: 'center' }}>AMOUNT PAID</th>
+                  <th style={{ textAlign: 'center' }}>ACTIONS</th>
                 </tr>
               </thead>
               <tbody>
@@ -944,14 +959,14 @@ export const Finance = () => {
 
                   return (
                     <tr key={p._id}>
-                      <td style={{ fontWeight: '600', color: 'var(--color-primary)' }}>{rcpt}</td>
-                      <td>{invRef}</td>
-                      <td>{clientName}</td>
-                      <td>{pmtDate}</td>
-                      <td>{mode}</td>
-                      <td>{refNo}</td>
-                      <td style={{ fontWeight: '700', color: 'var(--color-success)' }}>₹{amtPaid.toLocaleString('en-IN')}</td>
-                      <td>
+                      <td style={{ textAlign: 'left', fontWeight: '600', color: 'var(--color-primary)' }}>{rcpt}</td>
+                      <td style={{ textAlign: 'center' }}>{invRef}</td>
+                      <td style={{ textAlign: 'center' }}>{clientName}</td>
+                      <td style={{ textAlign: 'center' }}>{pmtDate}</td>
+                      <td style={{ textAlign: 'center' }}>{mode}</td>
+                      <td style={{ textAlign: 'center' }}>{refNo}</td>
+                      <td style={{ textAlign: 'center', fontWeight: '700', color: 'var(--color-success)' }}>₹{amtPaid.toLocaleString('en-IN')}</td>
+                      <td style={{ textAlign: 'center' }}>
                         <button
                           className="btn btn-secondary"
                           style={{ padding: '0.35rem 0.65rem', fontSize: '0.75rem' }}

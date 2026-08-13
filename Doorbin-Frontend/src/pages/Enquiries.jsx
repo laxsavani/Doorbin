@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { enquiryService } from '../services/enquiryService';
 import { userService } from '../services/userService';
 import { authService } from '../services/authService';
@@ -7,16 +8,29 @@ import { FormField } from '../components/FormField';
 import { Toast } from '../components/Toast';
 import { Loader } from '../components/Loader';
 import { validators, focusFirstErrorField } from '../utils/validation';
-import { Plus, Search, PhoneCall, TrendingUp, UserCheck, DollarSign, Calendar, MessageSquare, ArrowRight, ShieldCheck, Trash2, Briefcase, Tag, AlertTriangle, Award, Edit3, LayoutGrid, List } from 'lucide-react';
+import { Plus, Search, PhoneCall, TrendingUp, UserCheck, DollarSign, Calendar, MessageSquare, ArrowRight, ShieldCheck, Trash2, Briefcase, Tag, AlertTriangle, Award, Edit3, LayoutGrid, List, Loader2 } from 'lucide-react';
 import { useViewMode } from '../hooks/useViewMode';
 import './Dashboard.css';
 
 const PROJECT_TYPES = ['Architecture', 'Interior Design', 'Animation'];
-const PRIORITIES = ['High', 'Medium', 'Low'];
-const CLIENT_CATEGORIES = ['Aspirational', 'Regulation', 'Red Flag'];
+export const LEAD_TEMPERATURES = ['Hot', 'Warm', 'Cold'];
+export const PRIORITIES = LEAD_TEMPERATURES;
 const STAGES = ['New Enquiry', 'Qualification', 'Meeting', 'Proposal', 'Negotiation', 'Won', 'Lost', 'Project Creation'];
 
+const getTempDetails = (val) => {
+  const str = String(val || '').toLowerCase();
+  if (str === 'hot' || str === 'high') {
+    return { label: 'Hot', color: '#dc2626', bg: '#fef2f2', border: '#fecaca', emoji: '🔥' };
+  }
+  if (str === 'cold' || str === 'low') {
+    return { label: 'Cold', color: '#2563eb', bg: '#eff6ff', border: '#bfdbfe', emoji: '❄️' };
+  }
+  return { label: 'Warm', color: '#d97706', bg: '#fffbe6', border: '#fef08a', emoji: '☀️' };
+};
+
 export const Enquiries = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
   const currentUser = authService.getCurrentUser();
   const userRoleName = typeof currentUser?.role === 'object'
     ? (currentUser?.role?.name || 'Artist')
@@ -27,7 +41,16 @@ export const Enquiries = () => {
   const [executives, setExecutives] = useState([]);
   const [summaryReport, setSummaryReport] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [convertingId, setConvertingId] = useState(null);
   const [viewMode, setViewMode] = useViewMode();
+
+  const [deletingEnquiryId, setDeletingEnquiryId] = useState(null);
+  const [selectedBDEFilter, setSelectedBDEFilter] = useState('All');
+
+  // Drag and Drop state for Kanban
+  const [dragOverStage, setDragOverStage] = useState(null);
+  const [draggingEnquiryId, setDraggingEnquiryId] = useState(null);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStageFilter, setSelectedStageFilter] = useState('All');
@@ -49,8 +72,7 @@ export const Enquiries = () => {
     source: '',
     assignedExecutive: '',
     followUpDate: '',
-    priority: 'Medium',
-    clientCategory: 'Aspirational',
+    leadTemperature: 'Warm',
     notes: '',
     status: 'New Enquiry'
   });
@@ -67,7 +89,7 @@ export const Enquiries = () => {
 
   useEffect(() => {
     fetchEnquiriesAndExecutives();
-  }, []);
+  }, [location.key]);
 
   const fetchEnquiriesAndExecutives = async () => {
     setLoading(true);
@@ -112,7 +134,10 @@ export const Enquiries = () => {
       return;
     }
 
+    setSubmitting(true);
     try {
+      await new Promise(resolve => setTimeout(resolve, 1500));
+
       const response = await enquiryService.createEnquiry({
         ...newEnquiry,
         estimatedValue: Number(newEnquiry.estimatedValue || 0)
@@ -138,24 +163,33 @@ export const Enquiries = () => {
         source: '',
         assignedExecutive: executives[0]?._id || '',
         followUpDate: '',
-        priority: 'Medium',
-        clientCategory: 'Aspirational',
+        leadTemperature: 'Warm',
         notes: '',
         status: 'New Enquiry'
       });
       setIsCreateModalOpen(false);
     } catch (err) {
       setToast({ message: err.message || 'Failed to create enquiry', type: 'error' });
+    } finally {
+      setSubmitting(false);
     }
   };
 
   const handleConvertEnquiry = async (enq) => {
+    setConvertingId(enq._id);
     try {
-      await enquiryService.convertEnquiry(enq._id);
-      setToast({ message: `Enquiry "${enq.projectName}" converted into an active Project successfully!`, type: 'success' });
-      fetchEnquiries();
-    } catch (err) {
-      setToast({ message: err.message || 'Failed to convert enquiry to project', type: 'error' });
+      setToast({ message: `Opening Client Register for "${enq.projectName}"...`, type: 'info' });
+      await new Promise(resolve => setTimeout(resolve, 1200));
+
+      navigate('/clients', {
+        state: {
+          autoOpenCreate: true,
+          enquiryData: enq,
+          sourceEnquiryId: enq._id
+        }
+      });
+    } finally {
+      setConvertingId(null);
     }
   };
 
@@ -170,8 +204,7 @@ export const Enquiries = () => {
       source: enq.source || '',
       assignedExecutive: typeof enq.assignedExecutive === 'object' ? (enq.assignedExecutive?._id || '') : (enq.assignedExecutive || ''),
       followUpDate: enq.followUpDate ? enq.followUpDate.split('T')[0] : '',
-      priority: enq.priority || 'Medium',
-      clientCategory: enq.clientCategory || 'Aspirational',
+      leadTemperature: enq.leadTemperature || enq.priority || 'Warm',
       notes: enq.notes || '',
       status: enq.status || 'New Enquiry'
     });
@@ -196,7 +229,10 @@ export const Enquiries = () => {
       return;
     }
 
+    setSubmitting(true);
     try {
+      await new Promise(resolve => setTimeout(resolve, 1500));
+
       const updatePayload = {
         ...newEnquiry,
         estimatedValue: Number(newEnquiry.estimatedValue || 0)
@@ -227,6 +263,8 @@ export const Enquiries = () => {
       setEditingEnquiry(null);
     } catch (err) {
       setToast({ message: err.message || 'Failed to update enquiry record', type: 'error' });
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -277,8 +315,6 @@ export const Enquiries = () => {
     }
   };
 
-  const [deletingEnquiryId, setDeletingEnquiryId] = useState(null);
-
   const confirmDeleteEnquiry = async () => {
     if (!deletingEnquiryId) return;
     try {
@@ -293,6 +329,7 @@ export const Enquiries = () => {
   };
 
   const filteredEnquiries = enquiries.filter(enq => {
+    const execId = typeof enq.assignedExecutive === 'object' ? enq.assignedExecutive?._id : enq.assignedExecutive;
     const execName = typeof enq.assignedExecutive === 'object' ? enq.assignedExecutive?.name : enq.assignedExecutive;
     const matchesSearch = (
       enq.clientName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -301,7 +338,8 @@ export const Enquiries = () => {
       execName?.toLowerCase().includes(searchQuery.toLowerCase())
     );
     const matchesStage = selectedStageFilter === 'All' || enq.status === selectedStageFilter;
-    return matchesSearch && matchesStage;
+    const matchesBDE = selectedBDEFilter === 'All' || execId === selectedBDEFilter;
+    return matchesSearch && matchesStage && matchesBDE;
   });
 
   return (
@@ -329,6 +367,12 @@ export const Enquiries = () => {
               onClick={() => setViewMode('card')}
             >
               <LayoutGrid size={14} /> Card View
+            </button>
+            <button
+              className={`view-toggle-btn ${viewMode === 'kanban' ? 'active' : ''}`}
+              onClick={() => setViewMode('kanban')}
+            >
+              <LayoutGrid size={14} /> Kanban View
             </button>
           </div>
 
@@ -372,7 +416,9 @@ export const Enquiries = () => {
                 <Award size={18} color="#7a42c9" />
               </div>
               <div className="project-card-title" style={{ fontSize: '1.65rem', marginTop: '0.35rem' }}>
-                {enquiries.length > 0 ? Math.round((enquiries.filter(e => e.status === 'Won').length / enquiries.length) * 100) : 0}% Rate
+                {enquiries.length > 0
+                  ? Math.round((enquiries.filter(e => e.status === 'Won' || e.status === 'Project Creation').length / enquiries.length) * 100)
+                  : 0}% Rate
               </div>
             </div>
           </div>
@@ -433,33 +479,41 @@ export const Enquiries = () => {
               })}
             </div>
 
-            {/* Mobile Select Dropdown for Stage Filters */}
-            <select
-              className="mobile-filter-select"
-              value={selectedStageFilter}
-              onChange={(e) => setSelectedStageFilter(e.target.value)}
-            >
-              <option value="All">All Stages ({enquiries.length})</option>
-              {STAGES.map((stg) => (
-                <option key={stg} value={stg}>
-                  {stg} ({enquiries.filter(e => e.status === stg).length})
-                </option>
-              ))}
-            </select>
+            {/* Executive (BDE) Filter Dropdown */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#8c8882' }}>BDE:</span>
+              <select
+                value={selectedBDEFilter}
+                onChange={(e) => setSelectedBDEFilter(e.target.value)}
+                style={{
+                  padding: '0.35rem 0.65rem',
+                  borderRadius: '8px',
+                  border: '1px solid #dcd8cf',
+                  fontSize: '0.75rem',
+                  fontWeight: 600,
+                  backgroundColor: '#ffffff'
+                }}
+              >
+                <option value="All">All BDE Executives</option>
+                {executives.map(e => (
+                  <option key={e._id} value={e._id}>{e.name}</option>
+                ))}
+              </select>
+            </div>
           </div>
 
           {/* DUAL VIEW RENDER: STRIPE TABLE OR CARD GRID */}
           {viewMode === 'stripe' ? (
             <div className="team-widget-card" style={{ padding: 0, overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem', whiteSpace: 'nowrap' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', whiteSpace: 'nowrap' }}>
                 <thead>
                   <tr style={{ backgroundColor: '#faf9f6', borderBottom: '1px solid #eeeae3', color: '#8c8882', textTransform: 'uppercase', fontSize: '0.68rem', letterSpacing: '0.05em' }}>
-                    <th style={{ padding: '1rem 1.25rem' }}>Project & Client</th>
-                    <th style={{ padding: '1rem 1.25rem' }}>Type & Priority</th>
-                    <th style={{ padding: '1rem 1.25rem' }}>Estimated Value</th>
-                    <th style={{ padding: '1rem 1.25rem' }}>BD Executive</th>
-                    <th style={{ padding: '1rem 1.25rem' }}>Stage Status</th>
-                    <th style={{ padding: '1rem 1.25rem', textAlign: 'right' }}>Actions</th>
+                    <th style={{ padding: '1rem 1.25rem', textAlign: 'left' }}>Project & Client</th>
+                    <th style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>Type & Priority</th>
+                    <th style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>Estimated Value</th>
+                    <th style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>BD Executive</th>
+                    <th style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>Stage Status</th>
+                    <th style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -470,39 +524,71 @@ export const Enquiries = () => {
 
                     return (
                       <tr key={enq._id} style={{ borderBottom: '1px solid #f2ece4' }}>
-                        <td style={{ padding: '1rem 1.25rem' }}>
+                        <td style={{ padding: '1rem 1.25rem', textAlign: 'left', wordBreak: 'break-word' }}>
                           <div style={{ fontWeight: 700, color: '#1a1918' }}>{enq.projectName}</div>
                           <div style={{ fontSize: '0.78rem', color: '#8c8882' }}>Client: {enq.clientName}</div>
                         </td>
-                        <td style={{ padding: '1rem 1.25rem' }}>
-                          <span className="task-status-blue" style={{ fontSize: '0.68rem', marginRight: '0.5rem' }}>{enq.projectType}</span>
-                          <span style={{ fontSize: '0.7rem', fontWeight: 700, color: enq.priority === 'High' ? '#dc2626' : '#16a34a' }}>{enq.priority}</span>
+                        <td style={{ padding: '0.75rem 1.25rem', textAlign: 'center' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.25rem' }}>
+                            <span className="task-status-blue" style={{ fontSize: '0.68rem' }}>{enq.projectType}</span>
+                            {(() => {
+                              const t = getTempDetails(enq.leadTemperature || enq.priority);
+                              return (
+                                <span style={{ fontSize: '0.7rem', fontWeight: 700, padding: '0.15rem 0.5rem', borderRadius: '9999px', backgroundColor: t.bg, color: t.color, border: `1px solid ${t.border}` }}>
+                                  {t.emoji} {t.label}
+                                </span>
+                              );
+                            })()}
+                          </div>
                         </td>
-                        <td style={{ padding: '1rem 1.25rem', fontWeight: 700, color: '#15803d' }}>
+                        <td style={{ padding: '0.75rem 1.25rem', textAlign: 'center', fontWeight: 700, color: '#15803d' }}>
                           ₹{Number(enq.estimatedValue || 0).toLocaleString()}
                         </td>
-                        <td style={{ padding: '1rem 1.25rem', fontWeight: 600 }}>{execName}</td>
-                        <td style={{ padding: '1rem 1.25rem' }}>
-                          <span className="status-badge-pill badge-on-track">{enq.status}</span>
+                        <td style={{ padding: '0.75rem 1.25rem', textAlign: 'center', fontWeight: 600 }}>{execName}</td>
+                        <td style={{ padding: '0.75rem 1.25rem', textAlign: 'center' }}>
+                          <select
+                            value={enq.status}
+                            onChange={(e) => handleStatusChange(enq._id, e.target.value)}
+                            style={{
+                              padding: '0.35rem 0.65rem',
+                              borderRadius: '8px',
+                              border: '1px solid #d8d4cb',
+                              fontSize: '0.75rem',
+                              fontWeight: 700,
+                              backgroundColor: (enq.status === 'Won' || enq.status === 'Project Creation') ? '#f0fdf4' : (enq.status === 'Lost' ? '#fef2f2' : '#ffffff'),
+                              color: (enq.status === 'Won' || enq.status === 'Project Creation') ? '#16a34a' : (enq.status === 'Lost' ? '#dc2626' : '#1F1F1F')
+                            }}
+                          >
+                            {STAGES.map((s) => (
+                              <option key={s} value={s}>{s}</option>
+                            ))}
+                          </select>
                         </td>
-                        <td style={{ padding: '1rem 1.25rem', textAlign: 'right' }}>
-                          <div style={{ display: 'inline-flex', gap: '0.5rem', alignItems: 'center' }}>
+                        <td style={{ padding: '0.75rem 1.25rem', textAlign: 'center' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.35rem' }}>
                             {enq.status === 'Won' && (
                               <button
-                                onClick={() => handleConvertEnquiry(enq)}
+                                onClick={(e) => { e.stopPropagation(); handleConvertEnquiry(enq); }}
                                 className="btn btn-primary"
-                                style={{ padding: '0.35rem 0.65rem', fontSize: '0.75rem', backgroundColor: '#B68D40', border: 'none' }}
-                                title="Convert Won Enquiry into Active Project"
+                                disabled={convertingId === enq._id}
+                                style={{ padding: '0.25rem 0.65rem', fontSize: '0.725rem', backgroundColor: '#B68D40', border: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                                title="Convert Won Enquiry into Active Client"
                               >
-                                🚀 Convert to Project
+                                {convertingId === enq._id ? (
+                                  <><Loader2 className="animate-spin" size={13} /> Converting...</>
+                                ) : (
+                                  <>🚀 Convert to Client</>
+                                )}
                               </button>
                             )}
-                            <button onClick={() => { setSelectedEnquiry(enq); setIsDetailModalOpen(true); }} className="btn btn-secondary" style={{ padding: '0.35rem 0.65rem', fontSize: '0.75rem' }}>
-                              Details
-                            </button>
-                            <button onClick={() => handleOpenEditModal(enq)} className="btn btn-secondary" style={{ padding: '0.35rem 0.65rem' }}>
-                              <Edit3 size={14} />
-                            </button>
+                            <div style={{ display: 'inline-flex', gap: '0.35rem', alignItems: 'center', justifyContent: 'center' }}>
+                              <button onClick={(e) => { e.stopPropagation(); setSelectedEnquiry(enq); setIsDetailModalOpen(true); }} className="btn btn-secondary" style={{ padding: '0.25rem 0.55rem', fontSize: '0.725rem' }}>
+                                Details
+                              </button>
+                              <button onClick={(e) => { e.stopPropagation(); handleOpenEditModal(enq); }} className="btn btn-secondary" style={{ padding: '0.25rem 0.45rem' }}>
+                                <Edit3 size={14} />
+                              </button>
+                            </div>
                           </div>
                         </td>
                       </tr>
@@ -511,131 +597,281 @@ export const Enquiries = () => {
                 </tbody>
               </table>
             </div>
-          ) : (
+          ) : viewMode === 'card' ? (
             <div className="responsive-cards-grid">
-            {filteredEnquiries.map((enq) => {
-              const execName = typeof enq.assignedExecutive === 'object'
-                ? (enq.assignedExecutive?.name || 'BD Executive')
-                : (executives.find(u => u._id === enq.assignedExecutive)?.name || 'BD Executive');
+              {filteredEnquiries.map((enq) => {
+                const execName = typeof enq.assignedExecutive === 'object'
+                  ? (enq.assignedExecutive?.name || 'BD Executive')
+                  : (executives.find(u => u._id === enq.assignedExecutive)?.name || 'BD Executive');
 
-              return (
-                <div key={enq._id} className="team-widget-card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                  <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.65rem' }}>
-                      <span className="task-status-blue" style={{ fontSize: '0.68rem', textTransform: 'uppercase' }}>
-                        {enq.projectType}
-                      </span>
-
-                      <span
-                        style={{
-                          fontSize: '0.7rem',
-                          fontWeight: 700,
-                          padding: '0.2rem 0.6rem',
-                          borderRadius: '9999px',
-                          backgroundColor: enq.priority === 'High' ? '#fef2f2' : (enq.priority === 'Medium' ? '#fffbe6' : '#f0fdf4'),
-                          color: enq.priority === 'High' ? '#dc2626' : (enq.priority === 'Medium' ? '#d97706' : '#16a34a'),
-                          border: `1px solid ${enq.priority === 'High' ? '#fecaca' : (enq.priority === 'Medium' ? '#fef08a' : '#bbf7d0')}`
-                        }}
-                      >
-                        {enq.priority} Priority
-                      </span>
-                    </div>
-
-                    <div className="task-title-bold" style={{ fontSize: '1.15rem', marginBottom: '0.2rem' }}>
-                      {enq.projectName}
-                    </div>
-                    <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#4a4742', marginBottom: '0.75rem' }}>
-                      Client: {enq.clientName} {enq.architectName && `· Architect: ${enq.architectName}`}
-                    </div>
-
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', borderTop: '1px solid #f2ece4', paddingTop: '0.75rem' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem' }}>
-                        <span style={{ color: '#8c8882', fontWeight: 500 }}>ESTIMATED VALUE:</span>
-                        <span style={{ fontWeight: 700, color: '#15803d' }}>
-                          ₹{Number(enq.estimatedValue || 0).toLocaleString()}
+                return (
+                  <div key={enq._id} className="team-widget-card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.65rem' }}>
+                        <span className="task-status-blue" style={{ fontSize: '0.68rem', textTransform: 'uppercase' }}>
+                          {enq.projectType}
                         </span>
+
+                        {(() => {
+                          const t = getTempDetails(enq.leadTemperature || enq.priority);
+                          return (
+                            <span
+                              style={{
+                                fontSize: '0.7rem',
+                                fontWeight: 700,
+                                padding: '0.2rem 0.6rem',
+                                borderRadius: '9999px',
+                                backgroundColor: t.bg,
+                                color: t.color,
+                                border: `1px solid ${t.border}`
+                              }}
+                            >
+                              {t.emoji} {t.label}
+                            </span>
+                          );
+                        })()}
                       </div>
 
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem' }}>
-                        <span style={{ color: '#8c8882', fontWeight: 500 }}>BD EXECUTIVE:</span>
-                        <span style={{ fontWeight: 600, color: '#1F1F1F' }}>{execName}</span>
+                      <div className="task-title-bold" style={{ fontSize: '1.15rem', marginBottom: '0.2rem' }}>
+                        {enq.projectName}
+                      </div>
+                      <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#4a4742', marginBottom: '0.75rem' }}>
+                        Client: {enq.clientName} {enq.architectName && `· Architect: ${enq.architectName}`}
                       </div>
 
-                      {enq.clientCategory && (
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem' }}>
-                          <span style={{ color: '#8c8882' }}>CATEGORY:</span>
-                          <span style={{ fontWeight: 600, color: enq.clientCategory === 'Red Flag' ? '#dc2626' : '#1F1F1F' }}>
-                            {enq.clientCategory}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', borderTop: '1px solid #f2ece4', paddingTop: '0.75rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem' }}>
+                          <span style={{ color: '#8c8882', fontWeight: 500 }}>ESTIMATED VALUE:</span>
+                          <span style={{ fontWeight: 700, color: '#15803d' }}>
+                            ₹{Number(enq.estimatedValue || 0).toLocaleString()}
                           </span>
                         </div>
-                      )}
+
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem' }}>
+                          <span style={{ color: '#8c8882', fontWeight: 500 }}>BD EXECUTIVE:</span>
+                          <span style={{ fontWeight: 600, color: '#1F1F1F' }}>{execName}</span>
+                        </div>
+                      </div>
                     </div>
-                  </div>
 
-                  <div style={{ borderTop: '1px solid #f2ece4', paddingTop: '0.85rem', marginTop: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    {/* Stage Selector Dropdown */}
-                    <select
-                      value={enq.status}
-                      onChange={(e) => handleStatusChange(enq._id, e.target.value)}
-                      style={{
-                        padding: '0.35rem 0.65rem',
-                        borderRadius: '8px',
-                        border: '1px solid #d8d4cb',
-                        fontSize: '0.75rem',
-                        fontWeight: 700,
-                        backgroundColor: '#ffffff'
-                      }}
-                    >
-                      {STAGES.map((s) => (
-                        <option key={s} value={s}>{s}</option>
-                      ))}
-                    </select>
-
-                    <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center' }}>
-                      {enq.status === 'Won' && (
-                        <button
-                          onClick={() => handleConvertEnquiry(enq)}
-                          className="btn btn-primary"
-                          style={{ padding: '0.4rem 0.65rem', fontSize: '0.75rem', backgroundColor: '#B68D40', border: 'none' }}
-                          title="Convert Won Enquiry into Active Project"
+                    <div style={{ borderTop: '1px solid #f2ece4', paddingTop: '0.85rem', marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                        {/* Stage Selector Dropdown */}
+                        <select
+                          value={enq.status}
+                          onChange={(e) => handleStatusChange(enq._id, e.target.value)}
+                          style={{
+                            padding: '0.35rem 0.65rem',
+                            borderRadius: '8px',
+                            border: '1px solid #d8d4cb',
+                            fontSize: '0.75rem',
+                            fontWeight: 700,
+                            backgroundColor: '#ffffff',
+                            flex: '1 1 auto',
+                            minWidth: '130px'
+                          }}
                         >
-                          🚀 Convert
+                          {STAGES.map((s) => (
+                            <option key={s} value={s}>{s}</option>
+                          ))}
+                        </select>
+
+                        {enq.status === 'Won' && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleConvertEnquiry(enq); }}
+                            className="btn btn-primary"
+                            disabled={convertingId === enq._id}
+                            style={{ padding: '0.35rem 0.65rem', fontSize: '0.75rem', backgroundColor: '#B68D40', border: 'none', whiteSpace: 'nowrap', flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                            title="Convert Won Enquiry into Active Client"
+                          >
+                            {convertingId === enq._id ? (
+                              <><Loader2 className="animate-spin" size={13} /> Converting...</>
+                            ) : (
+                              <>🚀 Convert to Client</>
+                            )}
+                          </button>
+                        )}
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setSelectedEnquiry(enq); setIsDetailModalOpen(true); }}
+                          className="btn btn-secondary"
+                          style={{ fontSize: '0.75rem', padding: '0.35rem 0.65rem', whiteSpace: 'nowrap', flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}
+                        >
+                          <MessageSquare size={14} /> Activity ({enq.activityLog?.length || 0})
                         </button>
-                      )}
-                      <button
-                        onClick={() => { setSelectedEnquiry(enq); setIsDetailModalOpen(true); }}
-                        className="btn btn-secondary"
-                        style={{ fontSize: '0.75rem', padding: '0.4rem 0.65rem' }}
-                      >
-                        <MessageSquare size={14} /> Activity ({enq.activityLog?.length || 0})
-                      </button>
 
-                      <button
-                        onClick={() => handleOpenEditModal(enq)}
-                        className="btn btn-secondary"
-                        style={{ fontSize: '0.75rem', padding: '0.4rem 0.5rem', color: '#10529d' }}
-                        title="Edit Enquiry Record"
-                      >
-                        <Edit3 size={14} />
-                      </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleOpenEditModal(enq); }}
+                          className="btn btn-secondary"
+                          style={{ fontSize: '0.75rem', padding: '0.35rem 0.6rem', color: '#10529d', flexShrink: 0 }}
+                          title="Edit Enquiry Record"
+                        >
+                          <Edit3 size={14} />
+                        </button>
 
-                      <button
-                        onClick={() => setDeletingEnquiryId(enq._id)}
-                        className="btn btn-secondary"
-                        style={{ fontSize: '0.75rem', padding: '0.4rem 0.5rem', color: '#dc2626', borderColor: '#fecaca' }}
-                        title="Delete Enquiry Record"
-                      >
-                        <Trash2 size={14} />
-                      </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setDeletingEnquiryId(enq._id); }}
+                          className="btn btn-secondary"
+                          style={{ fontSize: '0.75rem', padding: '0.35rem 0.6rem', color: '#dc2626', borderColor: '#fecaca', flexShrink: 0 }}
+                          title="Delete Enquiry Record"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </>
-    )}
+                );
+              })}
+            </div>
+          ) : (
+            /* KANBAN PIPELINE VIEW WITH DRAG AND DROP & VISUAL FEEDBACK */
+            <div style={{ display: 'flex', gap: '1rem', overflowX: 'auto', paddingBottom: '1rem' }}>
+              {['New Enquiry', 'Qualification', 'Meeting', 'Proposal', 'Negotiation', 'Won'].map((stg) => {
+                const stageEnquiries = filteredEnquiries.filter(e => e.status === stg);
+                const isOver = dragOverStage === stg;
+
+                return (
+                  <div
+                    key={stg}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      if (dragOverStage !== stg) setDragOverStage(stg);
+                    }}
+                    onDragLeave={() => setDragOverStage(null)}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      setDragOverStage(null);
+                      const draggedId = e.dataTransfer.getData('enquiryId') || draggingEnquiryId;
+                      if (draggedId) {
+                        handleStatusChange(draggedId, stg);
+                        setDraggingEnquiryId(null);
+                      }
+                    }}
+                    style={{
+                      minWidth: '275px',
+                      width: '275px',
+                      backgroundColor: isOver ? '#f3ebd9' : '#faf9f6',
+                      borderRadius: '12px',
+                      border: isOver ? '2px dashed #B68D40' : '1px solid #e8e4dc',
+                      padding: '0.85rem',
+                      flexShrink: 0,
+                      transition: 'all 150ms ease',
+                      boxShadow: isOver ? '0 4px 12px rgba(182,141,64,0.15)' : 'none'
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', paddingBottom: '0.5rem', borderBottom: '2px solid #B68D40' }}>
+                      <span style={{ fontWeight: 700, fontSize: '0.85rem', color: '#1F1F1F' }}>{stg}</span>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 700, backgroundColor: isOver ? '#B68D40' : '#e2ded8', color: isOver ? '#ffffff' : '#4a4742', padding: '0.15rem 0.5rem', borderRadius: '9999px', transition: 'all 150ms ease' }}>
+                        {stageEnquiries.length}
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', minHeight: '130px' }}>
+                      {stageEnquiries.map((enq) => {
+                        const execName = typeof enq.assignedExecutive === 'object'
+                          ? (enq.assignedExecutive?.name || 'BD Executive')
+                          : (executives.find(u => u._id === enq.assignedExecutive)?.name || 'BD Executive');
+
+                        const tempColor = enq.leadTemperature === 'Hot' ? '#dc2626' : (enq.leadTemperature === 'Cold' ? '#2563eb' : '#d97706');
+                        const tempBg = enq.leadTemperature === 'Hot' ? '#fef2f2' : (enq.leadTemperature === 'Cold' ? '#eff6ff' : '#fffbe6');
+                        const isDragging = draggingEnquiryId === enq._id;
+
+                        return (
+                          <div
+                            key={enq._id}
+                            draggable
+                            onDragStart={(e) => {
+                              e.dataTransfer.setData('enquiryId', enq._id);
+                              setDraggingEnquiryId(enq._id);
+                            }}
+                            onDragEnd={() => {
+                              setDraggingEnquiryId(null);
+                              setDragOverStage(null);
+                            }}
+                            style={{
+                              backgroundColor: '#ffffff',
+                              borderRadius: '8px',
+                              border: '1px solid #e2ded8',
+                              padding: '0.75rem',
+                              boxShadow: isDragging ? '0 8px 20px rgba(0,0,0,0.15)' : '0 1px 3px rgba(0,0,0,0.05)',
+                              opacity: isDragging ? 0.4 : 1,
+                              transform: isDragging ? 'scale(0.98)' : 'scale(1)',
+                              cursor: 'grab',
+                              transition: 'all 150ms ease'
+                            }}
+                          >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                              <span className="task-status-blue" style={{ fontSize: '0.62rem', padding: '0.15rem 0.4rem' }}>{enq.projectType}</span>
+                              {(() => {
+                                const t = getTempDetails(enq.leadTemperature || enq.priority);
+                                return (
+                                  <span style={{ fontSize: '0.65rem', fontWeight: 700, color: t.color }}>
+                                    {t.emoji} {t.label}
+                                  </span>
+                                );
+                              })()}
+                            </div>
+
+                            <div
+                              title={enq.projectName}
+                              style={{ fontWeight: 700, fontSize: '0.925rem', color: '#1F1F1F', marginBottom: '0.15rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+                            >
+                              {enq.projectName}
+                            </div>
+
+                            <div
+                              title={`Client: ${enq.clientName}${enq.architectName ? ` · Architect: ${enq.architectName}` : ''}`}
+                              style={{ fontSize: '0.78rem', color: '#4a4742', marginBottom: '0.5rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+                            >
+                              Client: {enq.clientName}
+                            </div>
+
+                            <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#15803d', marginBottom: '0.5rem' }}>
+                              ₹{Number(enq.estimatedValue || 0).toLocaleString()}
+                            </div>
+
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #f0ece4', paddingTop: '0.5rem', marginTop: '0.5rem', fontSize: '0.725rem' }}>
+                              <span style={{ color: '#8c8882', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '130px' }} title={execName}>
+                                BDE: <b>{execName}</b>
+                              </span>
+                              <div style={{ display: 'flex', gap: '0.25rem', flexShrink: 0 }}>
+                                {enq.status === 'Won' && (
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); handleConvertEnquiry(enq); }}
+                                    className="btn btn-primary"
+                                    disabled={convertingId === enq._id}
+                                    style={{ padding: '0.25rem 0.45rem', fontSize: '0.68rem', backgroundColor: '#B68D40', border: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
+                                    title="Convert Won Enquiry into Active Client"
+                                  >
+                                    {convertingId === enq._id ? (
+                                      <><Loader2 className="animate-spin" size={11} /> Converting...</>
+                                    ) : (
+                                      <>🚀 Convert</>
+                                    )}
+                                  </button>
+                                )}
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); setSelectedEnquiry(enq); setIsDetailModalOpen(true); }}
+                                  className="btn btn-secondary"
+                                  style={{ padding: '0.25rem 0.45rem', fontSize: '0.68rem' }}
+                                >
+                                  Details
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
 
       {/* Modal for Creating New Enquiry */}
       <Modal
@@ -644,8 +880,10 @@ export const Enquiries = () => {
         title="Add New Business Development Enquiry"
         footer={
           <>
-            <button className="btn btn-secondary" onClick={() => setIsCreateModalOpen(false)}>Cancel</button>
-            <button className="btn btn-primary" onClick={handleCreateEnquiry}>Create Enquiry</button>
+            <button className="btn btn-secondary" onClick={() => setIsCreateModalOpen(false)} disabled={submitting}>Cancel</button>
+            <button className="btn btn-primary" onClick={handleCreateEnquiry} disabled={submitting} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+              {submitting ? <><Loader2 className="animate-spin" size={14} /> Creating...</> : 'Create Enquiry'}
+            </button>
           </>
         }
       >
@@ -705,22 +943,13 @@ export const Enquiries = () => {
             {executives.map(ex => <option key={ex._id} value={ex._id}>{ex.name} ({ex.email})</option>)}
           </FormField>
           <FormField
-            label="Lead Priority"
-            name="priority"
+            label="Lead Temperature"
+            name="leadTemperature"
             type="select"
-            value={newEnquiry.priority}
-            onChange={(e) => setNewEnquiry({ ...newEnquiry, priority: e.target.value })}
+            value={newEnquiry.leadTemperature || 'Warm'}
+            onChange={(e) => setNewEnquiry({ ...newEnquiry, leadTemperature: e.target.value })}
           >
-            {PRIORITIES.map(pr => <option key={pr} value={pr}>{pr}</option>)}
-          </FormField>
-          <FormField
-            label="Client Category"
-            name="clientCategory"
-            type="select"
-            value={newEnquiry.clientCategory}
-            onChange={(e) => setNewEnquiry({ ...newEnquiry, clientCategory: e.target.value })}
-          >
-            {CLIENT_CATEGORIES.map(cc => <option key={cc} value={cc}>{cc}</option>)}
+            {LEAD_TEMPERATURES.map(lt => <option key={lt} value={lt}>{lt}</option>)}
           </FormField>
           <FormField
             label="Source of Enquiry"
@@ -747,8 +976,10 @@ export const Enquiries = () => {
         title="Edit Business Development Enquiry"
         footer={
           <>
-            <button className="btn btn-secondary" onClick={() => setIsEditModalOpen(false)}>Cancel</button>
-            <button className="btn btn-primary" onClick={handleUpdateEnquiry}>Update Enquiry</button>
+            <button className="btn btn-secondary" onClick={() => setIsEditModalOpen(false)} disabled={submitting}>Cancel</button>
+            <button className="btn btn-primary" onClick={handleUpdateEnquiry} disabled={submitting} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+              {submitting ? <><Loader2 className="animate-spin" size={14} /> Updating...</> : 'Update Enquiry'}
+            </button>
           </>
         }
       >
@@ -821,22 +1052,13 @@ export const Enquiries = () => {
             onChange={(e) => setNewEnquiry({ ...newEnquiry, followUpDate: e.target.value })}
           />
           <FormField
-            label="Priority Level"
-            name="priority"
+            label="Lead Temperature"
+            name="leadTemperature"
             type="select"
-            value={newEnquiry.priority}
-            onChange={(e) => setNewEnquiry({ ...newEnquiry, priority: e.target.value })}
+            value={newEnquiry.leadTemperature || 'Warm'}
+            onChange={(e) => setNewEnquiry({ ...newEnquiry, leadTemperature: e.target.value })}
           >
-            {PRIORITIES.map(pr => <option key={pr} value={pr}>{pr}</option>)}
-          </FormField>
-          <FormField
-            label="Client Category"
-            name="clientCategory"
-            type="select"
-            value={newEnquiry.clientCategory}
-            onChange={(e) => setNewEnquiry({ ...newEnquiry, clientCategory: e.target.value })}
-          >
-            {CLIENT_CATEGORIES.map(cc => <option key={cc} value={cc}>{cc}</option>)}
+            {LEAD_TEMPERATURES.map(lt => <option key={lt} value={lt}>{lt}</option>)}
           </FormField>
           <FormField
             label="Source of Enquiry"
