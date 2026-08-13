@@ -32,7 +32,17 @@ export const financeService = {
   },
 
   createQuotation: async (quotationData) => {
-    const response = await apiClient.post('/finance/quotations', quotationData);
+    const client = typeof quotationData.client === 'object' ? quotationData.client?._id : (quotationData.clientId || quotationData.client);
+    const project = typeof quotationData.project === 'object' ? quotationData.project?._id : (quotationData.projectId || quotationData.project);
+    const amount = Number(quotationData.amount || quotationData.subtotal || quotationData.itemRate || 0);
+
+    const payload = {
+      client,
+      project: project && /^[0-9a-fA-F]{24}$/.test(project) ? project : undefined,
+      amount,
+      notes: quotationData.notes
+    };
+    const response = await apiClient.post('/finance/quotations', payload);
     return response.data?.data || response.data;
   },
 
@@ -58,7 +68,24 @@ export const financeService = {
   },
 
   createInvoice: async (invoiceData) => {
-    const response = await apiClient.post('/finance/invoices', invoiceData);
+    const client = typeof invoiceData.client === 'object' ? invoiceData.client?._id : (invoiceData.clientId || invoiceData.client);
+    const project = typeof invoiceData.project === 'object' ? invoiceData.project?._id : (invoiceData.projectId || invoiceData.project);
+    const amount = Number(invoiceData.amount || invoiceData.subtotal || 0);
+    const gstRate = Number(invoiceData.gstRate || invoiceData.gstPercentage || 18);
+
+    const dueDays = Number(invoiceData.dueDateDays || 15);
+    const issueDate = invoiceData.issueDate || invoiceData.invoiceDate || new Date().toISOString();
+    const dueDate = invoiceData.dueDate || new Date(Date.now() + dueDays * 86400000).toISOString();
+
+    const payload = {
+      client,
+      project,
+      amount,
+      gstRate,
+      issueDate,
+      dueDate
+    };
+    const response = await apiClient.post('/finance/invoices', payload);
     return response.data?.data || response.data;
   },
 
@@ -74,7 +101,22 @@ export const financeService = {
   },
 
   recordPayment: async (paymentData) => {
-    const response = await apiClient.post('/finance/payments', paymentData);
+    const invoice = typeof paymentData.invoice === 'object' ? paymentData.invoice?._id : (paymentData.invoiceId || paymentData.invoice);
+    let rawMode = paymentData.paymentMode || paymentData.mode || 'Bank Transfer';
+    let paymentMode = 'Bank Transfer';
+    if (rawMode.includes('Cash')) paymentMode = 'Cash';
+    else if (rawMode.includes('Cheque')) paymentMode = 'Cheque';
+    else if (rawMode.includes('UPI')) paymentMode = 'UPI';
+    else if (rawMode.includes('Other')) paymentMode = 'Other';
+
+    const payload = {
+      invoice,
+      amountPaid: Number(paymentData.amountPaid || 0),
+      paymentMode,
+      referenceNumber: paymentData.transactionReference || paymentData.referenceNumber || '',
+      notes: paymentData.remarks || paymentData.notes || ''
+    };
+    const response = await apiClient.post('/finance/payments', payload);
     return response.data?.data || response.data;
   },
 

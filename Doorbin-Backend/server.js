@@ -114,9 +114,6 @@ const PORT = process.env.PORT || 5000;
 const startServer = async () => {
   try {
     await connectDB();
-    await seedRoles();
-    await seedDepartments();
-    await seedWorkflowTemplates();
     
     app.listen(PORT, () => {
       console.log(`Doorbin System Server running on port ${PORT} in [${process.env.NODE_ENV || 'development'}] mode`);

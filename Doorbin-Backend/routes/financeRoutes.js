@@ -399,6 +399,7 @@ router.delete('/payments/:id', protect, financeAccess, deletePayment);
  *         description: Receivables ageing report
  */
 router.get('/due-payments', protect, financeAccess, getDuePayments);
+router.get('/receivables-ageing', protect, financeAccess, getDuePayments);
 
 /**
  * @swagger

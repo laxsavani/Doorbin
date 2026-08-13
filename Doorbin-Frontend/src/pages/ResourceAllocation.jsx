@@ -465,30 +465,51 @@ export const ResourceAllocation = () => {
         <Modal
           isOpen={isAllocationModalOpen}
           onClose={() => setIsAllocationModalOpen(false)}
-          title={`Detailed Task Allocation Breakdown`}
+          title={`Task Allocation Breakdown — ${selectedArtist ? getArtistName(selectedArtist) : 'Artist'}`}
           footer={
             <button className="btn btn-secondary" onClick={() => setIsAllocationModalOpen(false)}>Close</button>
           }
         >
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <div style={{ backgroundColor: '#faf9f6', padding: '0.85rem', borderRadius: '10px', border: '1px solid #eeeae3' }}>
+            <div style={{ backgroundColor: '#faf9f6', padding: '0.85rem 1rem', borderRadius: '10px', border: '1px solid #eeeae3', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#1F1F1F' }}>
-                Total Allocated Workload: {allocationDetails.totalAllocatedHours || 24.5} Hours
+                Total Allocated Tasks: {(allocationDetails.tasks || allocationDetails.allocatedTasks || []).length}
+              </div>
+              <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#B68D40' }}>
+                Total Workload: {allocationDetails.totalAllocatedHours || 0} Hours
               </div>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
-              {allocationDetails.allocatedTasks && allocationDetails.allocatedTasks.map(t => (
-                <div key={t._id} style={{ padding: '0.75rem', backgroundColor: '#ffffff', border: '1px solid #e9e5dc', borderRadius: '10px' }}>
-                  <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#1F1F1F' }}>{t.taskName}</div>
-                  <div style={{ fontSize: '0.78rem', color: '#78746d', marginTop: '0.2rem' }}>
-                    Project: {t.projectName} · Allocated: <span style={{ fontWeight: 700, color: '#B68D40' }}>{t.allocatedHours} hrs</span>
-                  </div>
-                  <div style={{ fontSize: '0.75rem', color: '#8c8882', marginTop: '0.2rem' }}>
-                    Schedule: {formatDate(t.startDate)} — {formatDate(t.endDate)}
-                  </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', maxHeight: '350px', overflowY: 'auto' }}>
+              {(allocationDetails.tasks || allocationDetails.allocatedTasks || []).length > 0 ? (
+                (allocationDetails.tasks || allocationDetails.allocatedTasks || []).map((t, idx) => {
+                  const projName = typeof t.project === 'object' ? (t.project?.projectName || t.projectName) : (t.projectName || t.project || 'Project');
+                  const hrs = t.estimatedHours || t.allocatedHours || t.dailyHoursContribution || 0;
+                  const startD = t.startDateFormatted || formatDate(t.startDate);
+                  const endD = t.endDateFormatted || formatDate(t.endDate);
+
+                  return (
+                    <div key={t._id || t.taskId || idx} style={{ padding: '0.85rem', backgroundColor: '#ffffff', border: '1px solid #e9e5dc', borderRadius: '10px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
+                        <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#1F1F1F' }}>{t.taskName}</div>
+                        <span style={{ fontSize: '0.7rem', fontWeight: 800, padding: '0.2rem 0.5rem', borderRadius: '6px', backgroundColor: '#f5f2eb', color: '#1F1F1F' }}>
+                          {t.status || 'Assigned'}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: '0.8rem', color: '#78746d', marginTop: '0.3rem' }}>
+                        Project: <strong>{projName}</strong> · Estimated Workload: <span style={{ fontWeight: 800, color: '#B68D40' }}>{hrs} hrs</span>
+                      </div>
+                      <div style={{ fontSize: '0.75rem', color: '#8c8882', marginTop: '0.25rem' }}>
+                        Schedule: {startD} — {endD}
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <div style={{ padding: '2rem', textAlign: 'center', color: '#8c8882', fontSize: '0.85rem' }}>
+                  No active tasks currently allocated for this artist.
                 </div>
-              ))}
+              )}
             </div>
           </div>
         </Modal>

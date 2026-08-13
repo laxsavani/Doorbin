@@ -63,13 +63,23 @@ const recalculateInvoiceStatus = async (invoiceId) => {
   const payments = await Payment.find({ invoice: invoiceId });
   const totalPaid = payments.reduce((sum, p) => sum + (p.amountPaid || 0), 0);
 
+  // Ensure gst and totalAmount exist on old/legacy documents
+  if (invoice.gst === undefined || invoice.gst === null) {
+    const amt = invoice.amount || 0;
+    const gstR = invoice.gstRate || 18;
+    invoice.gst = Number((amt * (gstR / 100)).toFixed(2));
+  }
+  if (!invoice.totalAmount) {
+    invoice.totalAmount = Number(((invoice.amount || 0) + (invoice.gst || 0)).toFixed(2));
+  }
+
   const roundedTotalPaid = Number(totalPaid.toFixed(2));
-  const roundedTotalAmount = Number(invoice.totalAmount.toFixed(2));
+  const roundedTotalAmount = Number((invoice.totalAmount || 0).toFixed(2));
 
   let newStatus = 'Pending';
   const now = new Date();
 
-  if (roundedTotalPaid >= roundedTotalAmount) {
+  if (roundedTotalPaid >= roundedTotalAmount && roundedTotalAmount > 0) {
     newStatus = 'Paid';
   } else if (roundedTotalPaid > 0) {
     newStatus = 'Partially Paid';

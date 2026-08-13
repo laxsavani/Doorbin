@@ -7,9 +7,9 @@ const invoiceSchema = new mongoose.Schema({
   invoiceNumber: { type: String, required: true, unique: true, trim: true },
   amount:        { type: Number, required: true, min: 0 },
   gstRate:       { type: Number, default: 18, min: 0 },
-  gst:           { type: Number, required: true, min: 0 },
-  totalAmount:   { type: Number, required: true, min: 0 },
-  issueDate:     { type: Date, required: true },
+  gst:           { type: Number, default: 0, min: 0 },
+  totalAmount:   { type: Number, default: 0, min: 0 },
+  issueDate:     { type: Date, default: Date.now },
   dueDate:       { type: Date, required: true },
   status: {
     type: String,

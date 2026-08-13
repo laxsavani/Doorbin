@@ -120,22 +120,21 @@ export const Finance = () => {
     }
 
     try {
-      const selectedClient = clientsRoster.find(c => c._id === quoteForm.clientId);
+      const selectedClient = safeClients.find(c => c._id === quoteForm.clientId);
+      const selectedProject = safeProjects.find(p => p._id === quoteForm.projectId || p.projectName === quoteForm.projectTitle);
+
       const newQuote = await financeService.createQuotation({
-        client: selectedClient ? { _id: selectedClient._id, companyName: selectedClient.companyName, clientName: selectedClient.clientName } : { companyName: 'Client' },
+        client: selectedClient ? selectedClient._id : quoteForm.clientId,
+        project: selectedProject ? selectedProject._id : undefined,
         projectTitle: quoteForm.projectTitle,
-        items: [
-          { description: quoteForm.itemDesc || quoteForm.projectTitle, qty: 1, rate: Number(quoteForm.itemRate) }
-        ],
-        subtotal: Number(quoteForm.itemRate),
-        gstPercentage: Number(quoteForm.gstPercentage),
+        amount: Number(quoteForm.itemRate),
         notes: quoteForm.notes
       });
 
-      setQuotations(prev => [newQuote, ...prev]);
       setIsQuotationModalOpen(false);
-      setToast({ message: `Quotation ${newQuote.quotationNumber} generated!`, type: 'success' });
-      setQuoteForm({ clientId: '', projectTitle: '', validDays: 30, itemDesc: '', itemRate: '', gstPercentage: 18, notes: '' });
+      setToast({ message: `Quotation ${newQuote.quotationNumber || 'created'} successfully!`, type: 'success' });
+      setQuoteForm({ clientId: '', projectId: '', projectTitle: '', validDays: 30, itemDesc: '', itemRate: '', gstPercentage: 18, notes: '' });
+      await loadFinanceData();
     } catch (err) {
       setToast({ message: err.message || 'Failed to create quotation', type: 'error' });
     }
@@ -144,29 +143,25 @@ export const Finance = () => {
   // Create Invoice Handler
   const handleCreateInvoice = async (e) => {
     e.preventDefault();
-    if (!invoiceForm.clientId || !invoiceForm.milestoneName || !invoiceForm.subtotal) {
-      setToast({ message: 'Please fill in mandatory invoice details', type: 'error' });
+    if (!invoiceForm.clientId || !invoiceForm.projectId || !invoiceForm.subtotal) {
+      setToast({ message: 'Please select a Client, Project, and enter Subtotal amount', type: 'error' });
       return;
     }
 
     try {
-      const selectedClient = clientsRoster.find(c => c._id === invoiceForm.clientId);
-      const selectedProject = projectsRoster.find(p => p._id === invoiceForm.projectId);
-
       const newInvoice = await financeService.createInvoice({
-        client: selectedClient ? { _id: selectedClient._id, companyName: selectedClient.companyName, clientName: selectedClient.clientName } : { companyName: 'Client' },
-        project: selectedProject ? { _id: selectedProject._id, projectName: selectedProject.projectName } : { projectName: 'General Project' },
-        milestoneName: invoiceForm.milestoneName,
+        clientId: invoiceForm.clientId,
+        projectId: invoiceForm.projectId,
+        milestoneName: invoiceForm.milestoneName || 'Project Milestone',
         subtotal: Number(invoiceForm.subtotal),
-        gstPercentage: Number(invoiceForm.gstPercentage),
-        invoiceDate: new Date().toISOString(),
-        dueDate: new Date(Date.now() + 86400000 * Number(invoiceForm.dueDateDays)).toISOString()
+        gstPercentage: Number(invoiceForm.gstPercentage || 18),
+        dueDateDays: Number(invoiceForm.dueDateDays || 15)
       });
 
-      setInvoices(prev => [newInvoice, ...prev]);
       setIsInvoiceModalOpen(false);
-      setToast({ message: `Invoice ${newInvoice.invoiceNumber} created!`, type: 'success' });
+      setToast({ message: `Invoice ${newInvoice.invoiceNumber || 'created'} successfully!`, type: 'success' });
       setInvoiceForm({ clientId: '', projectId: '', milestoneName: '', subtotal: '', gstPercentage: 18, dueDateDays: 15 });
+      await loadFinanceData();
     } catch (err) {
       setToast({ message: err.message || 'Failed to create invoice', type: 'error' });
     }
@@ -181,32 +176,18 @@ export const Finance = () => {
     }
 
     try {
-      const targetInvoice = invoices.find(inv => inv._id === paymentForm.invoiceId);
       const newPayment = await financeService.recordPayment({
-        invoice: { _id: targetInvoice._id, invoiceNumber: targetInvoice.invoiceNumber },
-        client: targetInvoice.client,
+        invoiceId: paymentForm.invoiceId,
         amountPaid: Number(paymentForm.amountPaid),
         paymentMode: paymentForm.paymentMode,
         transactionReference: paymentForm.transactionReference,
-        remarks: paymentForm.remarks,
-        paymentDate: new Date().toISOString()
+        remarks: paymentForm.remarks
       });
 
-      // Update invoice payment status locally
-      setInvoices(prev => prev.map(inv => {
-        if (inv._id === paymentForm.invoiceId) {
-          const newPaid = inv.paidAmount + Number(paymentForm.amountPaid);
-          const newDue = Math.max(0, inv.totalAmount - newPaid);
-          const newStatus = newDue === 0 ? 'Paid' : newPaid > 0 ? 'Partially Paid' : 'Pending';
-          return { ...inv, paidAmount: newPaid, dueBalance: newDue, status: newStatus };
-        }
-        return inv;
-      }));
-
-      setPayments(prev => [newPayment, ...prev]);
       setIsPaymentModalOpen(false);
-      setToast({ message: `Payment receipt ${newPayment.receiptNumber} recorded!`, type: 'success' });
+      setToast({ message: `Payment receipt recorded successfully!`, type: 'success' });
       setPaymentForm({ invoiceId: '', amountPaid: '', paymentMode: 'Bank Transfer / NEFT', transactionReference: '', remarks: '' });
+      await loadFinanceData();
     } catch (err) {
       setToast({ message: err.message || 'Failed to record payment', type: 'error' });
     }
@@ -245,9 +226,14 @@ export const Finance = () => {
   const safeProjects = Array.isArray(projectsRoster) ? projectsRoster : [];
 
   // Calculate metrics
-  const totalInvoiced = safeInvoices.reduce((sum, i) => sum + (i?.totalAmount || 0), 0);
-  const totalCollected = safeInvoices.reduce((sum, i) => sum + (i?.paidAmount || 0), 0);
-  const totalOutstanding = safeInvoices.reduce((sum, i) => sum + (i?.dueBalance || 0), 0);
+  const totalInvoiced = safeInvoices.reduce((sum, i) => sum + (i?.totalAmount || i?.amount || 0), 0);
+  const totalCollected = safePayments.reduce((sum, p) => sum + (p?.amountPaid || 0), 0);
+  const totalOutstanding = safeInvoices.reduce((sum, i) => {
+    const paid = i?.paidAmount !== undefined ? i.paidAmount : (i?.status === 'Paid' ? (i?.totalAmount || 0) : 0);
+    const tot = i?.totalAmount || i?.amount || 0;
+    const due = i?.remainingBalance !== undefined ? i.remainingBalance : Math.max(0, tot - paid);
+    return sum + due;
+  }, 0);
 
   return (
     <div className="main-content smooth-fade-in">
@@ -481,53 +467,62 @@ export const Finance = () => {
                 </tr>
               </thead>
               <tbody>
-                {safeQuotations.map(q => (
-                  <tr key={q._id}>
-                    <td style={{ fontWeight: '600', color: 'var(--color-primary)' }}>{q.quotationNumber}</td>
-                    <td>{q.client?.companyName || q.client?.clientName}</td>
-                    <td>{q.projectTitle}</td>
-                    <td>₹{q.subtotal?.toLocaleString('en-IN')}</td>
-                    <td>₹{q.gstAmount?.toLocaleString('en-IN')}</td>
-                    <td style={{ fontWeight: '600' }}>₹{q.totalAmount?.toLocaleString('en-IN')}</td>
-                    <td>
-                      <span className={`badge ${q.status === 'Approved' ? 'badge-success' : q.status === 'Sent' ? 'badge-warning' : 'badge-secondary'}`}>
-                        {q.status}
-                      </span>
-                    </td>
-                    <td>
-                      <div style={{ display: 'flex', gap: '0.35rem' }}>
-                        <button
-                          className="btn btn-secondary"
-                          style={{ padding: '0.35rem 0.65rem', fontSize: '0.75rem' }}
-                          onClick={() => downloadPdfDocument({
-                            title: 'OFFICIAL QUOTATION',
-                            documentNumber: q.quotationNumber,
-                            clientName: q.client?.companyName || q.client?.clientName,
-                            clientGstin: q.client?.gstin || '24ABCDE1234F1Z2',
-                            projectTitle: q.projectTitle,
-                            date: formatDate(q.quotationDate || q.createdAt),
-                            dueDate: formatDate(q.validUntil),
-                            items: q.items,
-                            subtotal: q.subtotal,
-                            gstAmount: q.gstAmount,
-                            totalAmount: q.totalAmount,
-                            status: q.status
-                          })}
-                        >
-                          <Download size={12} /> PDF
-                        </button>
-                        <button
-                          className="btn btn-secondary"
-                          style={{ padding: '0.35rem 0.5rem', fontSize: '0.75rem', color: '#dc2626', borderColor: '#fecaca' }}
-                          onClick={() => handleDeleteQuotation(q._id)}
-                          title="Delete Quotation"
-                        >
-                          <Trash2 size={12} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                {safeQuotations.map(q => {
+                  const qNum = q.quotationNumber || q.quotationNo || 'Q-001';
+                  const clientName = q.client?.companyName || q.client?.clientName || q.clientName || 'N/A';
+                  const projTitle = q.project?.projectName || q.projectTitle || q.projectCategory || 'General Project';
+                  const subtotal = q.amount || q.subtotal || 0;
+                  const gst = q.gst || q.gstAmount || Math.round(subtotal * 0.18);
+                  const total = q.totalAmount || (subtotal + gst);
+
+                  return (
+                    <tr key={q._id}>
+                      <td style={{ fontWeight: '600', color: 'var(--color-primary)' }}>{qNum}</td>
+                      <td>{clientName}</td>
+                      <td>{projTitle}</td>
+                      <td>₹{subtotal.toLocaleString('en-IN')}</td>
+                      <td>₹{gst.toLocaleString('en-IN')}</td>
+                      <td style={{ fontWeight: '600' }}>₹{total.toLocaleString('en-IN')}</td>
+                      <td>
+                        <span className={`badge ${q.status === 'Accepted' || q.status === 'Approved' ? 'badge-success' : q.status === 'Sent' ? 'badge-warning' : 'badge-secondary'}`}>
+                          {q.status || 'Draft'}
+                        </span>
+                      </td>
+                      <td>
+                        <div style={{ display: 'flex', gap: '0.35rem' }}>
+                          <button
+                            className="btn btn-secondary"
+                            style={{ padding: '0.35rem 0.65rem', fontSize: '0.75rem' }}
+                            onClick={() => downloadPdfDocument({
+                              title: 'OFFICIAL QUOTATION',
+                              documentNumber: qNum,
+                              clientName,
+                              clientGstin: q.client?.gstin || '24ABCDE1234F1Z2',
+                              projectTitle: projTitle,
+                              date: q.dateFormatted || formatDate(q.date || q.createdAt),
+                              dueDate: q.validTillFormatted || formatDate(q.validTill),
+                              items: [{ description: projTitle, qty: 1, rate: subtotal }],
+                              subtotal,
+                              gstAmount: gst,
+                              totalAmount: total,
+                              status: q.status
+                            })}
+                          >
+                            <Download size={12} /> PDF
+                          </button>
+                          <button
+                            className="btn btn-secondary"
+                            style={{ padding: '0.35rem 0.5rem', fontSize: '0.75rem', color: '#dc2626', borderColor: '#fecaca' }}
+                            onClick={() => handleDeleteQuotation(q._id)}
+                            title="Delete Quotation"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -606,56 +601,66 @@ export const Finance = () => {
                 </tr>
               </thead>
               <tbody>
-                {safeInvoices.map(inv => (
-                  <tr key={inv._id}>
-                    <td style={{ fontWeight: '600', color: 'var(--color-secondary)' }}>{inv.invoiceNumber}</td>
-                    <td>{inv.client?.companyName || inv.client?.clientName}</td>
-                    <td>{inv.milestoneName}</td>
-                    <td>{formatDate(inv.dueDate)}</td>
-                    <td>₹{inv.totalAmount?.toLocaleString('en-IN')}</td>
-                    <td style={{ color: 'var(--color-success)' }}>₹{inv.paidAmount?.toLocaleString('en-IN')}</td>
-                    <td style={{ color: inv.dueBalance > 0 ? 'var(--color-danger)' : 'var(--color-text-muted)', fontWeight: '600' }}>
-                      ₹{inv.dueBalance?.toLocaleString('en-IN')}
-                    </td>
-                    <td>
-                      <span className={`badge ${inv.status === 'Paid' ? 'badge-success' : inv.status === 'Partially Paid' ? 'badge-warning' : 'badge-danger'}`}>
-                        {inv.status}
-                      </span>
-                    </td>
-                    <td>
-                      <div style={{ display: 'flex', gap: '0.35rem' }}>
-                        <button
-                          className="btn btn-secondary"
-                          style={{ padding: '0.35rem 0.65rem', fontSize: '0.75rem' }}
-                          onClick={() => downloadPdfDocument({
-                            title: 'OFFICIAL TAX INVOICE',
-                            documentNumber: inv.invoiceNumber,
-                            clientName: inv.client?.companyName || inv.client?.clientName,
-                            clientGstin: inv.client?.gstin || '24ABCDE1234F1Z2',
-                            projectTitle: inv.milestoneName,
-                            date: formatDate(inv.createdAt || new Date()),
-                            dueDate: formatDate(inv.dueDate),
-                            items: [{ description: inv.milestoneName, qty: 1, rate: Math.round(inv.totalAmount / 1.18) }],
-                            subtotal: Math.round(inv.totalAmount / 1.18),
-                            gstAmount: Math.round(inv.totalAmount - (inv.totalAmount / 1.18)),
-                            totalAmount: inv.totalAmount,
-                            status: inv.status
-                          })}
-                        >
-                          <Download size={12} /> PDF
-                        </button>
-                        <button
-                          className="btn btn-secondary"
-                          style={{ padding: '0.35rem 0.5rem', fontSize: '0.75rem', color: '#dc2626', borderColor: '#fecaca' }}
-                          onClick={() => handleDeleteInvoice(inv._id)}
-                          title="Delete Invoice"
-                        >
-                          <Trash2 size={12} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                {safeInvoices.map(inv => {
+                  const invNum = inv.invoiceNumber || 'INV-001';
+                  const clientName = inv.client?.companyName || inv.client?.clientName || 'N/A';
+                  const milestone = inv.project?.projectName || inv.milestoneName || 'Milestone Services';
+                  const total = inv.totalAmount || inv.amount || 0;
+                  const paid = inv.paidAmount !== undefined ? inv.paidAmount : (inv.status === 'Paid' ? total : 0);
+                  const due = inv.remainingBalance !== undefined ? inv.remainingBalance : Math.max(0, total - paid);
+                  const dueD = inv.dueDateFormatted || formatDate(inv.dueDate);
+
+                  return (
+                    <tr key={inv._id}>
+                      <td style={{ fontWeight: '600', color: 'var(--color-secondary)' }}>{invNum}</td>
+                      <td>{clientName}</td>
+                      <td>{milestone}</td>
+                      <td>{dueD}</td>
+                      <td>₹{total.toLocaleString('en-IN')}</td>
+                      <td style={{ color: 'var(--color-success)' }}>₹{paid.toLocaleString('en-IN')}</td>
+                      <td style={{ color: due > 0 ? 'var(--color-danger)' : 'var(--color-text-muted)', fontWeight: '600' }}>
+                        ₹{due.toLocaleString('en-IN')}
+                      </td>
+                      <td>
+                        <span className={`badge ${inv.status === 'Paid' ? 'badge-success' : inv.status === 'Partially Paid' ? 'badge-warning' : 'badge-danger'}`}>
+                          {inv.status || 'Pending'}
+                        </span>
+                      </td>
+                      <td>
+                        <div style={{ display: 'flex', gap: '0.35rem' }}>
+                          <button
+                            className="btn btn-secondary"
+                            style={{ padding: '0.35rem 0.65rem', fontSize: '0.75rem' }}
+                            onClick={() => downloadPdfDocument({
+                              title: 'OFFICIAL TAX INVOICE',
+                              documentNumber: invNum,
+                              clientName,
+                              clientGstin: inv.client?.gstin || '24ABCDE1234F1Z2',
+                              projectTitle: milestone,
+                              date: inv.issueDateFormatted || formatDate(inv.issueDate || inv.createdAt),
+                              dueDate: dueD,
+                              items: [{ description: milestone, qty: 1, rate: Math.round(total / 1.18) }],
+                              subtotal: Math.round(total / 1.18),
+                              gstAmount: Math.round(total - (total / 1.18)),
+                              totalAmount: total,
+                              status: inv.status
+                            })}
+                          >
+                            <Download size={12} /> PDF
+                          </button>
+                          <button
+                            className="btn btn-secondary"
+                            style={{ padding: '0.35rem 0.5rem', fontSize: '0.75rem', color: '#dc2626', borderColor: '#fecaca' }}
+                            onClick={() => handleDeleteInvoice(inv._id)}
+                            title="Delete Invoice"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -719,35 +724,45 @@ export const Finance = () => {
                 </tr>
               </thead>
               <tbody>
-                {safePayments.map(p => (
-                  <tr key={p._id}>
-                    <td style={{ fontWeight: '600', color: 'var(--color-primary)' }}>{p.receiptNumber}</td>
-                    <td>{p.invoice?.invoiceNumber}</td>
-                    <td>{p.client?.companyName}</td>
-                    <td>{formatDate(p.paymentDate)}</td>
-                    <td>{p.paymentMode}</td>
-                    <td>{p.transactionReference || 'N/A'}</td>
-                    <td style={{ fontWeight: '700', color: 'var(--color-success)' }}>₹{p.amountPaid?.toLocaleString('en-IN')}</td>
-                    <td>
-                      <button
-                        className="btn btn-secondary"
-                        style={{ padding: '0.35rem 0.65rem', fontSize: '0.75rem' }}
-                        onClick={() => downloadPdfDocument({
-                          title: 'PAYMENT RECEIPT',
-                          documentNumber: p.receiptNumber,
-                          clientName: p.client?.companyName,
-                          projectTitle: `Payment for Invoice ${p.invoice?.invoiceNumber || ''}`,
-                          date: formatDate(p.paymentDate),
-                          items: [{ description: `Payment Mode: ${p.paymentMode} (Ref: ${p.transactionReference || 'N/A'})`, qty: 1, rate: p.amountPaid }],
-                          totalAmount: p.amountPaid,
-                          status: 'COMPLETED'
-                        })}
-                      >
-                        <Download size={12} /> PDF
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {safePayments.map(p => {
+                  const rcpt = p.paymentNumber || p.receiptNumber || p._id?.slice(-6)?.toUpperCase() || 'RCT-001';
+                  const invRef = p.invoice?.invoiceNumber || p.invoiceRef || p.invoiceNumber || 'N/A';
+                  const clientName = p.client?.companyName || p.client?.clientName || 'N/A';
+                  const pmtDate = p.paymentDateFormatted || formatDate(p.paymentDate || p.createdAt);
+                  const mode = p.paymentMode || p.mode || 'Bank Transfer';
+                  const refNo = p.referenceNumber || p.transactionReference || 'N/A';
+                  const amtPaid = p.amountPaid || 0;
+
+                  return (
+                    <tr key={p._id}>
+                      <td style={{ fontWeight: '600', color: 'var(--color-primary)' }}>{rcpt}</td>
+                      <td>{invRef}</td>
+                      <td>{clientName}</td>
+                      <td>{pmtDate}</td>
+                      <td>{mode}</td>
+                      <td>{refNo}</td>
+                      <td style={{ fontWeight: '700', color: 'var(--color-success)' }}>₹{amtPaid.toLocaleString('en-IN')}</td>
+                      <td>
+                        <button
+                          className="btn btn-secondary"
+                          style={{ padding: '0.35rem 0.65rem', fontSize: '0.75rem' }}
+                          onClick={() => downloadPdfDocument({
+                            title: 'PAYMENT RECEIPT',
+                            documentNumber: rcpt,
+                            clientName,
+                            projectTitle: `Payment for Invoice ${invRef}`,
+                            date: pmtDate,
+                            items: [{ description: `Payment Mode: ${mode} (Ref: ${refNo})`, qty: 1, rate: amtPaid }],
+                            totalAmount: amtPaid,
+                            status: 'COMPLETED'
+                          })}
+                        >
+                          <Download size={12} /> PDF
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

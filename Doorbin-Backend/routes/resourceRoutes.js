@@ -15,18 +15,19 @@ const { protect } = require('../middlewares/authMiddleware');
 const resourceAllocationAccess = (req, res, next) => {
   const p = req.user?.role?.permissions;
   const roleName = req.user?.role?.name;
-  if (p?.resourceAllocation || p?.projectManagement || p?.userManagement || roleName === 'Director' || roleName === 'Human Resource') {
+  if (p?.resourceAllocation || p?.projectManagement || p?.userManagement || roleName === 'Director' || roleName === 'Production Manager' || roleName === 'Human Resource' || roleName === 'Business Development Manager' || roleName === 'Artist') {
     return next();
   }
-  return res.status(403).json({ message: 'Access denied. Resource Allocation, Project Management, Director, or HR permission required.' });
+  return res.status(403).json({ message: 'Access denied.' });
 };
 
 const directorOrHRAccess = (req, res, next) => {
+  const p = req.user?.role?.permissions;
   const roleName = req.user?.role?.name;
-  if (roleName === 'Director' || roleName === 'Human Resource') {
+  if (roleName === 'Director' || roleName === 'Human Resource' || roleName === 'Production Manager' || p?.resourceAllocation || p?.projectManagement) {
     return next();
   }
-  return res.status(403).json({ message: 'Access denied. Director or Human Resource role required.' });
+  return res.status(403).json({ message: 'Access denied.' });
 };
 
 /**

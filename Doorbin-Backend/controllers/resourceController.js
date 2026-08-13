@@ -6,10 +6,11 @@ const logActivity = require('../utils/activityLogger');
 const { formatDDMMYYYY, parseDateString, calculateWorkingDays, calculateWorkingDaysSync, getWeekdayDatesDDMMYYYY } = require('../utils/dateFormatter');
 const mongoose = require('mongoose');
 
-// Helper: Check if caller has Director or HR role
+// Helper: Check if caller has Director, HR, PM, or Resource Allocation permissions
 const isDirectorOrHR = (req) => {
   const roleName = req.user?.role?.name;
-  return roleName === 'Director' || roleName === 'Human Resource';
+  const p = req.user?.role?.permissions;
+  return roleName === 'Director' || roleName === 'Human Resource' || roleName === 'Production Manager' || p?.resourceAllocation || p?.projectManagement;
 };
 
 // @desc    Upsert Artist Profile (Skill Tags & Daily Capacity Hours)
@@ -251,12 +252,19 @@ const getArtistAllocation = async (req, res) => {
     const profile = await ArtistProfile.findOne({ user: artistId });
     const capacity = profile ? profile.dailyCapacityHours : 8;
 
-    const tasks = await Task.find({
+    const taskQuery = {
       assignee: artistId,
-      status: { $nin: ['Completed', 'Approved', 'Cancelled'] },
-      startDate: { $lte: toDate },
-      endDate: { $gte: fromDate }
-    })
+      status: { $nin: ['Completed', 'Approved', 'Cancelled'] }
+    };
+
+    if (from || to) {
+      const fromDate = from ? parseDateString(from) : new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const toDate = to ? parseDateString(to, true) : new Date(fromDate.getTime() + 13 * 86400000);
+      taskQuery.startDate = { $lte: toDate };
+      taskQuery.endDate = { $gte: fromDate };
+    }
+
+    const tasks = await Task.find(taskQuery)
       .populate('project', 'projectName projectCategory')
       .populate('stage', 'stageName');
 
@@ -264,30 +272,36 @@ const getArtistAllocation = async (req, res) => {
       const workingDays = calculateWorkingDaysSync(t.startDate, t.endDate);
       const dailyHours = workingDays > 0 && t.estimatedHours ? Number((t.estimatedHours / workingDays).toFixed(2)) : 0;
       return {
+        _id: t._id,
         taskId: t._id,
         taskName: t.taskName,
-        project: t.project,
-        stage: t.stage,
+        projectName: t.project?.projectName || 'Project',
+        projectCategory: t.project?.projectCategory || '',
+        stageName: t.stage?.stageName || '',
         priority: t.priority,
         status: t.status,
         startDateFormatted: formatDDMMYYYY(t.startDate),
         endDateFormatted: formatDDMMYYYY(t.endDate),
         startDate: t.startDate,
         endDate: t.endDate,
-        estimatedHours: t.estimatedHours,
+        estimatedHours: t.estimatedHours || 0,
+        allocatedHours: t.estimatedHours || 0,
         workingDays,
         dailyHoursContribution: dailyHours
       };
     });
+
+    const totalAllocatedHours = formattedTasks.reduce((sum, t) => sum + (t.estimatedHours || 0), 0);
 
     return res.json({
       artist,
       dailyCapacityHours: capacity,
       skillTags: profile ? profile.skillTags : [],
       dateFormat: 'DD/MM/YYYY',
-      range: { from: formatDDMMYYYY(fromDate), to: formatDDMMYYYY(toDate) },
       activeTasksCount: formattedTasks.length,
-      tasks: formattedTasks
+      totalAllocatedHours,
+      tasks: formattedTasks,
+      allocatedTasks: formattedTasks
     });
   } catch (error) {
     return res.status(500).json({ message: error.message });
@@ -655,18 +669,16 @@ const deleteArtistProfile = async (req, res) => {
 
   try {
     const profile = await ArtistProfile.findOneAndDelete({ user: targetUserId });
-    if (!profile) {
-      return res.status(404).json({ message: 'Artist profile not found' });
+    if (profile) {
+      await logActivity({
+        req,
+        userId: req.user._id,
+        action: 'ARTIST_PROFILE_DELETED',
+        targetType: 'ArtistProfile',
+        targetId: profile._id,
+        metadata: { targetUserId }
+      });
     }
-
-    await logActivity({
-      req,
-      userId: req.user._id,
-      action: 'ARTIST_PROFILE_DELETED',
-      targetType: 'ArtistProfile',
-      targetId: profile._id,
-      metadata: { targetUserId }
-    });
 
     return res.json({ message: 'Artist profile reset to default baseline (capacity: 8h, empty skills)' });
   } catch (error) {
