@@ -19,19 +19,31 @@ export const downloadPdfDocument = ({
   status = 'Approved'
 }) => {
   // 1. Calculate Financials & GST (18%: CGST 9% + SGST 9%)
-  let finalSubtotal = Number(subtotal || 0);
+  const isReceipt = isPaymentReceipt || String(title).toUpperCase().includes('RECEIPT');
+
   let finalTotal = Number(totalAmount || 0);
+  let finalSubtotal = Number(subtotal || 0);
 
-  if (!finalSubtotal) {
-    if (Array.isArray(items) && items.length > 0) {
-      finalSubtotal = items.reduce((acc, item) => acc + (Number(item.qty || 1) * Number(item.rate || 0)), 0);
-    } else if (finalTotal > 0) {
-      finalSubtotal = Math.round(finalTotal / 1.18);
+  if (isReceipt) {
+    if (!finalTotal && Array.isArray(items) && items.length > 0) {
+      finalTotal = Number(items[0].rate || 0);
     }
-  }
-
-  if (!finalTotal && finalSubtotal > 0) {
-    finalTotal = Math.round(finalSubtotal * 1.18);
+    if (finalTotal > 0) {
+      finalSubtotal = Math.round(finalTotal / 1.18);
+    } else if (finalSubtotal > 0) {
+      finalTotal = Math.round(finalSubtotal * 1.18);
+    }
+  } else {
+    if (!finalSubtotal) {
+      if (Array.isArray(items) && items.length > 0) {
+        finalSubtotal = items.reduce((acc, item) => acc + (Number(item.qty || 1) * Number(item.rate || 0)), 0);
+      } else if (finalTotal > 0) {
+        finalSubtotal = Math.round(finalTotal / 1.18);
+      }
+    }
+    if (!finalTotal && finalSubtotal > 0) {
+      finalTotal = Math.round(finalSubtotal * 1.18);
+    }
   }
 
   const cgst = Math.round(finalSubtotal * 0.09);
@@ -151,9 +163,18 @@ export const downloadPdfDocument = ({
 
   y += 8;
 
-  const displayItems = (Array.isArray(items) && items.length > 0) ? items : [
-    { description: `${title} - ${projectTitle}`, qty: 1, rate: finalSubtotal }
+  const rawItems = (Array.isArray(items) && items.length > 0) ? items : [
+    { description: `${title} - ${projectTitle}`, qty: 1, rate: isReceipt ? finalTotal : finalSubtotal }
   ];
+
+  const displayItems = rawItems.map(item => {
+    const itemRate = Number(item.rate || 0);
+    const preTaxRate = isReceipt ? Math.round(itemRate / 1.18) : itemRate;
+    return {
+      ...item,
+      rate: preTaxRate
+    };
+  });
 
   displayItems.forEach((item, idx) => {
     const qty = Number(item.qty || 1);

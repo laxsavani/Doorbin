@@ -693,13 +693,14 @@ export const Finance = () => {
                     style={{ padding: '0.35rem 0.65rem', fontSize: '0.75rem' }}
                     onClick={() => downloadPdfDocument({
                       title: 'PAYMENT RECEIPT',
-                      documentNumber: p.receiptNumber,
-                      clientName: p.client?.companyName,
+                      documentNumber: p.receiptNumber || p.paymentNumber || 'RCT-001',
+                      clientName: p.client?.companyName || p.client?.clientName || 'Valued Client',
                       projectTitle: `Payment for Invoice ${p.invoice?.invoiceNumber || ''}`,
                       date: formatDate(p.paymentDate),
                       items: [{ description: `Payment Mode: ${p.paymentMode} (Ref: ${p.transactionReference || 'N/A'})`, qty: 1, rate: p.amountPaid }],
                       totalAmount: p.amountPaid,
-                      status: 'COMPLETED'
+                      status: 'COMPLETED',
+                      isPaymentReceipt: true
                     })}
                   >
                     <Download size={12} /> Download PDF
@@ -754,7 +755,8 @@ export const Finance = () => {
                             date: pmtDate,
                             items: [{ description: `Payment Mode: ${mode} (Ref: ${refNo})`, qty: 1, rate: amtPaid }],
                             totalAmount: amtPaid,
-                            status: 'COMPLETED'
+                            status: 'COMPLETED',
+                            isPaymentReceipt: true
                           })}
                         >
                           <Download size={12} /> PDF
@@ -877,11 +879,25 @@ export const Finance = () => {
           <form onSubmit={handleRecordPayment}>
             <FormField label="Target Pending Invoice" name="invoiceId" type="select" value={paymentForm.invoiceId} onChange={e => setPaymentForm({ ...paymentForm, invoiceId: e.target.value })} required>
               <option value="">-- Select Pending Invoice --</option>
-              {safeInvoices.filter(i => i.dueBalance > 0).map(inv => (
-                <option key={inv._id} value={inv._id}>
-                  {inv.invoiceNumber} - {inv.client?.companyName} (Due: ₹{inv.dueBalance?.toLocaleString('en-IN')})
-                </option>
-              ))}
+              {(safeInvoices.filter(i => {
+                const due = i.remainingBalance !== undefined ? i.remainingBalance : (i.dueBalance !== undefined ? i.dueBalance : Math.max(0, (i.totalAmount || i.amount || 0) - (i.paidAmount || (i.status === 'Paid' ? (i.totalAmount || 0) : 0))));
+                return i.status !== 'Paid' || due > 0;
+              }).length > 0
+                ? safeInvoices.filter(i => {
+                    const due = i.remainingBalance !== undefined ? i.remainingBalance : (i.dueBalance !== undefined ? i.dueBalance : Math.max(0, (i.totalAmount || i.amount || 0) - (i.paidAmount || (i.status === 'Paid' ? (i.totalAmount || 0) : 0))));
+                    return i.status !== 'Paid' || due > 0;
+                  })
+                : safeInvoices
+              ).map(inv => {
+                const clientName = inv.client?.companyName || inv.client?.clientName || 'Client';
+                const due = inv.remainingBalance !== undefined ? inv.remainingBalance : (inv.dueBalance !== undefined ? inv.dueBalance : Math.max(0, (inv.totalAmount || inv.amount || 0) - (inv.paidAmount || 0)));
+                const tot = inv.totalAmount || inv.amount || 0;
+                return (
+                  <option key={inv._id} value={inv._id}>
+                    {inv.invoiceNumber} — {clientName} (Total: ₹{tot.toLocaleString('en-IN')}{due > 0 ? `, Due: ₹${due.toLocaleString('en-IN')}` : ' [Paid]'})
+                  </option>
+                );
+              })}
             </FormField>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
