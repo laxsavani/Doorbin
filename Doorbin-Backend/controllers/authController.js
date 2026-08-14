@@ -87,6 +87,8 @@ const registerUser = async (req, res) => {
   }
 };
 
+const failedLoginTracker = new Map();
+
 // @desc    Login user & get token
 // @route   POST /api/auth/login
 // @access  Public
@@ -97,12 +99,38 @@ const loginUser = async (req, res) => {
   }
 
   const { email, password } = req.body;
+  const userEmail = (email || '').toLowerCase().trim();
+  const clientIp = req.ip || req.headers['x-forwarded-for'] || 'client';
+  const trackKey = `${userEmail}_${clientIp}`;
+  const now = Date.now();
+
+  const trackData = failedLoginTracker.get(trackKey) || { attempts: 0, lockoutUntil: 0 };
+
+  if (trackData.lockoutUntil && trackData.lockoutUntil > now) {
+    const diffMs = trackData.lockoutUntil - now;
+    const mins = Math.ceil(diffMs / (60 * 1000));
+    return res.status(429).json({
+      message: `Account is temporarily blocked due to 5 failed login attempts. Please try again in ${mins} minute(s).`,
+      lockoutUntil: trackData.lockoutUntil
+    });
+  }
 
   try {
-    const user = await User.findOne({ email: email.toLowerCase() }).populate('role department');
+    const user = await User.findOne({ email: userEmail }).populate('role department');
 
     if (!user) {
-      return res.status(401).json({ message: 'Invalid email or password' });
+      trackData.attempts += 1;
+      if (trackData.attempts >= 5) {
+        trackData.lockoutUntil = now + 15 * 60 * 1000;
+        failedLoginTracker.set(trackKey, trackData);
+        return res.status(429).json({
+          message: '5 consecutive failed login attempts! Your account access is temporarily blocked for 15 minutes.',
+          lockoutUntil: trackData.lockoutUntil
+        });
+      }
+      failedLoginTracker.set(trackKey, trackData);
+      const remaining = 5 - trackData.attempts;
+      return res.status(401).json({ message: `Invalid email or password. (${remaining} attempt${remaining > 1 ? 's' : ''} remaining before 15-min lockout)` });
     }
 
     if (user.status !== 'Active') {
@@ -111,8 +139,22 @@ const loginUser = async (req, res) => {
 
     const isMatch = await user.matchPassword(password);
     if (!isMatch) {
-      return res.status(401).json({ message: 'Invalid email or password' });
+      trackData.attempts += 1;
+      if (trackData.attempts >= 5) {
+        trackData.lockoutUntil = now + 15 * 60 * 1000;
+        failedLoginTracker.set(trackKey, trackData);
+        return res.status(429).json({
+          message: '5 consecutive failed login attempts! Your account access is temporarily blocked for 15 minutes.',
+          lockoutUntil: trackData.lockoutUntil
+        });
+      }
+      failedLoginTracker.set(trackKey, trackData);
+      const remaining = 5 - trackData.attempts;
+      return res.status(401).json({ message: `Invalid email or password. (${remaining} attempt${remaining > 1 ? 's' : ''} remaining before 15-min lockout)` });
     }
+
+    // Reset failed attempts on success
+    failedLoginTracker.delete(trackKey);
 
     user.lastLogin = Date.now();
     await user.save({ validateBeforeSave: false });

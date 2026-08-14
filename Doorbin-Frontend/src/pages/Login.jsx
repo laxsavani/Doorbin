@@ -1,16 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Toast } from '../components/Toast';
 import { validators, focusFirstErrorField } from '../utils/validation';
 import { authService } from '../services/authService';
-import { Eye, EyeOff, Layers, Check } from 'lucide-react';
+import { Eye, EyeOff, Layers, Check, ShieldAlert, Clock } from 'lucide-react';
 import './Login.css';
 
 export const Login = () => {
   const navigate = useNavigate();
 
   const [formData, setFormData] = useState({
-    email: 'laxsavani4259@gmail.com',
+    email: '',
     password: '',
     rememberMe: true,
   });
@@ -19,63 +19,105 @@ export const Login = () => {
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [showSuccessAnim, setShowSuccessAnim] = useState(false);
+  const [isLockedOut, setIsLockedOut] = useState(false);
+  const [lockoutRemainingMs, setLockoutRemainingMs] = useState(0);
   const [toast, setToast] = useState({ message: '', type: 'info' });
+
+  // Check rate-limit lockout status on mount & timer tick
+  useEffect(() => {
+    const checkLockout = () => {
+      const lockoutUntil = Number(localStorage.getItem('doorbin_login_lockout_until') || 0);
+      const now = Date.now();
+      if (lockoutUntil > now) {
+        setIsLockedOut(true);
+        setLockoutRemainingMs(lockoutUntil - now);
+      } else {
+        setIsLockedOut(false);
+        setLockoutRemainingMs(0);
+        localStorage.removeItem('doorbin_login_lockout_until');
+      }
+    };
+
+    checkLockout();
+    const interval = setInterval(() => {
+      const lockoutUntil = Number(localStorage.getItem('doorbin_login_lockout_until') || 0);
+      const diff = lockoutUntil - Date.now();
+      if (diff <= 0) {
+        setIsLockedOut(false);
+        setLockoutRemainingMs(0);
+        localStorage.removeItem('doorbin_login_lockout_until');
+        localStorage.removeItem('doorbin_login_failed_attempts');
+      } else {
+        setIsLockedOut(true);
+        setLockoutRemainingMs(diff);
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  const formatMinutesSeconds = (ms) => {
+    const totalSec = Math.max(0, Math.ceil(ms / 1000));
+    const mins = Math.floor(totalSec / 60);
+    const secs = totalSec % 60;
+    return `${mins}m ${String(secs).padStart(2, '0')}s`;
+  };
 
   // Curated High-End Interior & Architectural Render Gallery Wall
   const galleryWall = [
     {
       id: 1,
-      title: 'Modern Villa Render',
-      tag: 'Villa Render',
-      url: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=600&q=80',
+      title: 'The Hill Home',
+      tag: 'The Hill Home',
+      url: 'https://www.doorbinvisuals.in/wp-content/uploads/2021/01/FL1-A.jpg',
     },
     {
       id: 2,
-      title: 'Luxury Living Room',
-      tag: 'Living Space',
-      url: 'https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?w=600&q=80',
+      title: 'Kids Room',
+      tag: 'Kids Room',
+      url: 'https://www.doorbinvisuals.in/wp-content/uploads/2021/01/Kids-Bedroom-1-Cam-A.jpg',
     },
     {
       id: 3,
-      title: 'Scandinavian Kitchen',
-      tag: 'Kitchen CGI',
-      url: 'https://images.unsplash.com/photo-1556911220-e15b29be8c8f?w=600&q=80',
+      title: 'RG Residance',
+      tag: 'RG Residance',
+      url: 'https://www.doorbinvisuals.in/wp-content/uploads/2021/01/Parents-Room-01.jpg',
     },
     {
       id: 4,
-      title: 'Minimal Bedroom Design',
-      tag: 'Bedroom Interior',
-      url: 'https://images.unsplash.com/photo-1616594039964-ae9021a400a0?w=600&q=80',
+      title: 'McNulty Rd',
+      tag: 'McNulty Rd',
+      url: 'https://www.doorbinvisuals.in/wp-content/uploads/2020/06/McNulty-Rd-Cam-B.jpg',
     },
     {
       id: 5,
-      title: 'Architectural Facade',
-      tag: 'Exterior 3D',
-      url: 'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=600&q=80',
+      title: 'Residential Tower',
+      tag: 'Residential Tower',
+      url: 'https://www.doorbinvisuals.in/wp-content/uploads/2020/02/TC_Residence-Ar_Tanmay_Choksi.jpg',
     },
     {
       id: 6,
-      title: 'Warm Dining Space',
-      tag: 'Dining Setup',
-      url: 'https://images.unsplash.com/photo-1617806118233-18e1de247200?w=600&q=80',
+      title: 'Autobotss',
+      tag: 'Autobotss ',
+      url: 'https://www.doorbinvisuals.in/wp-content/uploads/2020/02/Auto_Botss-Ninsquare_Architects-2.jpg',
     },
     {
       id: 7,
-      title: 'Penthouse Lounge',
-      tag: 'Penthouse',
-      url: 'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?w=600&q=80',
+      title: 'Luxe Dining',
+      tag: 'Luxe Dining',
+      url: 'https://www.doorbinvisuals.in/wp-content/uploads/2020/02/Luxe_Dining_Osri_Architects.jpg',
     },
     {
       id: 8,
-      title: 'Modern Terrace Garden',
-      tag: 'Deck Design',
-      url: 'https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=600&q=80',
+      title: 'Dunlop Ave Townhouse',
+      tag: 'Dunlop Ave Townhouse',
+      url: 'https://www.doorbinvisuals.in/wp-content/uploads/2020/02/Dunlop_Ave_Townhouse-Alan_Didak.jpg',
     },
     {
       id: 9,
-      title: 'Sunset Elevation Render',
-      tag: 'Elevation',
-      url: 'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=600&q=80',
+      title: 'Compact Living',
+      tag: 'Compact Living',
+      url: 'https://www.doorbinvisuals.in/wp-content/uploads/2020/02/Compact_Living_Priyanka_Gohil2.jpg',
     },
   ];
 
@@ -114,6 +156,14 @@ export const Login = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    if (isLockedOut) {
+      setToast({
+        message: `Too many failed attempts! Account is blocked for ${formatMinutesSeconds(lockoutRemainingMs)}.`,
+        type: 'error',
+      });
+      return;
+    }
+
     if (!validateForm()) return;
 
     setLoading(true);
@@ -123,17 +173,39 @@ export const Login = () => {
       // Calling Auth Service
       await authService.login(formData);
 
-      // Trigger Inline Animated Success Card (Form vanishes, success replaces it on same background)
+      // Reset failed attempts on success
+      localStorage.removeItem('doorbin_login_failed_attempts');
+      localStorage.removeItem('doorbin_login_lockout_until');
+      setIsLockedOut(false);
+
+      // Trigger Inline Animated Success Card
       setShowSuccessAnim(true);
 
       setTimeout(() => {
         navigate('/dashboard');
-      }, 1400);
+      }, 2500);
     } catch (err) {
-      setToast({
-        message: err.message || 'Invalid login credentials.',
-        type: 'error',
-      });
+      const attempts = Number(localStorage.getItem('doorbin_login_failed_attempts') || 0) + 1;
+      localStorage.setItem('doorbin_login_failed_attempts', String(attempts));
+
+      const isBackend429 = err.status === 429 || (err.message && err.message.includes('blocked'));
+
+      if (attempts >= 5 || isBackend429) {
+        const lockoutTime = err.data?.lockoutUntil || (Date.now() + 15 * 60 * 1000);
+        localStorage.setItem('doorbin_login_lockout_until', String(lockoutTime));
+        setIsLockedOut(true);
+        setLockoutRemainingMs(Math.max(1000, lockoutTime - Date.now()));
+        setToast({
+          message: '5 consecutive failed login attempts! Your account access is temporarily blocked for 15 minutes.',
+          type: 'error',
+        });
+      } else {
+        const remaining = Math.max(1, 5 - attempts);
+        setToast({
+          message: `${err.message || 'Invalid login credentials.'} (${remaining} attempt${remaining > 1 ? 's' : ''} remaining before 15-min lockout)`,
+          type: 'error',
+        });
+      }
       setLoading(false);
     }
   };
@@ -190,9 +262,24 @@ export const Login = () => {
 
         {/* RIGHT COLUMN - LOGIN FORM SECTION (50% VIEWPORT, SAME BACKGROUND) */}
         <div className="login-form-section">
-          {/* Form Content Body / Inline Success Card Container */}
+          {/* Form Content Body / Inline Success & Lockout Card Container */}
           <div className="login-form-content-body">
-            {showSuccessAnim ? (
+            {isLockedOut ? (
+              /* RATE LIMIT LOCKOUT CARD WITH COUNTDOWN & BLOCK SIGN */
+              <div className="login-inline-lockout-card">
+                <div className="login-inline-lockout-circle">
+                  <ShieldAlert size={44} color="#dc2626" strokeWidth={2.5} />
+                </div>
+                <h2 className="login-inline-lockout-title">Account Temporarily Blocked</h2>
+                <p className="login-inline-lockout-subtitle">
+                  5 consecutive failed login attempts detected. Access has been temporarily restricted for security.
+                </p>
+                <div className="login-lockout-timer-box">
+                  <Clock size={18} color="#dc2626" />
+                  <span>Try again in {formatMinutesSeconds(lockoutRemainingMs)}</span>
+                </div>
+              </div>
+            ) : showSuccessAnim ? (
               /* INLINE ANIMATED SUCCESS CARD ON SAME BACKGROUND */
               <div className="login-inline-success-card">
                 <div className="login-inline-check-circle">
@@ -224,7 +311,7 @@ export const Login = () => {
                         id="email"
                         name="email"
                         type="email"
-                        placeholder="e.g. lax@doorbin.com"
+                        placeholder="e.g. doorbin@gmail.com"
                         value={formData.email}
                         onChange={handleChange}
                         className={`pill-input ${errors.email ? 'is-invalid' : ''}`}
