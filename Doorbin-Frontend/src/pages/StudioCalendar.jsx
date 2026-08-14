@@ -372,7 +372,7 @@ export const StudioCalendar = () => {
       case 'Leave':
         return { bg: '#fef2f2', color: '#b91c1c', border: '#fecaca', icon: User };
       case 'Holiday':
-        return { bg: '#faf5ff', color: '#047857', border: '#a7f3d0', icon: CalendarIcon };
+        return { bg: '#fef2f2', color: '#dc2626', border: '#fecaca', icon: Flag };
       default:
         return { bg: '#faf5ff', color: '#7e22ce', border: '#e9d5ff', icon: Tag };
     }
@@ -518,6 +518,15 @@ export const StudioCalendar = () => {
                 {calendarDays.map((cell, idx) => {
                   const dayEvents = filteredEvents.filter(e => e.date === cell.dateStr);
                   const isToday = cell.dateStr === todayDateStr;
+                  const cellDate = cell.dateStr ? new Date(cell.dateStr) : null;
+                  const isSunday = cellDate && !isNaN(cellDate.getTime()) && cellDate.getDay() === 0;
+                  const isHoliday = dayEvents.some(e => 
+                    e.type === 'Holiday' || 
+                    e.eventType === 'holiday' || 
+                    e.category === 'holiday' || 
+                    (e.title && e.title.toLowerCase().includes('holiday'))
+                  );
+                  const isRedDay = isSunday || isHoliday;
                   const displayEvents = dayEvents.slice(0, 3);
                   const extraCount = dayEvents.length - 3;
 
@@ -526,7 +535,9 @@ export const StudioCalendar = () => {
                       key={idx}
                       onClick={() => setSelectedDayDetails({ dateStr: cell.dateStr, events: dayEvents })}
                       style={{
-                        backgroundColor: cell.isCurrentMonth ? (isToday ? '#fffbf5' : '#ffffff') : '#fbfaf8',
+                        backgroundColor: isRedDay
+                          ? (isToday ? '#fee2e2' : '#fef2f2')
+                          : (cell.isCurrentMonth ? (isToday ? '#fffbf5' : '#ffffff') : '#fbfaf8'),
                         height: isMobile ? '64px' : '140px',
                         minHeight: isMobile ? '64px' : '140px',
                         padding: isMobile ? '0.25rem' : '0.45rem',
@@ -551,16 +562,16 @@ export const StudioCalendar = () => {
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            backgroundColor: isToday ? '#B68D40' : 'transparent',
-                            color: isToday ? '#ffffff' : (cell.isCurrentMonth ? '#1F1F1F' : '#b0aaa0')
+                            backgroundColor: isToday ? '#B68D40' : (isRedDay ? '#fee2e2' : 'transparent'),
+                            color: isToday ? '#ffffff' : (isRedDay ? '#dc2626' : (cell.isCurrentMonth ? '#1F1F1F' : '#b0aaa0'))
                           }}
                         >
                           {cell.dayNumber}
                         </span>
 
-                        {!isMobile && dayEvents.length > 0 && (
-                          <span style={{ fontSize: '0.625rem', fontWeight: 700, color: '#8c8882' }}>
-                            {dayEvents.length} item{dayEvents.length > 1 ? 's' : ''}
+                        {!isMobile && (isRedDay || dayEvents.length > 0) && (
+                          <span style={{ fontSize: '0.625rem', fontWeight: 700, color: isRedDay ? '#dc2626' : '#8c8882' }}>
+                            {isHoliday ? '🏖️ Holiday' : (isSunday ? 'Weekly Off' : `${dayEvents.length} item${dayEvents.length > 1 ? 's' : ''}`)}
                           </span>
                         )}
                       </div>
@@ -644,12 +655,23 @@ export const StudioCalendar = () => {
               {weekDays.map((wDay, idx) => {
                 const dayEvents = filteredEvents.filter(e => e.date === wDay.dateStr);
                 const isToday = wDay.dateStr === todayDateStr;
+                const cellDate = wDay.dateStr ? new Date(wDay.dateStr) : null;
+                const isSunday = cellDate && !isNaN(cellDate.getTime()) && cellDate.getDay() === 0;
+                const isHoliday = dayEvents.some(e => 
+                  e.type === 'Holiday' || 
+                  e.eventType === 'holiday' || 
+                  e.category === 'holiday' || 
+                  (e.title && e.title.toLowerCase().includes('holiday'))
+                );
+                const isRedDay = isSunday || isHoliday;
 
                 return (
-                  <div key={idx} style={{ backgroundColor: isToday ? '#fffbf5' : '#ffffff', border: `1px solid ${isToday ? '#B68D40' : '#e9e5dc'}`, borderRadius: '14px', padding: '1rem', minHeight: '300px', display: 'flex', flexDirection: 'column' }}>
+                  <div key={idx} style={{ backgroundColor: isRedDay ? (isToday ? '#fee2e2' : '#fef2f2') : (isToday ? '#fffbf5' : '#ffffff'), border: `1px solid ${isRedDay ? '#fecaca' : (isToday ? '#B68D40' : '#e9e5dc')}`, borderRadius: '14px', padding: '1rem', minHeight: '300px', display: 'flex', flexDirection: 'column' }}>
                     <div style={{ borderBottom: '1px solid #eeeae3', paddingBottom: '0.5rem', marginBottom: '0.75rem', textAlign: 'center' }}>
-                      <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#8c8882', textTransform: 'uppercase' }}>{wDay.dayName}</div>
-                      <div style={{ fontSize: '1.25rem', fontWeight: 800, color: isToday ? '#B68D40' : '#1F1F1F' }}>{wDay.dayNumber} {wDay.monthName}</div>
+                      <div style={{ fontSize: '0.75rem', fontWeight: 800, color: isRedDay ? '#dc2626' : '#8c8882', textTransform: 'uppercase' }}>
+                        {wDay.dayName} {isRedDay ? (isHoliday ? '(Holiday)' : '(Off)') : ''}
+                      </div>
+                      <div style={{ fontSize: '1.25rem', fontWeight: 800, color: isToday ? '#B68D40' : (isRedDay ? '#dc2626' : '#1F1F1F') }}>{wDay.dayNumber} {wDay.monthName}</div>
                     </div>
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', flex: 1, overflowY: 'auto' }}>
