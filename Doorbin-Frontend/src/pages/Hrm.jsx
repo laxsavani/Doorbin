@@ -46,6 +46,13 @@ export const Hrm = () => {
 
   const isDirectorOrHR = userRoleName.toLowerCase() === 'director' || userRoleName.toLowerCase() === 'human resource';
 
+  // Leave Date Range Limits (Today -> Next 1 Year)
+  const todayObj = new Date();
+  const todayStr = todayObj.toISOString().split('T')[0];
+  const maxDateObj = new Date(todayObj);
+  maxDateObj.setFullYear(todayObj.getFullYear() + 1);
+  const maxDateStr = maxDateObj.toISOString().split('T')[0];
+
   // Data states
   const [employees, setEmployees] = useState([]);
   const [attendanceLogs, setAttendanceLogs] = useState([]);
@@ -151,6 +158,21 @@ export const Hrm = () => {
     e.preventDefault();
     if (!leaveForm.startDate || !leaveForm.endDate) {
       setToast({ message: 'Please fill in leave start and end dates', type: 'error' });
+      return;
+    }
+
+    if (leaveForm.startDate < todayStr) {
+      setToast({ message: 'Past dates cannot be selected for leave application. Leave date must be from today onwards.', type: 'error' });
+      return;
+    }
+
+    if (leaveForm.startDate > maxDateStr || leaveForm.endDate > maxDateStr) {
+      setToast({ message: 'Leave date cannot be further than 1 year ahead.', type: 'error' });
+      return;
+    }
+
+    if (leaveForm.endDate < leaveForm.startDate) {
+      setToast({ message: 'End date cannot be earlier than start date.', type: 'error' });
       return;
     }
 
@@ -816,8 +838,26 @@ export const Hrm = () => {
             </FormField>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-              <FormField label="Start Date" name="startDate" type="date" value={leaveForm.startDate} onChange={e => setLeaveForm({ ...leaveForm, startDate: e.target.value })} required />
-              <FormField label="End Date" name="endDate" type="date" value={leaveForm.endDate} onChange={e => setLeaveForm({ ...leaveForm, endDate: e.target.value })} required />
+              <FormField 
+                label="Start Date" 
+                name="startDate" 
+                type="date" 
+                min={todayStr}
+                max={maxDateStr}
+                value={leaveForm.startDate} 
+                onChange={e => setLeaveForm({ ...leaveForm, startDate: e.target.value })} 
+                required 
+              />
+              <FormField 
+                label="End Date" 
+                name="endDate" 
+                type="date" 
+                min={leaveForm.startDate || todayStr}
+                max={maxDateStr}
+                value={leaveForm.endDate} 
+                onChange={e => setLeaveForm({ ...leaveForm, endDate: e.target.value })} 
+                required 
+              />
             </div>
 
             <FormField label="Reason for Leave" name="reason" type="textarea" value={leaveForm.reason} onChange={e => setLeaveForm({ ...leaveForm, reason: e.target.value })} required />

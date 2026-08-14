@@ -421,6 +421,20 @@ const applyLeave = async (req, res) => {
   const fDate = parseDateString(fromDate);
   const tDate = parseDateString(toDate, true);
 
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const maxDate = new Date(today);
+  maxDate.setFullYear(today.getFullYear() + 1);
+  maxDate.setHours(23, 59, 59, 999);
+
+  if (fDate < today) {
+    return res.status(400).json({ message: 'Past dates cannot be selected for leave application. Leave date must be from today onwards.' });
+  }
+
+  if (fDate > maxDate || tDate > maxDate) {
+    return res.status(400).json({ message: 'Leave date cannot be further than 1 year ahead.' });
+  }
+
   if (tDate < fDate) {
     return res.status(400).json({ message: 'toDate cannot be before fromDate' });
   }
