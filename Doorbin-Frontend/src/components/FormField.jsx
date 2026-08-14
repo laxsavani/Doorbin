@@ -21,6 +21,17 @@ export const FormField = ({
 }) => {
   const isInvalid = Boolean(error);
 
+  // Default date constraints: Today -> Next 1 Year
+  const getTodayStr = () => new Date().toISOString().split('T')[0];
+  const getMaxDateStr = () => {
+    const d = new Date();
+    d.setFullYear(d.getFullYear() + 1);
+    return d.toISOString().split('T')[0];
+  };
+
+  const defaultMin = type === 'date' ? getTodayStr() : undefined;
+  const defaultMax = type === 'date' ? getMaxDateStr() : undefined;
+
   return (
     <div className="form-group">
       {label && (
@@ -61,6 +72,8 @@ export const FormField = ({
           id={name}
           name={name}
           type={type}
+          min={props.min !== undefined ? props.min : defaultMin}
+          max={props.max !== undefined ? props.max : defaultMax}
           value={value}
           onChange={onChange}
           onBlur={onBlur}

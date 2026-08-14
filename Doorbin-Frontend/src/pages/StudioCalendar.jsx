@@ -409,12 +409,6 @@ export const StudioCalendar = () => {
           <h1 className="hero-serif-title">Studio Master Calendar</h1>
           <p className="hero-sub-summary">Studio-wide aggregated schedule, milestone deliveries, client pitches and rendering deadlines</p>
         </div>
-
-        <div className="page-header-actions">
-          <button onClick={() => setIsAddEventModalOpen(true)} className="btn-new-task">
-            <Plus size={16} /> Add Calendar Event
-          </button>
-        </div>
       </div>
 
       {loading ? (
@@ -520,10 +514,10 @@ export const StudioCalendar = () => {
                   const isToday = cell.dateStr === todayDateStr;
                   const cellDate = cell.dateStr ? new Date(cell.dateStr) : null;
                   const isSunday = cellDate && !isNaN(cellDate.getTime()) && cellDate.getDay() === 0;
-                  const isHoliday = dayEvents.some(e => 
-                    e.type === 'Holiday' || 
-                    e.eventType === 'holiday' || 
-                    e.category === 'holiday' || 
+                  const isHoliday = dayEvents.some(e =>
+                    e.type === 'Holiday' ||
+                    e.eventType === 'holiday' ||
+                    e.category === 'holiday' ||
                     (e.title && e.title.toLowerCase().includes('holiday'))
                   );
                   const isRedDay = isSunday || isHoliday;
@@ -657,10 +651,10 @@ export const StudioCalendar = () => {
                 const isToday = wDay.dateStr === todayDateStr;
                 const cellDate = wDay.dateStr ? new Date(wDay.dateStr) : null;
                 const isSunday = cellDate && !isNaN(cellDate.getTime()) && cellDate.getDay() === 0;
-                const isHoliday = dayEvents.some(e => 
-                  e.type === 'Holiday' || 
-                  e.eventType === 'holiday' || 
-                  e.category === 'holiday' || 
+                const isHoliday = dayEvents.some(e =>
+                  e.type === 'Holiday' ||
+                  e.eventType === 'holiday' ||
+                  e.category === 'holiday' ||
                   (e.title && e.title.toLowerCase().includes('holiday'))
                 );
                 const isRedDay = isSunday || isHoliday;
@@ -818,57 +812,6 @@ export const StudioCalendar = () => {
           </div>
         </Modal>
       )}
-
-      {/* ADD CALENDAR EVENT MODAL */}
-      <Modal
-        isOpen={isAddEventModalOpen}
-        onClose={() => setIsAddEventModalOpen(false)}
-        title="Add Studio Calendar Event"
-        footer={
-          <>
-            <button className="btn btn-secondary" onClick={() => setIsAddEventModalOpen(false)}>Cancel</button>
-            <button className="btn btn-primary" onClick={handleCreateEvent}>Add Event</button>
-          </>
-        }
-      >
-        <form onSubmit={handleCreateEvent} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          <div>
-            <label style={{ fontSize: '0.8rem', fontWeight: 700, color: '#1F1F1F', marginBottom: '0.35rem', display: 'block' }}>Event Title</label>
-            <input
-              type="text"
-              required
-              placeholder="e.g. Client Design Revision Pitch..."
-              value={newEvent.title}
-              onChange={(e) => setNewEvent({ ...newEvent, title: e.target.value })}
-              style={{ width: '100%', padding: '0.6rem', borderRadius: '8px', border: '1px solid #dcd8cf' }}
-            />
-          </div>
-
-          <div>
-            <label style={{ fontSize: '0.8rem', fontWeight: 700, color: '#1F1F1F', marginBottom: '0.35rem', display: 'block' }}>Date</label>
-            <input
-              type="date"
-              required
-              value={newEvent.date}
-              onChange={(e) => setNewEvent({ ...newEvent, date: e.target.value })}
-              style={{ width: '100%', padding: '0.6rem', borderRadius: '8px', border: '1px solid #dcd8cf' }}
-            />
-          </div>
-
-          <div>
-            <label style={{ fontSize: '0.8rem', fontWeight: 700, color: '#1F1F1F', marginBottom: '0.35rem', display: 'block' }}>Event Category</label>
-            <select
-              value={newEvent.type}
-              onChange={(e) => setNewEvent({ ...newEvent, type: e.target.value })}
-              style={{ width: '100%', padding: '0.6rem', borderRadius: '8px', border: '1px solid #dcd8cf' }}
-            >
-              {EVENT_TYPES.filter(t => t !== 'All').map(t => (
-                <option key={t} value={t}>{t}</option>
-              ))}
-            </select>
-          </div>
-        </form>
-      </Modal>
     </div>
   );
 };

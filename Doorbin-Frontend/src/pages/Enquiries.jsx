@@ -1241,6 +1241,8 @@ export const Enquiries = () => {
                   </label>
                   <input
                     type="date"
+                    min={new Date().toISOString().split('T')[0]}
+                    max={new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]}
                     value={newActivity.followUpDate}
                     onChange={(e) => setNewActivity({ ...newActivity, followUpDate: e.target.value })}
                     style={{ width: '100%', padding: '0.45rem 0.75rem', borderRadius: '6px', border: '1px solid #d8d4cb', fontSize: '0.8rem', backgroundColor: '#ffffff', boxSizing: 'border-box' }}

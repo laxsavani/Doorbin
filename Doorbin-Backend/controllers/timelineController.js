@@ -5,6 +5,7 @@ const RescheduleLog = require('../models/RescheduleLog');
 const Enquiry = require('../models/Enquiry');
 const Holiday = require('../models/Holiday');
 const Leave = require('../models/Leave');
+const Attendance = require('../models/Attendance');
 const logActivity = require('../utils/activityLogger');
 const { formatDDMMYYYY, parseDateString, calculateWorkingDays } = require('../utils/dateFormatter');
 const mongoose = require('mongoose');
