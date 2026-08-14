@@ -21,30 +21,46 @@ export const Login = () => {
   const [showSuccessAnim, setShowSuccessAnim] = useState(false);
   const [isLockedOut, setIsLockedOut] = useState(false);
   const [lockoutRemainingMs, setLockoutRemainingMs] = useState(0);
+  const [failedAttemptCount, setFailedAttemptCount] = useState(() => {
+    return Number(localStorage.getItem('doorbin_login_failed_attempts') || 0);
+  });
   const [toast, setToast] = useState({ message: '', type: 'info' });
 
   // Check rate-limit lockout status on mount & timer tick
   useEffect(() => {
     const checkLockout = () => {
       const lockoutUntil = Number(localStorage.getItem('doorbin_login_lockout_until') || 0);
+      const attempts = Number(localStorage.getItem('doorbin_login_failed_attempts') || 0);
+      setFailedAttemptCount(attempts);
+
       const now = Date.now();
-      if (lockoutUntil > now) {
+      if (lockoutUntil > now || attempts >= 5) {
+        const lockoutTime = lockoutUntil > now ? lockoutUntil : (now + 15 * 60 * 1000);
+        if (!lockoutUntil || lockoutUntil <= now) {
+          localStorage.setItem('doorbin_login_lockout_until', String(lockoutTime));
+        }
         setIsLockedOut(true);
-        setLockoutRemainingMs(lockoutUntil - now);
+        setLockoutRemainingMs(Math.max(1000, lockoutTime - now));
       } else {
         setIsLockedOut(false);
         setLockoutRemainingMs(0);
-        localStorage.removeItem('doorbin_login_lockout_until');
       }
     };
 
     checkLockout();
     const interval = setInterval(() => {
       const lockoutUntil = Number(localStorage.getItem('doorbin_login_lockout_until') || 0);
+      const attempts = Number(localStorage.getItem('doorbin_login_failed_attempts') || 0);
       const diff = lockoutUntil - Date.now();
-      if (diff <= 0) {
+
+      if (diff <= 0 && attempts < 5) {
         setIsLockedOut(false);
         setLockoutRemainingMs(0);
+      } else if (diff <= 0 && attempts >= 5) {
+        // Expiration reached
+        setIsLockedOut(false);
+        setLockoutRemainingMs(0);
+        setFailedAttemptCount(0);
         localStorage.removeItem('doorbin_login_lockout_until');
         localStorage.removeItem('doorbin_login_failed_attempts');
       } else {
@@ -176,6 +192,7 @@ export const Login = () => {
       // Reset failed attempts on success
       localStorage.removeItem('doorbin_login_failed_attempts');
       localStorage.removeItem('doorbin_login_lockout_until');
+      setFailedAttemptCount(0);
       setIsLockedOut(false);
 
       // Trigger Inline Animated Success Card
@@ -187,6 +204,7 @@ export const Login = () => {
     } catch (err) {
       const attempts = Number(localStorage.getItem('doorbin_login_failed_attempts') || 0) + 1;
       localStorage.setItem('doorbin_login_failed_attempts', String(attempts));
+      setFailedAttemptCount(attempts);
 
       const isBackend429 = err.status === 429 || (err.message && err.message.includes('blocked'));
 
@@ -311,6 +329,7 @@ export const Login = () => {
                         id="email"
                         name="email"
                         type="email"
+                        autoComplete="username"
                         placeholder="e.g. doorbin@gmail.com"
                         value={formData.email}
                         onChange={handleChange}
@@ -331,6 +350,7 @@ export const Login = () => {
                         id="password"
                         name="password"
                         type={showPassword ? 'text' : 'password'}
+                        autoComplete="current-password"
                         placeholder="Enter your password"
                         value={formData.password}
                         onChange={handleChange}
@@ -348,6 +368,25 @@ export const Login = () => {
                     </div>
                     {errors.password && <span className="error-message">{errors.password}</span>}
                   </div>
+
+                  {/* Failed Attempt Warning Badge */}
+                  {failedAttemptCount > 0 && failedAttemptCount < 5 && (
+                    <div style={{
+                      backgroundColor: '#fff7ed',
+                      border: '1px solid #ffedd5',
+                      color: '#c2410c',
+                      borderRadius: '12px',
+                      padding: '0.5rem 0.85rem',
+                      marginBottom: '1rem',
+                      fontSize: '0.78rem',
+                      fontWeight: 700,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.4rem'
+                    }}>
+                      ⚠️ Failed login attempts: <strong>{failedAttemptCount} / 5</strong>. (Lockout after 5 failures)
+                    </div>
+                  )}
 
                   {/* Remember Me & Forgot Password */}
                   <div className="login-options-row">
