@@ -1,7 +1,7 @@
 /* Doorbin Studio Dashboard CSS - Matching Exact Layout & Retaining Doorbin Colors */
 
 /* ANIMATE SPIN KEYFRAME FOR ALL LOADERS */
-.animate-spin {
+.animate-spin, .spin {
   animation: spin 1s linear infinite !important;
 }
 

@@ -91,6 +91,11 @@ const createProject = async (req, res) => {
       return res.status(400).json({ message: 'Production Manager user not found' });
     }
 
+    const startMs = new Date(startDate).getTime();
+    const endMs = new Date(endDate).getTime();
+    const calcDays = Math.max(1, Math.ceil(Math.abs(endMs - startMs) / (1000 * 3600 * 24)) + 1);
+    const computedTotalDays = req.body.totalDays ? Number(req.body.totalDays) : calcDays;
+
     const project = await Project.create({
       projectName: projectName.trim(),
       client,
@@ -101,6 +106,8 @@ const createProject = async (req, res) => {
       budget: budget ? Number(budget) : undefined,
       startDate: new Date(startDate),
       endDate: new Date(endDate),
+      totalDays: computedTotalDays,
+      totalWorkingDays: computedTotalDays,
       billingParty: billingParty ? billingParty.trim() : undefined,
       productionManager,
       assignedTeam: Array.isArray(assignedTeam) ? assignedTeam : [],
@@ -341,6 +348,14 @@ const updateProject = async (req, res) => {
     if (budget !== undefined) project.budget = Number(budget);
     if (startDate !== undefined) project.startDate = new Date(startDate);
     if (endDate !== undefined) project.endDate = new Date(endDate);
+
+    if (project.startDate && project.endDate) {
+      const startMs = new Date(project.startDate).getTime();
+      const endMs = new Date(project.endDate).getTime();
+      const calcDays = Math.max(1, Math.ceil(Math.abs(endMs - startMs) / (1000 * 3600 * 24)) + 1);
+      project.totalDays = req.body.totalDays ? Number(req.body.totalDays) : calcDays;
+      project.totalWorkingDays = project.totalDays;
+    }
     if (billingParty !== undefined) project.billingParty = billingParty.trim();
 
     if (productionManager && mongoose.Types.ObjectId.isValid(productionManager)) {

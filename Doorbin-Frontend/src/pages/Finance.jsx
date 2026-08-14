@@ -30,9 +30,12 @@ import {
   Loader2
 } from 'lucide-react';
 import { useViewMode } from '../hooks/useViewMode';
+import { Pagination } from '../components/Pagination';
 import './Dashboard.css';
 
 export const Finance = () => {
+  const [financePage, setFinancePage] = useState(1);
+  const pageSize = 10;
   const [activeTab, setActiveTab] = useState('quotations'); // 'quotations' | 'invoices' | 'payments' | 'ageing'
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -91,6 +94,10 @@ export const Finance = () => {
   useEffect(() => {
     loadFinanceData();
   }, []);
+
+  useEffect(() => {
+    setFinancePage(1);
+  }, [activeTab, dateFilter, fromDate, toDate]);
 
   const loadFinanceData = async () => {
     setLoading(true);
@@ -290,6 +297,10 @@ export const Finance = () => {
   const filteredQuotations = safeQuotations.filter(q => filterByDate(q, 'quotationDate'));
   const filteredInvoices = safeInvoices.filter(i => filterByDate(i, 'issueDate'));
   const filteredPayments = safePayments.filter(p => filterByDate(p, 'paymentDate'));
+
+  const paginatedQuotations = filteredQuotations.slice((financePage - 1) * pageSize, financePage * pageSize);
+  const paginatedInvoices = filteredInvoices.slice((financePage - 1) * pageSize, financePage * pageSize);
+  const paginatedPayments = filteredPayments.slice((financePage - 1) * pageSize, financePage * pageSize);
 
   // Calculate metrics
   const totalInvoiced = filteredInvoices.reduce((sum, i) => sum + (i?.totalAmount || i?.amount || 0), 0);
@@ -653,7 +664,7 @@ export const Finance = () => {
       {activeTab === 'quotations' && (
         viewMode === 'card' ? (
           <div className="responsive-cards-grid">
-            {filteredQuotations.map(q => (
+            {paginatedQuotations.map(q => (
               <div key={q._id} className="responsive-card-item">
                 <div className="responsive-card-header">
                   <div>
@@ -719,7 +730,7 @@ export const Finance = () => {
                 </tr>
               </thead>
               <tbody>
-                {filteredQuotations.map(q => {
+                {paginatedQuotations.map(q => {
                   const qNum = q.quotationNumber || q.quotationNo || 'Q-001';
                   const clientName = q.client?.companyName || q.client?.clientName || q.clientName || 'N/A';
                   const projTitle = q.project?.projectName || q.projectTitle || q.projectCategory || 'General Project';
@@ -785,7 +796,7 @@ export const Finance = () => {
       {activeTab === 'invoices' && (
         viewMode === 'card' ? (
           <div className="responsive-cards-grid">
-            {filteredInvoices.map(inv => (
+            {paginatedInvoices.map(inv => (
               <div key={inv._id} className="responsive-card-item">
                 <div className="responsive-card-header">
                   <div>
@@ -853,7 +864,7 @@ export const Finance = () => {
                 </tr>
               </thead>
               <tbody>
-                {filteredInvoices.map(inv => {
+                {paginatedInvoices.map(inv => {
                   const invNum = inv.invoiceNumber || 'INV-001';
                   const clientName = inv.client?.companyName || inv.client?.clientName || 'N/A';
                   const milestone = inv.project?.projectName || inv.milestoneName || 'Milestone Services';
@@ -923,7 +934,7 @@ export const Finance = () => {
       {activeTab === 'payments' && (
         viewMode === 'card' ? (
           <div className="responsive-cards-grid">
-            {filteredPayments.map(p => (
+            {paginatedPayments.map(p => (
               <div key={p._id} className="responsive-card-item">
                 <div className="responsive-card-header">
                   <div>
@@ -977,7 +988,7 @@ export const Finance = () => {
                 </tr>
               </thead>
               <tbody>
-                {filteredPayments.map(p => {
+                {paginatedPayments.map(p => {
                   const rcpt = p.paymentNumber || p.receiptNumber || p._id?.slice(-6)?.toUpperCase() || 'RCT-001';
                   const invRef = p.invoice?.invoiceNumber || p.invoiceRef || p.invoiceNumber || 'N/A';
                   const clientName = p.client?.companyName || p.client?.clientName || 'N/A';
@@ -1021,6 +1032,15 @@ export const Finance = () => {
             </table>
           </div>
         )
+      )}
+
+      {activeTab !== 'ageing' && (
+        <Pagination
+          currentPage={financePage}
+          totalItems={activeTab === 'quotations' ? filteredQuotations.length : (activeTab === 'invoices' ? filteredInvoices.length : filteredPayments.length)}
+          pageSize={pageSize}
+          onPageChange={setFinancePage}
+        />
       )}
 
       {/* TAB CONTENT 4: RECEIVABLES AGEING ANALYSIS */}

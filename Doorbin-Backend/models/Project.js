@@ -10,6 +10,8 @@ const projectSchema = new mongoose.Schema({
   budget:          { type: Number, min: 0 },
   startDate:       { type: Date, required: true },
   endDate:         { type: Date, required: true },
+  totalDays:       { type: Number, default: 0, min: 0 },
+  totalWorkingDays:{ type: Number, default: 0, min: 0 },
   billingParty:    { type: String, trim: true },
 
   productionManager: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },

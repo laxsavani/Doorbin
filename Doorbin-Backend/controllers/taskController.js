@@ -177,6 +177,12 @@ const createTask = async (req, res) => {
     }
 
     const workingDays = await calculateWorkingDays(parsedStart, parsedEnd);
+    let calcTotalDays = 0;
+    if (parsedStart && parsedEnd) {
+      calcTotalDays = Math.max(1, Math.ceil(Math.abs(parsedEnd.getTime() - parsedStart.getTime()) / (1000 * 3600 * 24)) + 1);
+    }
+    const computedTotalDays = req.body.totalDays ? Number(req.body.totalDays) : calcTotalDays;
+
     const initialStatus = assignee ? 'Assigned' : 'Pending';
 
     const task = await Task.create({
@@ -191,6 +197,8 @@ const createTask = async (req, res) => {
       status: initialStatus,
       startDate: parsedStart,
       endDate: parsedEnd,
+      dueDate: parsedEnd,
+      totalDays: computedTotalDays,
       estimatedHours: estimatedHours ? Number(estimatedHours) : undefined,
       actualHours: 0,
       workingDays,
@@ -222,8 +230,14 @@ const createTask = async (req, res) => {
       metadata: { taskName: task.taskName, status: initialStatus }
     });
 
+    const populatedTask = await Task.findById(task._id)
+      .populate('project', 'projectName projectCategory')
+      .populate('stage', 'stageName')
+      .populate('assignee', 'name email role')
+      .populate('reviewer', 'name email role');
+
     delCache('dashboard');
-    return res.status(201).json(populatedTask);
+    return res.status(201).json(populatedTask || task);
   } catch (error) {
     return res.status(500).json({ message: error.message });
   }
@@ -506,6 +520,11 @@ const updateTask = async (req, res) => {
 
     if (datesChanged) {
       task.workingDays = await calculateWorkingDays(task.startDate, task.endDate);
+      if (task.startDate && task.endDate) {
+        const startMs = new Date(task.startDate).getTime();
+        const endMs = new Date(task.endDate).getTime();
+        task.totalDays = req.body.totalDays ? Number(req.body.totalDays) : Math.max(1, Math.ceil(Math.abs(endMs - startMs) / (1000 * 3600 * 24)) + 1);
+      }
     }
 
     if (estimatedHours !== undefined) {

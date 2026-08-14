@@ -34,6 +34,8 @@ const taskSchema = new mongoose.Schema({
 
   startDate: { type: Date },
   endDate:   { type: Date },
+  dueDate:   { type: Date },
+  totalDays: { type: Number, default: 0, min: 0 },
   estimatedHours: { type: Number, min: 0 },
   actualHours:    { type: Number, default: 0, min: 0 },
   workingDays:    { type: Number, default: 0, min: 0 },

@@ -1,324 +1,570 @@
-import React, { useState, useEffect } from 'react';
-import { timelineService } from '../services/timelineService';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { projectService } from '../services/projectService';
-import { Modal } from '../components/Modal';
-import { FormField } from '../components/FormField';
+import { userService } from '../services/userService';
 import { Toast } from '../components/Toast';
 import { Loader } from '../components/Loader';
 import { formatDate } from '../utils/dateUtils';
-import { Calendar, GitCommit, AlertTriangle, Layers, Clock, ArrowRight, RefreshCw, Edit3, ShieldCheck } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
 import './Dashboard.css';
+
+const PALETTES = [
+  { fill: '#c08470', bg: '#f5e6e0', border: '#d49a88' }, // Terracotta / Brown
+  { fill: '#74b9db', bg: '#e3f4fc', border: '#97cde6' }, // Sky Blue
+  { fill: '#73aa86', bg: '#e4f3e9', border: '#91be9f' }, // Sage Green
+  { fill: '#a38bc4', bg: '#f0ebf7', border: '#b9a4d4' }, // Purple
+  { fill: '#bfb8a9', bg: '#f7f4ee', border: '#d1cbbe' }  // Sand / Beige
+];
 
 export const TimelineGantt = () => {
   const [projects, setProjects] = useState([]);
-  const [selectedProjectId, setSelectedProjectId] = useState('');
-  const [timelineData, setTimelineData] = useState(null);
-  const [criticalPath, setCriticalPath] = useState(null);
-  const [plannedVsActual, setPlannedVsActual] = useState(null);
-
+  const [usersList, setUsersList] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [detailsLoading, setDetailsLoading] = useState(false);
-
-  // Reschedule Modal State
-  const [isRescheduleModalOpen, setIsRescheduleModalOpen] = useState(false);
-  const [rescheduleTask, setRescheduleTask] = useState(null);
-  const [rescheduleForm, setRescheduleForm] = useState({
-    startDate: '',
-    endDate: '',
-    cascade: true,
-    reason: 'Client design revision request'
-  });
-
   const [toast, setToast] = useState({ message: '', type: 'info' });
 
+  // Separate Scroll Container Refs for Independent Navigation
+  const ganttContainerRef = useRef(null);
+  const artistContainerRef = useRef(null);
+
   useEffect(() => {
-    fetchProjectsList();
+    fetchTimelineData();
   }, []);
 
-  useEffect(() => {
-    if (selectedProjectId) {
-      fetchProjectTimelineDetails(selectedProjectId);
-    }
-  }, [selectedProjectId]);
-
-  const fetchProjectsList = async () => {
+  const fetchTimelineData = async () => {
     setLoading(true);
     try {
-      const data = await projectService.getProjects();
-      const extracted = Array.isArray(data) ? data : (data?.projects || data?.data || []);
-      setProjects(extracted);
-      if (extracted.length > 0) {
-        setSelectedProjectId(extracted[0]._id);
-      }
+      const pData = await projectService.getProjects();
+      const uData = await userService.getUsers();
+
+      const extractedProjects = Array.isArray(pData) ? pData : (pData?.projects || pData?.data || []);
+      const extractedUsers = Array.isArray(uData) ? uData : (uData?.users || uData?.data || []);
+
+      setProjects(extractedProjects);
+      setUsersList(extractedUsers);
     } catch (err) {
-      setToast({ message: err.message || 'Failed to fetch projects list', type: 'error' });
+      setToast({ message: err.message || 'Failed to load timeline data', type: 'error' });
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchProjectTimelineDetails = async (projId) => {
-    setDetailsLoading(true);
-    try {
-      const tData = await timelineService.getProjectTimeline(projId);
-      const cpData = await timelineService.getCriticalPath(projId);
-      const pvaData = await timelineService.getPlannedVsActual(projId);
+  // DYNAMIC TIMELINE COMPUTATIONS (Derived 100% dynamically from Database Projects)
+  const timelineMeta = useMemo(() => {
+    const now = new Date();
+    let minDate = new Date();
+    let maxDate = new Date(Date.now() + 86400000 * 84); // Default 12 weeks ahead
 
-      setTimelineData(tData);
-      setCriticalPath(cpData);
-      setPlannedVsActual(pvaData);
-    } catch (err) {
-      setToast({ message: err.message || 'Failed to assemble timeline tree', type: 'error' });
-    } finally {
-      setDetailsLoading(false);
+    const validStarts = projects.map(p => p.startDate ? new Date(p.startDate) : null).filter(Boolean);
+    const validEnds = projects.map(p => p.endDate ? new Date(p.endDate) : null).filter(Boolean);
+
+    if (validStarts.length > 0) {
+      const earliest = new Date(Math.min(...validStarts.map(d => d.getTime())));
+      if (!isNaN(earliest.getTime())) minDate = earliest;
+    }
+
+    if (validEnds.length > 0) {
+      const latest = new Date(Math.max(...validEnds.map(d => d.getTime())));
+      if (!isNaN(latest.getTime())) maxDate = latest;
+    }
+
+    // Align minDate to preceding Monday
+    const startDay = minDate.getDay();
+    const diffToMonday = (startDay === 0 ? -6 : 1) - startDay;
+    minDate.setDate(minDate.getDate() + diffToMonday);
+
+    // Calculate total weeks dynamically (minimum 12 weeks)
+    const spanMs = maxDate.getTime() - minDate.getTime();
+    const calculatedWeeks = Math.max(12, Math.ceil(spanMs / (7 * 86400000)));
+
+    const columns = [];
+    let currentWeekIndex = 0;
+
+    for (let i = 0; i < calculatedWeeks; i++) {
+      const wStart = new Date(minDate);
+      wStart.setDate(minDate.getDate() + i * 7);
+
+      const wEnd = new Date(wStart);
+      wEnd.setDate(wStart.getDate() + 6);
+
+      const monthLabel = wStart.toLocaleDateString('en-US', { month: 'short' }).toUpperCase();
+      const dayLabel = wStart.getDate();
+      const isCurrent = now >= wStart && now <= wEnd;
+      if (isCurrent) currentWeekIndex = i;
+
+      columns.push({
+        label: `${monthLabel} ${dayLabel}`,
+        start: wStart,
+        end: wEnd,
+        isCurrent,
+        weekIndex: i
+      });
+    }
+
+    const startMs = columns[0].start.getTime();
+    const endMs = columns[columns.length - 1].end.getTime();
+    const totalSpanMs = Math.max(86400000, endMs - startMs);
+
+    const rangeText = `${columns[0].label} — ${columns[columns.length - 1].label} · ${columns.length} WEEKS`;
+
+    return {
+      columns,
+      startMs,
+      endMs,
+      totalSpanMs,
+      rangeText,
+      currentWeekIndex
+    };
+  }, [projects]);
+
+  // INDEPENDENT SCROLL HANDLERS
+
+  // 1. Independent Scroll for Project Gantt Chart
+  const handleGanttScrollBtn = (direction) => {
+    if (!ganttContainerRef.current) return;
+    if (direction === 'today') {
+      const scrollPos = Math.max(0, (timelineMeta.currentWeekIndex / timelineMeta.columns.length) * 960 - 200);
+      ganttContainerRef.current.scrollTo({ left: scrollPos, behavior: 'smooth' });
+    } else {
+      const amount = direction === 'left' ? -320 : 320;
+      ganttContainerRef.current.scrollBy({ left: amount, behavior: 'smooth' });
     }
   };
 
-  const handleOpenReschedule = (task) => {
-    setRescheduleTask(task);
-    setRescheduleForm({
-      startDate: task.startDate || new Date().toISOString().split('T')[0],
-      endDate: task.endDate || new Date(Date.now() + 86400000 * 7).toISOString().split('T')[0],
-      cascade: true,
-      reason: 'Client design revision request'
+  // 2. Independent Scroll for Artist Availability Heatmap
+  const handleArtistScrollBtn = (direction) => {
+    if (!artistContainerRef.current) return;
+    if (direction === 'today') {
+      const scrollPos = Math.max(0, (timelineMeta.currentWeekIndex / timelineMeta.columns.length) * 960 - 200);
+      artistContainerRef.current.scrollTo({ left: scrollPos, behavior: 'smooth' });
+    } else {
+      const amount = direction === 'left' ? -320 : 320;
+      artistContainerRef.current.scrollBy({ left: amount, behavior: 'smooth' });
+    }
+  };
+
+  // Dynamic Insight Summary Generator
+  const capacityInsight = useMemo(() => {
+    if (usersList.length === 0) return 'Studio capacity dynamically synced with active projects.';
+
+    const freeArtists = usersList.filter(u => {
+      const uId = u._id.toString();
+      const activeProjs = projects.filter(p => {
+        if (p.status === 'Completed' || p.status === 'Cancelled') return false;
+        const team = (p.assignedTeam || []).map(m => (typeof m === 'object' ? m._id?.toString() : m?.toString()));
+        return team.includes(uId);
+      });
+      return activeProjs.length === 0;
     });
-    setIsRescheduleModalOpen(true);
-  };
 
-  const handleRescheduleSubmit = async (e) => {
-    e.preventDefault();
-    if (!rescheduleTask) return;
-
-    try {
-      await timelineService.rescheduleTask(rescheduleTask._id, rescheduleForm);
-      setToast({ message: 'Task rescheduled and downstream dependencies shifted!', type: 'success' });
-      setIsRescheduleModalOpen(false);
-
-      if (selectedProjectId) {
-        fetchProjectTimelineDetails(selectedProjectId);
-      }
-    } catch (err) {
-      setToast({ message: err.message || 'Failed to reschedule task', type: 'error' });
+    if (freeArtists.length > 0) {
+      const names = freeArtists.map(u => u.name).slice(0, 3).join(', ');
+      return `Earliest openings for new work: ${names} (Currently Available). ${projects.length} live project schedule(s) tracked dynamically.`;
     }
-  };
+
+    return `Full studio capacity active across ${projects.length} live project schedule(s). Team utilization dynamically synced with database.`;
+  }, [projects, usersList]);
 
   return (
-    <div className="dashboard-main-container smooth-fade-in">
+    <div className="dashboard-main-container smooth-fade-in" style={{ paddingBottom: '3rem' }}>
       <Toast message={toast.message} type={toast.type} onClose={() => setToast({ message: '', type: 'info' })} />
 
-      {/* Hero Header */}
-      <div className="page-header-responsive">
-        <div className="page-header-title-block">
-          <h1 className="hero-serif-title">Gantt Chart & Critical Path</h1>
-          <p className="hero-sub-summary">Interactive project timelines, CPM topological paths and planned vs actual variances</p>
-        </div>
+      {/* Main Header Bar */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.75rem' }}>
+        <h1 style={{ fontFamily: 'serif', fontStyle: 'italic', fontSize: '2.25rem', fontWeight: 400, color: '#1F1F1F', margin: 0 }}>
+          Timeline
+        </h1>
 
-        {/* Project Selector */}
-        <div className="page-header-actions" style={{ width: '100%', maxWidth: '320px' }}>
-          <select
-            value={selectedProjectId}
-            onChange={(e) => setSelectedProjectId(e.target.value)}
-            style={{ width: '100%', padding: '0.6rem 1.15rem', borderRadius: '12px', border: '1px solid #dcd8cf', fontSize: '0.85rem', fontWeight: 500, backgroundColor: '#ffffff', cursor: 'pointer' }}
-          >
-            {projects.map(p => <option key={p._id} value={p._id}>{p.projectName}</option>)}
-          </select>
+        <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#8c8882', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+          {timelineMeta.rangeText}
         </div>
       </div>
 
-      {loading || detailsLoading ? (
-        <Loader text="Assembling Gantt chart tree & calculating critical path..." />
+      {loading ? (
+        <Loader text="Generating Gantt chart timeline matrix & team availability heatmap..." />
       ) : (
-        <>
-          {/* Metrics Summary Row */}
-          {plannedVsActual && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
-              <div className="project-card">
-                <span className="project-category-text">PLANNED DURATION</span>
-                <div className="project-card-title" style={{ fontSize: '1.65rem', marginTop: '0.35rem' }}>
-                  {plannedVsActual.plannedDays || 60} Working Days
-                </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '2.25rem' }}>
+          
+          {/* SECTION 1: DYNAMIC PROJECT TIMELINE GANTT CHART (INDEPENDENT SCROLL) */}
+          <div style={{ backgroundColor: '#ffffff', borderRadius: '14px', border: '1px solid #e8e4dc', overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
+            {/* Section Header Controls */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem 1.25rem', borderBottom: '1px solid #efeae1', backgroundColor: '#faf9f6', flexWrap: 'wrap', gap: '0.5rem' }}>
+              <div style={{ fontWeight: 800, fontSize: '1rem', color: '#1F1F1F' }}>
+                Project Timelines ({projects.length})
               </div>
 
-              <div className="project-card">
-                <span className="project-category-text">ACTUAL EXECUTION</span>
-                <div className="project-card-title" style={{ fontSize: '1.65rem', marginTop: '0.35rem' }}>
-                  {plannedVsActual.actualDays || 64} Working Days
-                </div>
-              </div>
-
-              <div className="project-card">
-                <span className="project-category-text">SCHEDULE VARIANCE</span>
-                <div className="project-card-title" style={{ fontSize: '1.65rem', marginTop: '0.35rem', color: (plannedVsActual.varianceDays || 0) > 0 ? '#dc2626' : '#15803d' }}>
-                  +{(plannedVsActual.varianceDays || 4)} Days ({plannedVsActual.variancePercentage || 6.6}%)
-                </div>
+              {/* Dedicated Project Gantt Scroll Controls */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <button
+                  onClick={() => handleGanttScrollBtn('left')}
+                  className="btn btn-secondary"
+                  style={{ padding: '0.35rem 0.65rem', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '0.25rem', cursor: 'pointer' }}
+                  title="Scroll project chart left"
+                >
+                  <ChevronLeft size={14} /> Left
+                </button>
+                <button
+                  onClick={() => handleGanttScrollBtn('today')}
+                  className="btn btn-secondary"
+                  style={{ padding: '0.35rem 0.65rem', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 700, color: '#d9534f', borderColor: '#fca5a5', cursor: 'pointer' }}
+                  title="Jump to current week"
+                >
+                  Today
+                </button>
+                <button
+                  onClick={() => handleGanttScrollBtn('right')}
+                  className="btn btn-secondary"
+                  style={{ padding: '0.35rem 0.65rem', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '0.25rem', cursor: 'pointer' }}
+                  title="Scroll project chart right"
+                >
+                  Right <ChevronRight size={14} />
+                </button>
               </div>
             </div>
-          )}
 
-          {/* Critical Path Method (CPM) Banner */}
-          {criticalPath && (
-            <div className="team-widget-card" style={{ padding: '1.25rem', marginBottom: '1.5rem', borderLeft: '4px solid #B68D40', backgroundColor: '#ffffff' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', marginBottom: '0.85rem' }}>
-                <GitCommit size={20} color="#B68D40" />
-                <span style={{ fontSize: '1.05rem', fontWeight: 800, color: '#1F1F1F' }}>
-                  Critical Path Sequence ({criticalPath.totalWorkingDays || 62} Working Days Total)
-                </span>
-              </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.5rem' }}>
-                {criticalPath.criticalPathSequence && criticalPath.criticalPathSequence.map((seq, idx) => (
-                  <React.Fragment key={idx}>
-                    <span style={{ backgroundColor: '#fbf7f0', border: '1px solid #e9e0d1', padding: '0.35rem 0.75rem', borderRadius: '8px', fontSize: '0.78rem', fontWeight: 700, color: '#1F1F1F' }}>
-                      {seq}
-                    </span>
-                    {idx < criticalPath.criticalPathSequence.length - 1 && <ArrowRight size={14} color="#8c8882" />}
-                  </React.Fragment>
-                ))}
-              </div>
-            </div>
-          )}
+            {/* Independent Scroll Container */}
+            <div
+              ref={ganttContainerRef}
+              style={{ overflowX: 'auto', width: '100%', WebkitOverflowScrolling: 'touch', scrollBehavior: 'smooth' }}
+            >
+              <div style={{ minWidth: `${Math.max(960, timelineMeta.columns.length * 80)}px`, position: 'relative' }}>
+                
+                {/* Red Current Date Vertical Line */}
+                {timelineMeta.currentWeekIndex >= 0 && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      left: `calc(220px + ((100% - 220px) * (${timelineMeta.currentWeekIndex + 0.5} / ${timelineMeta.columns.length})))`,
+                      top: 0,
+                      bottom: 0,
+                      width: '2px',
+                      backgroundColor: '#d9534f',
+                      zIndex: 8,
+                      pointerEvents: 'none'
+                    }}
+                  />
+                )}
 
-          {/* Interactive Gantt Chart Matrix */}
-          {timelineData && (
-            <div className="team-widget-card" style={{ padding: '1.5rem', backgroundColor: '#ffffff' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
-                <div style={{ fontWeight: 800, fontSize: '1.2rem', color: '#1F1F1F' }}>
-                  {timelineData.projectName || 'Project Timeline Breakdown'}
-                </div>
-                <span style={{ fontSize: '0.8rem', color: '#78746d', fontWeight: 600 }}>
-                  Timeline Range: {formatDate(timelineData.startDate)} — {formatDate(timelineData.endDate)}
-                </span>
-              </div>
+                {/* Grid Header Row */}
+                <div style={{ display: 'flex', borderBottom: '1px solid #efeae1', backgroundColor: '#faf9f6' }}>
+                  <div
+                    style={{
+                      width: '220px',
+                      padding: '0.85rem 1.25rem',
+                      fontWeight: 700,
+                      fontSize: '0.8rem',
+                      color: '#8c8882',
+                      textTransform: 'uppercase',
+                      position: 'sticky',
+                      left: 0,
+                      backgroundColor: '#faf9f6',
+                      zIndex: 10,
+                      borderRight: '1px solid #efeae1'
+                    }}
+                  >
+                    Projects
+                  </div>
 
-              {/* Timeline Stages & Tasks List */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                {timelineData.stages && timelineData.stages.map((stg, stgIdx) => (
-                  <div key={stg._id || stg.stageName || `stg_${stgIdx}`} style={{ border: '1px solid #eeeae3', borderRadius: '14px', padding: '1.15rem', backgroundColor: '#faf9f6' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.85rem' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                        <span style={{ fontWeight: 800, fontSize: '1rem', color: '#1F1F1F' }}>
-                          {stg.stageName}
-                        </span>
-                        <span style={{ fontSize: '0.78rem', color: '#8c8882' }}>
-                          ({formatDate(stg.startDate)} — {formatDate(stg.endDate)})
-                        </span>
+                  <div style={{ flex: 1, display: 'grid', gridTemplateColumns: `repeat(${timelineMeta.columns.length}, 1fr)` }}>
+                    {timelineMeta.columns.map((w, idx) => (
+                      <div
+                        key={w.label + idx}
+                        style={{
+                          padding: '0.85rem 0.5rem',
+                          textAlign: 'center',
+                          fontSize: '0.7rem',
+                          fontWeight: w.isCurrent ? 800 : 700,
+                          color: w.isCurrent ? '#d9534f' : '#8c8882',
+                          letterSpacing: '0.04em',
+                          borderRight: idx < timelineMeta.columns.length - 1 ? '1px solid #efeae1' : 'none'
+                        }}
+                      >
+                        {w.label}
                       </div>
+                    ))}
+                  </div>
+                </div>
 
-                      {stg.milestone && (
-                        <span className="task-status-blue" style={{ fontSize: '0.68rem', textTransform: 'uppercase' }}>
-                          Milestone Stage
-                        </span>
-                      )}
-                    </div>
+                {/* Dynamic Project Gantt Rows */}
+                {projects.length === 0 ? (
+                  <div style={{ padding: '2rem', textAlign: 'center', color: '#8c8882', fontStyle: 'italic' }}>
+                    No active projects scheduled for timeline preview.
+                  </div>
+                ) : (
+                  projects.map((proj, pIdx) => {
+                    const pmName = typeof proj.productionManager === 'object'
+                      ? (proj.productionManager?.name || 'PM Lead')
+                      : (proj.productionManager || 'PM Lead');
+                    
+                    const palette = PALETTES[pIdx % PALETTES.length];
+                    const pStart = proj.startDate ? new Date(proj.startDate).getTime() : timelineMeta.startMs;
+                    const pEnd = proj.endDate ? new Date(proj.endDate).getTime() : (pStart + 86400000 * 30);
+                    const progress = Number(proj.progressPercentage || 0);
 
-                    {/* Child Task Progress Bars */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                      {stg.tasks && stg.tasks.map((task, tskIdx) => {
-                        const assigneeStr = typeof task.assignee === 'object'
-                          ? (task.assignee?.name || task.assignee?.email || 'Artist')
-                          : (task.assignee || 'Artist');
+                    // Position Math derived 100% dynamically from Database Dates
+                    const clampedStart = Math.max(timelineMeta.startMs, Math.min(timelineMeta.endMs, pStart));
+                    const clampedEnd = Math.max(clampedStart + 86400000 * 3, Math.min(timelineMeta.endMs, pEnd));
+                    
+                    const leftPct = Math.max(0, Math.min(95, ((clampedStart - timelineMeta.startMs) / timelineMeta.totalSpanMs) * 100));
+                    const widthPct = Math.max(4, Math.min(100 - leftPct, ((clampedEnd - clampedStart) / timelineMeta.totalSpanMs) * 100));
 
-                        return (
-                          <div key={task._id || `tsk_${tskIdx}`} style={{ backgroundColor: '#ffffff', border: '1px solid #e9e5dc', borderRadius: '10px', padding: '0.75rem 1rem' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.45rem' }}>
-                              <div>
-                                <span style={{ fontSize: '0.875rem', fontWeight: 700, color: '#1F1F1F' }}>{task.name}</span>
-                                {task.assignee && (
-                                  <span style={{ fontSize: '0.75rem', color: '#8c8882', marginLeft: '0.5rem' }}>
-                                    · Assignee: {assigneeStr}
-                                  </span>
-                                )}
-                              </div>
+                    return (
+                      <div
+                        key={proj._id}
+                        style={{
+                          display: 'flex',
+                          borderBottom: '1px solid #f4f0e8',
+                          minHeight: '68px',
+                          alignItems: 'center',
+                          backgroundColor: '#ffffff'
+                        }}
+                      >
+                        {/* Left Project Title & Lead */}
+                        <div
+                          style={{
+                            width: '220px',
+                            padding: '0.85rem 1.25rem',
+                            position: 'sticky',
+                            left: 0,
+                            backgroundColor: '#ffffff',
+                            zIndex: 9,
+                            borderRight: '1px solid #efeae1',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            justifyContent: 'center'
+                          }}
+                        >
+                          <div style={{ fontWeight: 700, fontSize: '0.85rem', color: '#1F1F1F', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {proj.projectName}
+                          </div>
+                          <div style={{ fontSize: '0.725rem', color: '#8c8882', marginTop: '0.15rem' }}>
+                            {pmName}
+                          </div>
+                        </div>
 
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                                <span style={{ fontSize: '0.78rem', fontWeight: 800, color: task.progress === 100 ? '#15803d' : '#B68D40' }}>
-                                  {task.progress}%
-                                </span>
+                        {/* Right Gantt Bar Cell */}
+                        <div style={{ flex: 1, position: 'relative', height: '100%', display: 'flex', alignItems: 'center', padding: '0 0.5rem' }}>
+                          {/* Background Grid Columns Lines */}
+                          <div style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, display: 'grid', gridTemplateColumns: `repeat(${timelineMeta.columns.length}, 1fr)`, pointerEvents: 'none' }}>
+                            {timelineMeta.columns.map((w, idx) => (
+                              <div key={idx} style={{ borderRight: idx < timelineMeta.columns.length - 1 ? '1px solid #f7f3eb' : 'none' }} />
+                            ))}
+                          </div>
 
-                                <button
-                                  onClick={() => handleOpenReschedule(task)}
-                                  className="btn btn-secondary"
-                                  style={{ fontSize: '0.7rem', padding: '0.25rem 0.55rem' }}
-                                  title="Reschedule task & cascade dependencies"
-                                >
-                                  <Edit3 size={12} /> Reschedule
-                                </button>
-                              </div>
+                          {/* Dynamic Gantt Bar */}
+                          <div
+                            style={{
+                              position: 'relative',
+                              left: `${leftPct}%`,
+                              width: `${widthPct}%`,
+                              height: '32px',
+                              borderRadius: '16px',
+                              backgroundColor: palette.bg,
+                              border: `1px solid ${palette.border}`,
+                              overflow: 'hidden',
+                              display: 'flex',
+                              boxShadow: '0 1px 3px rgba(0,0,0,0.03)'
+                            }}
+                            title={`${proj.projectName}: ${progress}% completed (${proj.startDate ? formatDate(proj.startDate) : 'Start'} — ${proj.endDate ? formatDate(proj.endDate) : 'End'})`}
+                          >
+                            {/* Solid Fill Progress Section */}
+                            <div
+                              style={{
+                                width: `${progress}%`,
+                                height: '100%',
+                                backgroundColor: palette.fill,
+                                borderRadius: progress >= 95 ? '16px' : '16px 0 0 16px',
+                                transition: 'width 0.4s ease'
+                              }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* SECTION 2: DYNAMIC ARTIST AVAILABILITY TIMELINE HEATMAP (INDEPENDENT SCROLL) */}
+          <div style={{ backgroundColor: '#ffffff', borderRadius: '14px', border: '1px solid #e8e4dc', overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
+            {/* Section Header Controls */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem 1.25rem', borderBottom: '1px solid #efeae1', backgroundColor: '#faf9f6', flexWrap: 'wrap', gap: '0.5rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+                <h2 style={{ fontSize: '1rem', fontWeight: 800, color: '#1F1F1F', margin: 0 }}>
+                  Artist availability
+                </h2>
+                <div style={{ fontSize: '0.75rem', color: '#8c8882', fontWeight: 600, display: 'flex', gap: '0.85rem', alignItems: 'center' }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <span style={{ width: '10px', height: '10px', borderRadius: '3px', backgroundColor: '#d4967d' }} /> booked
+                  </span>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <span style={{ width: '10px', height: '10px', borderRadius: '3px', backgroundColor: '#eedebc' }} /> partial
+                  </span>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <span style={{ width: '10px', height: '10px', borderRadius: '3px', backgroundColor: '#ffffff', border: '1px solid #dcd8cf' }} /> free
+                  </span>
+                </div>
+              </div>
+
+              {/* Dedicated Artist Availability Scroll Controls */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <button
+                  onClick={() => handleArtistScrollBtn('left')}
+                  className="btn btn-secondary"
+                  style={{ padding: '0.35rem 0.65rem', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '0.25rem', cursor: 'pointer' }}
+                  title="Scroll artist availability left"
+                >
+                  <ChevronLeft size={14} /> Left
+                </button>
+                <button
+                  onClick={() => handleArtistScrollBtn('today')}
+                  className="btn btn-secondary"
+                  style={{ padding: '0.35rem 0.65rem', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 700, color: '#d9534f', borderColor: '#fca5a5', cursor: 'pointer' }}
+                  title="Jump to current week"
+                >
+                  Today
+                </button>
+                <button
+                  onClick={() => handleArtistScrollBtn('right')}
+                  className="btn btn-secondary"
+                  style={{ padding: '0.35rem 0.65rem', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '0.25rem', cursor: 'pointer' }}
+                  title="Scroll artist availability right"
+                >
+                  Right <ChevronRight size={14} />
+                </button>
+              </div>
+            </div>
+
+            {/* Independent Scroll Container */}
+            <div
+              ref={artistContainerRef}
+              style={{ overflowX: 'auto', width: '100%', WebkitOverflowScrolling: 'touch', scrollBehavior: 'smooth' }}
+            >
+              <div style={{ minWidth: `${Math.max(960, timelineMeta.columns.length * 80)}px` }}>
+                
+                {/* Dynamic Artist Availability Rows */}
+                {usersList.length === 0 ? (
+                  <div style={{ padding: '2rem', textAlign: 'center', color: '#8c8882', fontStyle: 'italic' }}>
+                    No team members loaded.
+                  </div>
+                ) : (
+                  usersList.map((user) => {
+                    const uId = user._id.toString();
+                    const initials = user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+                    const roleTitle = typeof user.role === 'object' ? (user.role?.name || 'Team Member') : (user.role || 'Team Member');
+
+                    // Find assigned active projects for this user dynamically
+                    const userProjects = projects.filter(p => {
+                      if (p.status === 'Completed' || p.status === 'Cancelled') return false;
+                      const team = (p.assignedTeam || []).map(m => (typeof m === 'object' ? m._id?.toString() : m?.toString()));
+                      return team.includes(uId);
+                    });
+
+                    return (
+                      <div
+                        key={uId}
+                        style={{
+                          display: 'flex',
+                          borderBottom: '1px solid #f4f0e8',
+                          minHeight: '60px',
+                          alignItems: 'center',
+                          backgroundColor: '#ffffff'
+                        }}
+                      >
+                        {/* Left Artist Profile Column */}
+                        <div
+                          style={{
+                            width: '220px',
+                            padding: '0.75rem 1.25rem',
+                            position: 'sticky',
+                            left: 0,
+                            backgroundColor: '#ffffff',
+                            zIndex: 9,
+                            borderRight: '1px solid #efeae1',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.65rem'
+                          }}
+                        >
+                          <div style={{ width: '28px', height: '28px', borderRadius: '50%', backgroundColor: '#64748b', color: '#ffffff', fontSize: '0.68rem', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            {initials}
+                          </div>
+                          <div style={{ minWidth: '0' }}>
+                            <div style={{ fontWeight: 700, fontSize: '0.825rem', color: '#1F1F1F', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {user.name}
                             </div>
-
-                            {/* Gantt Bar Progress Track */}
-                            <div style={{ height: '8px', width: '100%', backgroundColor: '#eeeae3', borderRadius: '9999px', overflow: 'hidden' }}>
-                              <div
-                                style={{
-                                  height: '100%',
-                                  width: `${task.progress}%`,
-                                  backgroundColor: task.progress === 100 ? '#15803d' : '#B68D40',
-                                  transition: 'width 300ms ease'
-                                }}
-                              />
+                            <div style={{ fontSize: '0.7rem', color: '#8c8882', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {roleTitle} ({userProjects.length} active)
                             </div>
                           </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))}
+                        </div>
+
+                        {/* Right Dynamic Weekly Availability Heatmap Pills */}
+                        <div style={{ flex: 1, display: 'grid', gridTemplateColumns: `repeat(${timelineMeta.columns.length}, 1fr)`, gap: '0.35rem', padding: '0.5rem 0.65rem' }}>
+                          {timelineMeta.columns.map((w, wIdx) => {
+                            // Check if user is working on active project(s) during this specific week interval dynamically
+                            const activeInWeek = userProjects.filter(p => {
+                              const pStart = p.startDate ? new Date(p.startDate) : null;
+                              const pEnd = p.endDate ? new Date(p.endDate) : null;
+                              if (!pStart || !pEnd) return false;
+                              return (pStart <= w.end && pEnd >= w.start);
+                            });
+
+                            let blockStyle = {
+                              backgroundColor: '#ffffff',
+                              border: '1px solid #e2ddd3'
+                            };
+
+                            if (activeInWeek.length >= 2) {
+                              blockStyle = {
+                                backgroundColor: '#d4967d', // Fully Booked terracotta (2+ projects)
+                                border: '1px solid #c8876c'
+                              };
+                            } else if (activeInWeek.length === 1) {
+                              blockStyle = {
+                                backgroundColor: '#eedebc', // Partially Booked beige (1 project)
+                                border: '1px solid #e2cfaa'
+                              };
+                            }
+
+                            return (
+                              <div
+                                key={wIdx}
+                                style={{
+                                  height: '28px',
+                                  borderRadius: '6px',
+                                  ...blockStyle,
+                                  transition: 'all 0.2s ease'
+                                }}
+                                title={`${user.name} - ${w.label}: ${activeInWeek.length > 0 ? `Assigned to ${activeInWeek.map(p=>p.projectName).join(', ')}` : 'Available / Free'}`}
+                              />
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
               </div>
             </div>
-          )}
-        </>
-      )}
+          </div>
 
-      {/* Reschedule Task Modal */}
-      {rescheduleTask && (
-        <Modal
-          isOpen={isRescheduleModalOpen}
-          onClose={() => setIsRescheduleModalOpen(false)}
-          title={`Reschedule Task — ${rescheduleTask.name}`}
-          footer={
-            <>
-              <button className="btn btn-secondary" onClick={() => setIsRescheduleModalOpen(false)}>Cancel</button>
-              <button className="btn btn-primary" onClick={handleRescheduleSubmit}>Confirm Reschedule</button>
-            </>
-          }
-        >
-          <form onSubmit={handleRescheduleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <FormField
-              label="New Start Date"
-              name="startDate"
-              type="date"
-              value={rescheduleForm.startDate}
-              onChange={(e) => setRescheduleForm({ ...rescheduleForm, startDate: e.target.value })}
-              required
-            />
-            <FormField
-              label="New End Date"
-              name="endDate"
-              type="date"
-              value={rescheduleForm.endDate}
-              onChange={(e) => setRescheduleForm({ ...rescheduleForm, endDate: e.target.value })}
-              required
-            />
-            <FormField
-              label="Reschedule Reason"
-              name="reason"
-              placeholder="e.g. Client design revision request..."
-              value={rescheduleForm.reason}
-              onChange={(e) => setRescheduleForm({ ...rescheduleForm, reason: e.target.value })}
-            />
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.25rem' }}>
-              <input
-                type="checkbox"
-                id="cascadeCheck"
-                checked={rescheduleForm.cascade}
-                onChange={(e) => setRescheduleForm({ ...rescheduleForm, cascade: e.target.checked })}
-                style={{ width: '16px', height: '16px', cursor: 'pointer' }}
-              />
-              <label htmlFor="cascadeCheck" style={{ fontSize: '0.825rem', fontWeight: 600, color: '#1F1F1F', cursor: 'pointer' }}>
-                Cascade shift downstream dependent tasks automatically
-              </label>
-            </div>
-          </form>
-        </Modal>
+          {/* SECTION 3: DYNAMIC STUDIO CAPACITY INSIGHT CALLOUT BOX */}
+          <div
+            style={{
+              backgroundColor: '#fbf8f3',
+              border: '1px solid #ede7dc',
+              borderRadius: '12px',
+              padding: '1rem 1.25rem',
+              fontSize: '0.8rem',
+              color: '#6b665f',
+              lineHeight: 1.5
+            }}
+          >
+            {capacityInsight}
+          </div>
+
+        </div>
       )}
     </div>
   );

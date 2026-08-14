@@ -8,8 +8,9 @@ import { FormField } from '../components/FormField';
 import { Toast } from '../components/Toast';
 import { Loader } from '../components/Loader';
 import { validators, focusFirstErrorField } from '../utils/validation';
-import { Plus, Search, PhoneCall, TrendingUp, UserCheck, DollarSign, Calendar, MessageSquare, ArrowRight, ShieldCheck, Trash2, Briefcase, Tag, AlertTriangle, Award, Edit3, LayoutGrid, List, Loader2 } from 'lucide-react';
+import { Plus, Search, PhoneCall, TrendingUp, UserCheck, DollarSign, Calendar, MessageSquare, ArrowRight, ShieldCheck, Trash2, Briefcase, Tag, AlertTriangle, Award, Edit3, LayoutGrid, List, Loader2, Clock, FileText, CheckCircle, XCircle } from 'lucide-react';
 import { useViewMode } from '../hooks/useViewMode';
+import { Pagination } from '../components/Pagination';
 import './Dashboard.css';
 
 const PROJECT_TYPES = ['Architecture', 'Interior Design', 'Animation'];
@@ -29,6 +30,8 @@ const getTempDetails = (val) => {
 };
 
 export const Enquiries = () => {
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10;
   const navigate = useNavigate();
   const location = useLocation();
   const currentUser = authService.getCurrentUser();
@@ -370,6 +373,12 @@ export const Enquiries = () => {
     return matchesSearch && matchesStage && matchesBDE;
   });
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, selectedStageFilter, selectedBDEFilter]);
+
+  const paginatedEnquiries = filteredEnquiries.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
   return (
     <div className="dashboard-main-container smooth-fade-in">
       <Toast message={toast.message} type={toast.type} onClose={() => setToast({ message: '', type: 'info' })} />
@@ -417,42 +426,91 @@ export const Enquiries = () => {
       ) : (
         <>
           {/* Summary Pipeline Cards */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
-            <div className="project-card">
+          {/* Top 7 Stat KPI Cards */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.75rem', marginBottom: '1.5rem' }}>
+            {/* 1. TOTAL ENQUIRIES */}
+            <div className="project-card" style={{ padding: '0.85rem 1rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span className="project-category-text">TOTAL ENQUIRIES</span>
-                <Briefcase size={18} color="#B68D40" />
+                <span className="project-category-text" style={{ fontSize: '0.68rem' }}>TOTAL ENQUIRIES</span>
+                <Briefcase size={15} color="#B68D40" />
               </div>
-              <div className="project-card-title" style={{ fontSize: '1.65rem', marginTop: '0.35rem' }}>
-                {enquiries.length} Active Leads
+              <div className="project-card-title" style={{ fontSize: '1.4rem', marginTop: '0.25rem' }}>
+                {enquiries.length}
               </div>
             </div>
 
-            <div className="project-card">
+            {/* 2. TOTAL NEW */}
+            <div className="project-card" style={{ padding: '0.85rem 1rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span className="project-category-text">PIPELINE VALUE</span>
-                <DollarSign size={18} color="#2b7a3d" />
+                <span className="project-category-text" style={{ fontSize: '0.68rem' }}>TOTAL NEW</span>
+                <Clock size={15} color="#0284c7" />
               </div>
-              <div className="project-card-title" style={{ fontSize: '1.65rem', marginTop: '0.35rem' }}>
-                ₹{(enquiries.reduce((acc, curr) => acc + (Number(curr.estimatedValue) || 0), 0) / 100000).toFixed(2)} Lakhs
+              <div className="project-card-title" style={{ fontSize: '1.4rem', marginTop: '0.25rem', color: '#0284c7' }}>
+                {enquiries.filter(e => e.status === 'New Enquiry').length}
               </div>
             </div>
 
-            <div className="project-card">
+            {/* 3. TOTAL PROPOSAL */}
+            <div className="project-card" style={{ padding: '0.85rem 1rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span className="project-category-text">WIN CONVERSION</span>
-                <Award size={18} color="#7a42c9" />
+                <span className="project-category-text" style={{ fontSize: '0.68rem' }}>TOTAL PROPOSAL</span>
+                <FileText size={15} color="#8b5cf6" />
               </div>
-              <div className="project-card-title" style={{ fontSize: '1.65rem', marginTop: '0.35rem' }}>
+              <div className="project-card-title" style={{ fontSize: '1.4rem', marginTop: '0.25rem', color: '#8b5cf6' }}>
+                {enquiries.filter(e => e.status === 'Proposal').length}
+              </div>
+            </div>
+
+            {/* 4. TOTAL NEGOTIATION */}
+            <div className="project-card" style={{ padding: '0.85rem 1rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span className="project-category-text" style={{ fontSize: '0.68rem' }}>TOTAL NEGOTIATION</span>
+                <TrendingUp size={15} color="#d97706" />
+              </div>
+              <div className="project-card-title" style={{ fontSize: '1.4rem', marginTop: '0.25rem', color: '#d97706' }}>
+                {enquiries.filter(e => e.status === 'Negotiation').length}
+              </div>
+            </div>
+
+            {/* 5. TOTAL WON */}
+            <div className="project-card" style={{ padding: '0.85rem 1rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span className="project-category-text" style={{ fontSize: '0.68rem' }}>TOTAL WON</span>
+                <CheckCircle size={15} color="#16a34a" />
+              </div>
+              <div className="project-card-title" style={{ fontSize: '1.4rem', marginTop: '0.25rem', color: '#16a34a' }}>
+                {enquiries.filter(e => e.status === 'Won' || e.status === 'Project Creation').length}
+              </div>
+            </div>
+
+            {/* 6. TOTAL LOST */}
+            <div className="project-card" style={{ padding: '0.85rem 1rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span className="project-category-text" style={{ fontSize: '0.68rem' }}>TOTAL LOST</span>
+                <XCircle size={15} color="#dc2626" />
+              </div>
+              <div className="project-card-title" style={{ fontSize: '1.4rem', marginTop: '0.25rem', color: '#dc2626' }}>
+                {enquiries.filter(e => e.status === 'Lost').length}
+              </div>
+            </div>
+
+            {/* 7. WIN CONVERSION */}
+            <div className="project-card" style={{ padding: '0.85rem 1rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span className="project-category-text" style={{ fontSize: '0.68rem' }}>WIN CONVERSION</span>
+                <Award size={15} color="#7a42c9" />
+              </div>
+              <div className="project-card-title" style={{ fontSize: '1.4rem', marginTop: '0.25rem', color: '#7a42c9' }}>
                 {enquiries.length > 0
                   ? Math.round((enquiries.filter(e => e.status === 'Won' || e.status === 'Project Creation').length / enquiries.length) * 100)
-                  : 0}% Rate
+                  : 0}%
               </div>
             </div>
           </div>
 
-          {/* Search & Stage Filter Bar */}
+          {/* Search & Filter Bar */}
           <div style={{ marginBottom: '1.5rem', display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'center', justifyContent: 'space-between' }}>
+            {/* Search Input */}
             <div style={{ position: 'relative', flex: 1, minWidth: '260px', maxWidth: '380px' }}>
               <Search size={16} color="#8c8882" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
               <input
@@ -465,68 +523,60 @@ export const Enquiries = () => {
               />
             </div>
 
-            {/* Desktop Stage Filter Pills */}
-            <div className="desktop-tabs-container" style={{ alignItems: 'center' }}>
-              <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#8c8882' }}>STAGE:</span>
-              <button
-                onClick={() => setSelectedStageFilter('All')}
-                style={{
-                  padding: '0.35rem 0.75rem',
-                  borderRadius: '9999px',
-                  border: '1px solid #dcd8cf',
-                  fontSize: '0.75rem',
-                  fontWeight: 600,
-                  backgroundColor: selectedStageFilter === 'All' ? '#1F1F1F' : '#ffffff',
-                  color: selectedStageFilter === 'All' ? '#ffffff' : '#78746d',
-                  cursor: 'pointer'
-                }}
-              >
-                All ({enquiries.length})
-              </button>
-              {STAGES.map((stg) => {
-                const cnt = enquiries.filter(e => e.status === stg).length;
-                return (
-                  <button
-                    key={stg}
-                    onClick={() => setSelectedStageFilter(stg)}
-                    style={{
-                      padding: '0.35rem 0.75rem',
-                      borderRadius: '9999px',
-                      border: '1px solid #dcd8cf',
-                      fontSize: '0.75rem',
-                      fontWeight: 600,
-                      backgroundColor: selectedStageFilter === stg ? '#B68D40' : '#ffffff',
-                      color: selectedStageFilter === stg ? '#ffffff' : '#78746d',
-                      cursor: 'pointer',
-                      whiteSpace: 'nowrap'
-                    }}
-                  >
-                    {stg} ({cnt})
-                  </button>
-                );
-              })}
-            </div>
+            {/* Right Side Dropdowns Container (STAGE + BDE side-by-side) */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+              {/* Stage Filter Dropdown */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#8c8882' }}>STAGE:</span>
+                <select
+                  value={selectedStageFilter}
+                  onChange={(e) => setSelectedStageFilter(e.target.value)}
+                  style={{
+                    padding: '0.35rem 0.65rem',
+                    borderRadius: '8px',
+                    border: '1px solid #dcd8cf',
+                    fontSize: '0.75rem',
+                    fontWeight: 600,
+                    backgroundColor: '#ffffff',
+                    color: '#1F1F1F',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <option value="All">All Stages ({enquiries.length})</option>
+                  {STAGES.map((stg) => {
+                    const cnt = enquiries.filter(e => e.status === stg).length;
+                    return (
+                      <option key={stg} value={stg}>
+                        {stg} ({cnt})
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
 
-            {/* Executive (BDE) Filter Dropdown */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#8c8882' }}>BDE:</span>
-              <select
-                value={selectedBDEFilter}
-                onChange={(e) => setSelectedBDEFilter(e.target.value)}
-                style={{
-                  padding: '0.35rem 0.65rem',
-                  borderRadius: '8px',
-                  border: '1px solid #dcd8cf',
-                  fontSize: '0.75rem',
-                  fontWeight: 600,
-                  backgroundColor: '#ffffff'
-                }}
-              >
-                <option value="All">All BDE Executives</option>
-                {executives.map(e => (
-                  <option key={e._id} value={e._id}>{e.name}</option>
-                ))}
-              </select>
+              {/* Executive (BDE) Filter Dropdown */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#8c8882' }}>BDE:</span>
+                <select
+                  value={selectedBDEFilter}
+                  onChange={(e) => setSelectedBDEFilter(e.target.value)}
+                  style={{
+                    padding: '0.35rem 0.65rem',
+                    borderRadius: '8px',
+                    border: '1px solid #dcd8cf',
+                    fontSize: '0.75rem',
+                    fontWeight: 600,
+                    backgroundColor: '#ffffff',
+                    color: '#1F1F1F',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <option value="All">All BDE Executives</option>
+                  {executives.map((ex) => (
+                    <option key={ex._id} value={ex._id}>{ex.name}</option>
+                  ))}
+                </select>
+              </div>
             </div>
           </div>
 
@@ -545,7 +595,7 @@ export const Enquiries = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredEnquiries.map((enq) => {
+                  {paginatedEnquiries.map((enq) => {
                     const execName = typeof enq.assignedExecutive === 'object'
                       ? (enq.assignedExecutive?.name || 'BD Executive')
                       : (executives.find(u => u._id === enq.assignedExecutive)?.name || 'BD Executive');
@@ -632,7 +682,7 @@ export const Enquiries = () => {
             </div>
           ) : viewMode === 'card' ? (
             <div className="responsive-cards-grid">
-              {filteredEnquiries.map((enq) => {
+              {paginatedEnquiries.map((enq) => {
                 const execName = typeof enq.assignedExecutive === 'object'
                   ? (enq.assignedExecutive?.name || 'BD Executive')
                   : (executives.find(u => u._id === enq.assignedExecutive)?.name || 'BD Executive');
@@ -907,6 +957,15 @@ export const Enquiries = () => {
                 );
               })}
             </div>
+          )}
+
+          {viewMode !== 'kanban' && (
+            <Pagination
+              currentPage={currentPage}
+              totalItems={filteredEnquiries.length}
+              pageSize={pageSize}
+              onPageChange={setCurrentPage}
+            />
           )}
         </>
       )}

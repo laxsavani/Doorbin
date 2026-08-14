@@ -1,15 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { timelineService } from '../services/timelineService';
 import { hrService } from '../services/hrService';
+import { projectService } from '../services/projectService';
 import { authService } from '../services/authService';
 import { Modal } from '../components/Modal';
 import { Toast } from '../components/Toast';
 import { Loader } from '../components/Loader';
-import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, Clock, Tag, User, MapPin, CheckCircle, Video, Flag } from 'lucide-react';
+import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, Clock, Tag, User, MapPin, CheckCircle, Video, Flag, AlertTriangle } from 'lucide-react';
 import './Dashboard.css';
 
 const DAYS_OF_WEEK = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-const EVENT_TYPES = ['All', 'Task', 'Milestone', 'Meeting', 'Followup', 'Leave', 'Holiday'];
+const EVENT_TYPES = ['All', 'Project Start', 'Project End', 'Reminder', 'Task', 'Milestone', 'Meeting', 'Leave', 'Holiday'];
 
 export const StudioCalendar = () => {
   const currentUser = authService.getCurrentUser();
@@ -39,7 +40,7 @@ export const StudioCalendar = () => {
     title: '',
     date: todayDateStr,
     type: 'Milestone',
-    project: 'Hillcrest Luxury Villa',
+    project: 'Studio Master Project',
     time: '10:30 AM',
     assignedTo: 'Arjun Mehta'
   });
@@ -88,10 +89,11 @@ export const StudioCalendar = () => {
     try {
       const dateStr = `${currentDate.getFullYear()}-${(currentDate.getMonth() + 1).toString().padStart(2, '0')}-${currentDate.getDate().toString().padStart(2, '0')}`;
 
-      const [data, holidayList, leaveList] = await Promise.all([
+      const [data, holidayList, leaveList, projectList] = await Promise.all([
         timelineService.getStudioCalendar({ view: viewMode, date: dateStr }).catch(() => null),
         hrService.getHolidays().catch(() => []),
-        hrService.getLeaveRequests().catch(() => [])
+        hrService.getLeaveRequests().catch(() => []),
+        projectService.getProjects().catch(() => [])
       ]);
 
       let fetched = [];
@@ -107,6 +109,7 @@ export const StudioCalendar = () => {
         date: formatEventDateStr(e.date || e.dateStr || e.startDate)
       }));
 
+      // 1. Holiday Calendar Events
       const holidayEvents = (holidayList || []).map(h => {
         const dStr = formatEventDateStr(h.date || h.dateStr);
         return {
@@ -122,7 +125,7 @@ export const StudioCalendar = () => {
         };
       });
 
-      // Expand leaves for every single day in the leave range
+      // 2. Expand leaves for every single day in the leave range
       const leaveEvents = [];
       (leaveList || []).forEach(l => {
         if (['Approved', 'Pending'].includes(l.status)) {
@@ -155,7 +158,82 @@ export const StudioCalendar = () => {
         }
       });
 
-      const combined = [...fetched, ...holidayEvents, ...leaveEvents];
+      // 3. Project Start, End & 2-Day Prior Reminder Events
+      const projectEvents = [];
+      const extractedProjects = Array.isArray(projectList) ? projectList : (projectList?.projects || projectList?.data || []);
+
+      extractedProjects.forEach(p => {
+        const pName = p.projectName || p.name || 'Project';
+        const pmName = typeof p.productionManager === 'object' ? (p.productionManager?.name || 'PM Lead') : (p.productionManager || 'PM Lead');
+
+        // Project Start Date Event
+        if (p.startDate) {
+          const sDateStr = formatEventDateStr(p.startDate);
+          projectEvents.push({
+            id: `proj_start_${p._id}`,
+            title: `🚀 Project Start: ${pName}`,
+            date: sDateStr,
+            dateStr: sDateStr,
+            type: 'Project Start',
+            project: pName,
+            time: 'Kickoff',
+            assignedTo: pmName
+          });
+
+          // 2-Day Prior Start Reminder Event
+          const sDateObj = parseLocalDateStr(p.startDate);
+          if (sDateObj) {
+            const remDate = new Date(sDateObj);
+            remDate.setDate(remDate.getDate() - 2);
+            const remDateStr = `${remDate.getFullYear()}-${String(remDate.getMonth() + 1).padStart(2, '0')}-${String(remDate.getDate()).padStart(2, '0')}`;
+            projectEvents.push({
+              id: `proj_start_rem_${p._id}`,
+              title: `⏰ 2-Day Reminder: "${pName}" Starts Soon`,
+              date: remDateStr,
+              dateStr: remDateStr,
+              type: 'Reminder',
+              project: pName,
+              time: '2-Day Alert',
+              assignedTo: pmName
+            });
+          }
+        }
+
+        // Project End Date Event
+        if (p.endDate) {
+          const eDateStr = formatEventDateStr(p.endDate);
+          projectEvents.push({
+            id: `proj_end_${p._id}`,
+            title: `🏁 Project End: ${pName}`,
+            date: eDateStr,
+            dateStr: eDateStr,
+            type: 'Project End',
+            project: pName,
+            time: 'Deadline',
+            assignedTo: pmName
+          });
+
+          // 2-Day Prior End/Deadline Reminder Event
+          const eDateObj = parseLocalDateStr(p.endDate);
+          if (eDateObj) {
+            const remDate = new Date(eDateObj);
+            remDate.setDate(remDate.getDate() - 2);
+            const remDateStr = `${remDate.getFullYear()}-${String(remDate.getMonth() + 1).padStart(2, '0')}-${String(remDate.getDate()).padStart(2, '0')}`;
+            projectEvents.push({
+              id: `proj_end_rem_${p._id}`,
+              title: `⏰ 2-Day Reminder: "${pName}" Deadline in 2 Days`,
+              date: remDateStr,
+              dateStr: remDateStr,
+              type: 'Reminder',
+              project: pName,
+              time: '2-Day Alert',
+              assignedTo: pmName
+            });
+          }
+        }
+      });
+
+      const combined = [...fetched, ...holidayEvents, ...leaveEvents, ...projectEvents];
       const uniqueEventsMap = new Map();
       combined.forEach(item => {
         const key = item.id ? String(item.id) : `${item.type}_${item.title}_${item.dateStr}`;
@@ -202,7 +280,7 @@ export const StudioCalendar = () => {
   };
 
   const handleToday = () => {
-    setCurrentDate(new Date(2026, 7, 10)); // August 10, 2026
+    setCurrentDate(new Date());
   };
 
   const handleCreateEvent = (e) => {
@@ -217,7 +295,7 @@ export const StudioCalendar = () => {
     setEvents([item, ...events]);
     setToast({ message: 'New event added to studio calendar!', type: 'success' });
     setIsAddEventModalOpen(false);
-    setNewEvent({ title: '', date: new Date().toISOString().split('T')[0], type: 'Milestone', project: 'Hillcrest Luxury Villa', time: '10:30 AM', assignedTo: 'Arjun Mehta' });
+    setNewEvent({ title: '', date: new Date().toISOString().split('T')[0], type: 'Milestone', project: 'Studio Master Project', time: '10:30 AM', assignedTo: 'Arjun Mehta' });
   };
 
   // Helper to generate full month calendar days
@@ -276,6 +354,12 @@ export const StudioCalendar = () => {
 
   const getBadgeStyle = (type) => {
     switch (type) {
+      case 'Project Start':
+        return { bg: '#e0f2fe', color: '#0369a1', border: '#bae6fd', icon: Flag };
+      case 'Project End':
+        return { bg: '#fee2e2', color: '#991b1b', border: '#fca5a5', icon: CheckCircle };
+      case 'Reminder':
+        return { bg: '#fff7ed', color: '#c2410c', border: '#ffedd5', icon: Clock };
       case 'Milestone':
         return { bg: '#fbf7f0', color: '#B68D40', border: '#e9e0d1', icon: Flag };
       case 'Task':
@@ -303,7 +387,7 @@ export const StudioCalendar = () => {
     if (!matchesType) return false;
 
     if (isDirector) return true;
-    if (e.type === 'Holiday' || e.type === 'Leave') return true;
+    if (e.type === 'Holiday' || e.type === 'Leave' || e.type === 'Project Start' || e.type === 'Project End' || e.type === 'Reminder') return true;
 
     const assigned = e.assignedTo || e.assignee || e.user;
     if (!assigned) return true;
@@ -371,7 +455,7 @@ export const StudioCalendar = () => {
 
             <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.75rem' }}>
               {/* Type Filter Pills */}
-              <div style={{ display: 'flex', gap: '0.35rem', backgroundColor: '#faf9f6', padding: '3px', borderRadius: '10px', border: '1px solid #eeeae3' }}>
+              <div style={{ display: 'flex', gap: '0.35rem', backgroundColor: '#faf9f6', padding: '3px', borderRadius: '10px', border: '1px solid #eeeae3', flexWrap: 'wrap' }}>
                 {EVENT_TYPES.map(type => (
                   <button
                     key={type}
@@ -380,7 +464,7 @@ export const StudioCalendar = () => {
                       padding: '0.35rem 0.75rem',
                       borderRadius: '8px',
                       border: 'none',
-                      fontSize: '0.75rem',
+                      fontSize: '0.725rem',
                       fontWeight: 700,
                       cursor: 'pointer',
                       backgroundColor: selectedTypeFilter === type ? '#1F1F1F' : 'transparent',
@@ -434,8 +518,8 @@ export const StudioCalendar = () => {
                 {calendarDays.map((cell, idx) => {
                   const dayEvents = filteredEvents.filter(e => e.date === cell.dateStr);
                   const isToday = cell.dateStr === todayDateStr;
-                  const displayEvents = dayEvents.slice(0, 2);
-                  const extraCount = dayEvents.length - 2;
+                  const displayEvents = dayEvents.slice(0, 3);
+                  const extraCount = dayEvents.length - 3;
 
                   return (
                     <div
@@ -443,21 +527,20 @@ export const StudioCalendar = () => {
                       onClick={() => setSelectedDayDetails({ dateStr: cell.dateStr, events: dayEvents })}
                       style={{
                         backgroundColor: cell.isCurrentMonth ? (isToday ? '#fffbf5' : '#ffffff') : '#fbfaf8',
-                        height: isMobile ? '52px' : '115px',
-                        maxHeight: isMobile ? '52px' : '115px',
-                        padding: isMobile ? '0.25rem' : '0.5rem',
+                        height: isMobile ? '64px' : '140px',
+                        minHeight: isMobile ? '64px' : '140px',
+                        padding: isMobile ? '0.25rem' : '0.45rem',
                         display: 'flex',
                         flexDirection: 'column',
-                        alignItems: isMobile ? 'center' : 'stretch',
-                        justifyContent: isMobile ? 'center' : 'space-between',
-                        overflow: 'hidden',
+                        justifyContent: 'flex-start',
+                        overflowY: 'auto',
                         boxSizing: 'border-box',
                         cursor: 'pointer',
                         transition: 'backgroundColor 150ms ease'
                       }}
                     >
                       {/* Cell Day Number Header */}
-                      <div style={{ display: 'flex', justifyContent: isMobile ? 'center' : 'space-between', alignItems: 'center', width: '100%', marginBottom: isMobile ? 0 : '0.25rem' }}>
+                      <div style={{ display: 'flex', justifyContent: isMobile ? 'center' : 'space-between', alignItems: 'center', width: '100%', marginBottom: '0.25rem', flexShrink: 0 }}>
                         <span
                           style={{
                             fontWeight: 700,
@@ -477,26 +560,30 @@ export const StudioCalendar = () => {
 
                         {!isMobile && dayEvents.length > 0 && (
                           <span style={{ fontSize: '0.625rem', fontWeight: 700, color: '#8c8882' }}>
-                            {dayEvents.length} event{dayEvents.length > 1 ? 's' : ''}
+                            {dayEvents.length} item{dayEvents.length > 1 ? 's' : ''}
                           </span>
                         )}
                       </div>
 
-                      {/* Mobile Subtle Dot Indicator */}
+                      {/* Mobile Dots */}
                       {isMobile && dayEvents.length > 0 && (
-                        <div style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: '#B68D40', marginTop: '2px' }} />
+                        <div style={{ display: 'flex', gap: '2px', justifyContent: 'center' }}>
+                          {dayEvents.slice(0, 3).map((_, dIdx) => (
+                            <div key={dIdx} style={{ width: '4px', height: '4px', borderRadius: '50%', backgroundColor: '#B68D40' }} />
+                          ))}
+                        </div>
                       )}
 
                       {/* Desktop Events List in Day Cell */}
                       {!isMobile && (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', overflow: 'hidden', flex: 1 }}>
-                          {displayEvents.map((evt, idx) => {
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', flex: 1 }}>
+                          {displayEvents.map((evt, eIdx) => {
                             const badge = getBadgeStyle(evt.type);
                             const IconComp = badge.icon;
 
                             return (
                               <div
-                                key={evt.id || `evt_${idx}`}
+                                key={evt.id || `evt_${eIdx}`}
                                 onClick={(e) => { e.stopPropagation(); setSelectedEvent(evt); }}
                                 style={{
                                   backgroundColor: badge.bg,
@@ -504,7 +591,7 @@ export const StudioCalendar = () => {
                                   color: badge.color,
                                   borderRadius: '6px',
                                   padding: '0.25rem 0.45rem',
-                                  fontSize: '0.7rem',
+                                  fontSize: '0.68rem',
                                   fontWeight: 700,
                                   cursor: 'pointer',
                                   display: 'flex',
@@ -515,7 +602,7 @@ export const StudioCalendar = () => {
                                   whiteSpace: 'nowrap',
                                   minWidth: 0
                                 }}
-                                title={`${evt.title} (${evt.project})`}
+                                title={`${evt.title} (${evt.project || ''})`}
                               >
                                 <IconComp size={12} style={{ flexShrink: 0 }} />
                                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -527,10 +614,19 @@ export const StudioCalendar = () => {
 
                           {extraCount > 0 && (
                             <div
-                              onClick={(e) => { e.stopPropagation(); setSelectedEvent(dayEvents[2]); }}
-                              style={{ fontSize: '0.65rem', color: '#8c8882', fontWeight: 700, paddingLeft: '0.25rem' }}
+                              onClick={(e) => { e.stopPropagation(); setSelectedDayDetails({ dateStr: cell.dateStr, events: dayEvents }); }}
+                              style={{
+                                fontSize: '0.65rem',
+                                fontWeight: 800,
+                                color: '#B68D40',
+                                padding: '0.15rem 0.35rem',
+                                backgroundColor: '#fbf7f0',
+                                borderRadius: '4px',
+                                textAlign: 'center',
+                                marginTop: 'auto'
+                              }}
                             >
-                              +{extraCount} more
+                              + {extraCount} more
                             </div>
                           )}
                         </div>
@@ -542,32 +638,42 @@ export const StudioCalendar = () => {
             </div>
           )}
 
-          {/* WEEK VIEW BREAKDOWN */}
+          {/* WEEK VIEW */}
           {viewMode === 'week' && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '0.85rem' }}>
-              {weekDays.map((w) => {
-                const dayEvents = filteredEvents.filter(e => e.date === w.dateStr);
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '0.75rem' }}>
+              {weekDays.map((wDay, idx) => {
+                const dayEvents = filteredEvents.filter(e => e.date === wDay.dateStr);
+                const isToday = wDay.dateStr === todayDateStr;
 
                 return (
-                  <div key={w.dateStr} style={{ backgroundColor: '#faf9f6', border: '1px solid #eeeae3', borderRadius: '14px', padding: '0.85rem', display: 'flex', flexDirection: 'column', gap: '0.65rem', minHeight: '300px' }}>
-                    <div style={{ textAlign: 'center', borderBottom: '1px solid #e9e5dc', paddingBottom: '0.5rem' }}>
-                      <div style={{ fontWeight: 800, fontSize: '0.8rem', color: '#8c8882' }}>{w.dayName}</div>
-                      <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#1F1F1F' }}>{w.monthName} {w.dayNumber}</div>
+                  <div key={idx} style={{ backgroundColor: isToday ? '#fffbf5' : '#ffffff', border: `1px solid ${isToday ? '#B68D40' : '#e9e5dc'}`, borderRadius: '14px', padding: '1rem', minHeight: '300px', display: 'flex', flexDirection: 'column' }}>
+                    <div style={{ borderBottom: '1px solid #eeeae3', paddingBottom: '0.5rem', marginBottom: '0.75rem', textAlign: 'center' }}>
+                      <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#8c8882', textTransform: 'uppercase' }}>{wDay.dayName}</div>
+                      <div style={{ fontSize: '1.25rem', fontWeight: 800, color: isToday ? '#B68D40' : '#1F1F1F' }}>{wDay.dayNumber} {wDay.monthName}</div>
                     </div>
 
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', flex: 1 }}>
-                      {dayEvents.length > 0 ? (
-                        dayEvents.map((evt, idx) => {
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', flex: 1, overflowY: 'auto' }}>
+                      {dayEvents.length === 0 ? (
+                        <div style={{ fontSize: '0.75rem', color: '#b0aaa0', textAlign: 'center', fontStyle: 'italic', marginTop: '1rem' }}>No events</div>
+                      ) : (
+                        dayEvents.map(evt => {
                           const badge = getBadgeStyle(evt.type);
+                          const IconComp = badge.icon;
+
                           return (
-                            <div key={evt.id || `wk_${idx}`} onClick={() => setSelectedEvent(evt)} style={{ backgroundColor: badge.bg, border: `1px solid ${badge.border}`, color: badge.color, borderRadius: '8px', padding: '0.5rem', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}>
-                              <div>{evt.title}</div>
-                              <div style={{ fontSize: '0.68rem', opacity: 0.8, marginTop: '0.2rem' }}>{evt.time}</div>
+                            <div
+                              key={evt.id}
+                              onClick={() => setSelectedEvent(evt)}
+                              style={{ backgroundColor: badge.bg, border: `1px solid ${badge.border}`, color: badge.color, borderRadius: '8px', padding: '0.5rem', cursor: 'pointer' }}
+                            >
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontWeight: 800, fontSize: '0.78rem' }}>
+                                <IconComp size={14} />
+                                {evt.title}
+                              </div>
+                              {evt.project && <div style={{ fontSize: '0.7rem', color: '#525252', marginTop: '0.15rem' }}>{evt.project}</div>}
                             </div>
                           );
                         })
-                      ) : (
-                        <div style={{ fontSize: '0.75rem', color: '#b0aaa0', textAlign: 'center', margin: 'auto' }}>No events</div>
                       )}
                     </div>
                   </div>
@@ -576,34 +682,50 @@ export const StudioCalendar = () => {
             </div>
           )}
 
-          {/* DAY VIEW BREAKDOWN */}
+          {/* DAY VIEW */}
           {viewMode === 'day' && (
-            <div style={{ backgroundColor: '#faf9f6', border: '1px solid #eeeae3', borderRadius: '14px', padding: '1.5rem' }}>
-              <div style={{ fontWeight: 800, fontSize: '1.2rem', color: '#1F1F1F', marginBottom: '1rem' }}>
-                Agenda for {currentDate.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+            <div style={{ backgroundColor: '#ffffff', border: '1px solid #e9e5dc', borderRadius: '14px', padding: '1.5rem' }}>
+              <div style={{ borderBottom: '1px solid #eeeae3', paddingBottom: '1rem', marginBottom: '1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#1F1F1F', margin: 0 }}>
+                    Schedule for {selectedDayStr}
+                  </h3>
+                  <span style={{ fontSize: '0.8rem', color: '#8c8882' }}>{dayViewEvents.length} events scheduled</span>
+                </div>
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-                {dayViewEvents.length > 0 ? (
-                  dayViewEvents.map((evt, idx) => {
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                {dayViewEvents.length === 0 ? (
+                  <div style={{ padding: '3rem', textAlign: 'center', color: '#8c8882', fontStyle: 'italic' }}>
+                    No calendar events scheduled for this date.
+                  </div>
+                ) : (
+                  dayViewEvents.map(evt => {
                     const badge = getBadgeStyle(evt.type);
+                    const IconComp = badge.icon;
+
                     return (
-                      <div key={evt.id || `dy_${idx}`} onClick={() => setSelectedEvent(evt)} style={{ backgroundColor: '#ffffff', border: `1px solid ${badge.border}`, borderLeft: `5px solid ${badge.color}`, borderRadius: '10px', padding: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}>
-                        <div>
-                          <span className="task-status-blue" style={{ fontSize: '0.68rem', textTransform: 'uppercase', marginBottom: '0.25rem' }}>{evt.type}</span>
-                          <div style={{ fontWeight: 800, fontSize: '1.05rem', color: '#1F1F1F' }}>{evt.title}</div>
-                          <div style={{ fontSize: '0.8rem', color: '#78746d', marginTop: '0.25rem' }}>Project: {evt.project} · Lead: {evt.assignedTo || 'Unassigned'}</div>
+                      <div
+                        key={evt.id}
+                        onClick={() => setSelectedEvent(evt)}
+                        style={{ backgroundColor: badge.bg, border: `1px solid ${badge.border}`, borderRadius: '12px', padding: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                          <div style={{ width: '36px', height: '36px', borderRadius: '50%', backgroundColor: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <IconComp size={18} color={badge.color} />
+                          </div>
+                          <div>
+                            <div style={{ fontWeight: 800, fontSize: '0.9rem', color: '#1F1F1F' }}>{evt.title}</div>
+                            <div style={{ fontSize: '0.78rem', color: '#525252', marginTop: '0.1rem' }}>Project: {evt.project} · Assigned: {evt.assignedTo || 'Team'}</div>
+                          </div>
                         </div>
-                        <div style={{ fontWeight: 700, fontSize: '0.9rem', color: '#B68D40', backgroundColor: '#fbf7f0', padding: '0.35rem 0.75rem', borderRadius: '8px' }}>
+
+                        <span style={{ fontWeight: 800, fontSize: '0.8rem', color: badge.color }}>
                           {evt.time || 'All Day'}
-                        </div>
+                        </span>
                       </div>
                     );
                   })
-                ) : (
-                  <div style={{ padding: '2rem', textAlign: 'center', color: '#8c8882', fontWeight: 600 }}>
-                    No events scheduled for this day. Click "+ Add Calendar Event" to schedule an event.
-                  </div>
                 )}
               </div>
             </div>
@@ -611,114 +733,35 @@ export const StudioCalendar = () => {
         </div>
       )}
 
-      {/* Modal for Event Details */}
-      {selectedEvent && (
-        <Modal
-          isOpen={Boolean(selectedEvent)}
-          onClose={() => setSelectedEvent(null)}
-          title={`Studio Event — ${selectedEvent.title}`}
-          footer={
-            <button className="btn btn-secondary" onClick={() => setSelectedEvent(null)}>Close</button>
-          }
-        >
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-              <span className="task-status-blue" style={{ fontSize: '0.7rem' }}>
-                {selectedEvent.type}
-              </span>
-              <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#1F1F1F' }}>
-                Date: {new Date(selectedEvent.date).toLocaleDateString()}
-              </span>
-            </div>
-
-            <div style={{ fontSize: '0.85rem', color: '#4a4742' }}>
-              <strong>Project:</strong> {selectedEvent.project}
-            </div>
-            {selectedEvent.assignedTo && (
-              <div style={{ fontSize: '0.85rem', color: '#4a4742' }}>
-                <strong>Assigned Lead:</strong> {selectedEvent.assignedTo}
-              </div>
-            )}
-            {selectedEvent.time && (
-              <div style={{ fontSize: '0.85rem', color: '#4a4742' }}>
-                <strong>Scheduled Time:</strong> {selectedEvent.time}
-              </div>
-            )}
-          </div>
-        </Modal>
-      )}
-
-      {/* Pop-up Modal for Day Details */}
+      {/* DAY DETAILS POPUP MODAL */}
       {selectedDayDetails && (
         <Modal
-          isOpen={!!selectedDayDetails}
+          isOpen={Boolean(selectedDayDetails)}
           onClose={() => setSelectedDayDetails(null)}
-          title={`Scheduled Events for ${selectedDayDetails.dateStr}`}
-          footer={
-            <>
-              <button
-                className="btn btn-secondary"
-                onClick={() => setSelectedDayDetails(null)}
-              >
-                Close
-              </button>
-              <button
-                className="btn btn-primary"
-                onClick={() => {
-                  setNewEvent({ ...newEvent, date: selectedDayDetails.dateStr });
-                  setSelectedDayDetails(null);
-                  setIsAddEventModalOpen(true);
-                }}
-              >
-                + Add Event for This Date
-              </button>
-            </>
-          }
+          title={`All Events — ${selectedDayDetails.dateStr}`}
         >
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', maxHeight: '420px', overflowY: 'auto', paddingRight: '0.25rem' }}>
             {selectedDayDetails.events.length === 0 ? (
-              <div style={{ padding: '1.5rem', textAlign: 'center', color: '#78746d' }}>
-                No studio events scheduled for this day. Click below to add one!
+              <div style={{ padding: '2rem', textAlign: 'center', color: '#8c8882', fontStyle: 'italic' }}>
+                No events recorded for this date.
               </div>
             ) : (
-              selectedDayDetails.events.map((evt, idx) => {
+              selectedDayDetails.events.map(evt => {
                 const badge = getBadgeStyle(evt.type);
                 const IconComp = badge.icon;
+
                 return (
                   <div
                     key={evt.id}
-                    style={{
-                      padding: '1rem',
-                      borderRadius: '12px',
-                      backgroundColor: '#faf9f6',
-                      border: `1px solid ${badge.border}`,
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'flex-start',
-                      gap: '0.75rem'
-                    }}
+                    onClick={() => { setSelectedEvent(evt); setSelectedDayDetails(null); }}
+                    style={{ backgroundColor: badge.bg, border: `1px solid ${badge.border}`, borderRadius: '10px', padding: '0.85rem', cursor: 'pointer' }}
                   >
-                    <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
-                        <span
-                          style={{
-                            fontSize: '0.7rem',
-                            padding: '0.15rem 0.5rem',
-                            borderRadius: '9999px',
-                            backgroundColor: badge.bg,
-                            color: badge.color,
-                            fontWeight: 700,
-                            border: `1px solid ${badge.border}`
-                          }}
-                        >
-                          {evt.type}
-                        </span>
-                        <span style={{ fontSize: '0.75rem', color: '#8c8882', fontWeight: 600 }}>{evt.time}</span>
-                      </div>
-                      <div style={{ fontSize: '0.95rem', fontWeight: 700, color: '#1F1F1F' }}>{evt.title}</div>
-                      <div style={{ fontSize: '0.8rem', color: '#78746d', marginTop: '0.25rem' }}>
-                        Project: <strong>{evt.project}</strong> | Lead: <strong>{evt.assignedTo}</strong>
-                      </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 800, fontSize: '0.85rem', color: badge.color }}>
+                      <IconComp size={16} />
+                      {evt.title}
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: '#525252', marginTop: '0.25rem' }}>
+                      Project: {evt.project} · Assigned: {evt.assignedTo || 'Team'}
                     </div>
                   </div>
                 );
@@ -728,67 +771,79 @@ export const StudioCalendar = () => {
         </Modal>
       )}
 
-      {/* Modal for Adding Event */}
+      {/* EVENT DETAILS MODAL */}
+      {selectedEvent && (
+        <Modal
+          isOpen={Boolean(selectedEvent)}
+          onClose={() => setSelectedEvent(null)}
+          title={selectedEvent.title}
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <span className="task-status-blue">{selectedEvent.type}</span>
+              <span style={{ fontSize: '0.85rem', color: '#8c8882', fontWeight: 600 }}>{selectedEvent.dateStr}</span>
+            </div>
+
+            <div>
+              <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#8c8882', textTransform: 'uppercase' }}>Project</label>
+              <div style={{ fontSize: '0.95rem', fontWeight: 700, color: '#1F1F1F' }}>{selectedEvent.project}</div>
+            </div>
+
+            <div>
+              <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#8c8882', textTransform: 'uppercase' }}>Assigned To</label>
+              <div style={{ fontSize: '0.9rem', color: '#1F1F1F' }}>{selectedEvent.assignedTo || 'All Staff'}</div>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* ADD CALENDAR EVENT MODAL */}
       <Modal
         isOpen={isAddEventModalOpen}
         onClose={() => setIsAddEventModalOpen(false)}
-        title="Add Event to Studio Calendar"
+        title="Add Studio Calendar Event"
         footer={
           <>
             <button className="btn btn-secondary" onClick={() => setIsAddEventModalOpen(false)}>Cancel</button>
-            <button className="btn btn-primary" onClick={handleCreateEvent}>Save Event</button>
+            <button className="btn btn-primary" onClick={handleCreateEvent}>Add Event</button>
           </>
         }
       >
         <form onSubmit={handleCreateEvent} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           <div>
-            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '0.35rem' }}>Event Title *</label>
+            <label style={{ fontSize: '0.8rem', fontWeight: 700, color: '#1F1F1F', marginBottom: '0.35rem', display: 'block' }}>Event Title</label>
             <input
               type="text"
-              placeholder="e.g. 4K Render Sequence Review"
+              required
+              placeholder="e.g. Client Design Revision Pitch..."
               value={newEvent.title}
               onChange={(e) => setNewEvent({ ...newEvent, title: e.target.value })}
-              className="top-bar-search-input"
-              style={{ width: '100%', padding: '0.55rem 0.85rem' }}
-              required
+              style={{ width: '100%', padding: '0.6rem', borderRadius: '8px', border: '1px solid #dcd8cf' }}
             />
           </div>
 
           <div>
-            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '0.35rem' }}>Event Date *</label>
+            <label style={{ fontSize: '0.8rem', fontWeight: 700, color: '#1F1F1F', marginBottom: '0.35rem', display: 'block' }}>Date</label>
             <input
               type="date"
+              required
               value={newEvent.date}
               onChange={(e) => setNewEvent({ ...newEvent, date: e.target.value })}
-              className="top-bar-search-input"
-              style={{ width: '100%', padding: '0.55rem 0.85rem' }}
-              required
+              style={{ width: '100%', padding: '0.6rem', borderRadius: '8px', border: '1px solid #dcd8cf' }}
             />
           </div>
 
           <div>
-            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '0.35rem' }}>Event Type</label>
+            <label style={{ fontSize: '0.8rem', fontWeight: 700, color: '#1F1F1F', marginBottom: '0.35rem', display: 'block' }}>Event Category</label>
             <select
               value={newEvent.type}
               onChange={(e) => setNewEvent({ ...newEvent, type: e.target.value })}
-              style={{ width: '100%', padding: '0.55rem 0.85rem', borderRadius: '10px', border: '1px solid #dcd8cf', backgroundColor: '#ffffff' }}
+              style={{ width: '100%', padding: '0.6rem', borderRadius: '8px', border: '1px solid #dcd8cf' }}
             >
-              <option value="Milestone">Milestone</option>
-              <option value="Delivery">Delivery</option>
-              <option value="Meeting">Meeting</option>
+              {EVENT_TYPES.filter(t => t !== 'All').map(t => (
+                <option key={t} value={t}>{t}</option>
+              ))}
             </select>
-          </div>
-
-          <div>
-            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '0.35rem' }}>Project</label>
-            <input
-              type="text"
-              placeholder="e.g. Hillcrest Luxury Villa"
-              value={newEvent.project}
-              onChange={(e) => setNewEvent({ ...newEvent, project: e.target.value })}
-              className="top-bar-search-input"
-              style={{ width: '100%', padding: '0.55rem 0.85rem' }}
-            />
           </div>
         </form>
       </Modal>

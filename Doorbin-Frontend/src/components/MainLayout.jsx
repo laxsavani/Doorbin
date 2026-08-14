@@ -27,6 +27,7 @@ import {
   BarChart2
 } from 'lucide-react';
 import { ClockInOutWidget } from './ClockInOutWidget';
+import { NotificationBell } from './NotificationBell';
 import { notificationService } from '../services/notificationService';
 import '../pages/Dashboard.css';
 
@@ -465,6 +466,7 @@ export const MainLayout = ({ children }) => {
 
           <div className="top-bar-right-controls" style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
             <ClockInOutWidget variant="topbar" />
+            <NotificationBell />
             <div style={{ position: 'relative' }}>
               <input
                 type="text"

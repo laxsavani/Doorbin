@@ -10,10 +10,13 @@ import { Loader } from '../components/Loader';
 import { validators, focusFirstErrorField } from '../utils/validation';
 import { Plus, Search, Building2, Phone, Mail, MessageSquare, Trash2, UserPlus, Edit3, LayoutGrid, List, Loader2 } from 'lucide-react';
 import { useViewMode } from '../hooks/useViewMode';
+import { Pagination } from '../components/Pagination';
 import './Dashboard.css';
 
 export const Clients = () => {
   const location = useLocation();
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10;
   const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -325,6 +328,12 @@ export const Clients = () => {
     c.industry?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery]);
+
+  const paginatedClients = filteredClients.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
   return (
     <div className="dashboard-main-container smooth-fade-in">
       <Toast message={toast.message} type={toast.type} onClose={() => setToast({ message: '', type: 'info' })} />
@@ -394,7 +403,7 @@ export const Clients = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredClients.map((client) => (
+                  {paginatedClients.map((client) => (
                     <tr
                       key={client._id}
                       onClick={() => { setSelectedClient(client); setIsDetailModalOpen(true); }}
@@ -435,7 +444,7 @@ export const Clients = () => {
             </div>
           ) : (
             <div className="responsive-cards-grid">
-            {filteredClients.map((client) => (
+            {paginatedClients.map((client) => (
               <div
                 key={client._id}
                 className="team-widget-card"
@@ -505,6 +514,13 @@ export const Clients = () => {
             ))}
           </div>
         )}
+
+        <Pagination
+          currentPage={currentPage}
+          totalItems={filteredClients.length}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+        />
       </>
     )}
 

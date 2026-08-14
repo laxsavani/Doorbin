@@ -10,13 +10,29 @@ import { Loader } from '../components/Loader';
 import { validators, focusFirstErrorField } from '../utils/validation';
 import { formatDate } from '../utils/dateUtils';
 import { Plus, Search, CheckSquare, Clock, UserCheck, MessageSquare, AlertCircle, FileText, CheckCircle2, ShieldCheck, Trash2, Edit3, Calendar, LayoutGrid, List, Loader2 } from 'lucide-react';
+import { authService } from '../services/authService';
 import { useViewMode } from '../hooks/useViewMode';
+import { useClockInGuard } from '../hooks/useClockInGuard';
+import { Pagination } from '../components/Pagination';
 import './Dashboard.css';
 
 const TASK_STATUSES = ['Pending', 'Assigned', 'In Progress', 'Under Review', 'Completed', 'Revision Required', 'Approved'];
 const PRIORITIES = ['High', 'Medium', 'Low'];
 
 export const Tasks = () => {
+  const currentUser = authService.getCurrentUser();
+  const currentUserId = currentUser?._id || currentUser?.id;
+  const currentUserName = typeof currentUser?.name === 'string'
+    ? currentUser.name
+    : (currentUser?.name?.name || currentUser?.email || 'Logged User');
+  const userRoleName = typeof currentUser?.role === 'object'
+    ? (currentUser?.role?.name || 'Artist')
+    : (currentUser?.role || 'Artist');
+  const isArtist = userRoleName.toLowerCase().includes('artist') || (!userRoleName.toLowerCase().includes('director') && !userRoleName.toLowerCase().includes('manager'));
+
+  const { requireClockIn, ClockInGuardModal } = useClockInGuard();
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10;
   const [tasks, setTasks] = useState([]);
   const [projectsList, setProjectsList] = useState([]);
   const [usersList, setUsersList] = useState([]);
@@ -75,8 +91,6 @@ export const Tasks = () => {
     const endObj = to ? new Date(to) : new Date(startObj.getTime() + 14 * 86400000);
 
     try {
-      const data = await resourceService.getArtistAvailability({ from, to });
-      const artistsArr = Array.isArray(data) ? data : (data?.artists || []);
       const map = {};
 
       usersList.forEach(u => {
@@ -135,16 +149,6 @@ export const Tasks = () => {
         };
       });
 
-      if (artistsArr.length > 0) {
-        artistsArr.forEach(a => {
-          const id = (a.artistId || a._id || '').toString();
-          if (map[id] && a.dailySchedule) {
-            const isUnavail = a.dailySchedule.some(d => d.status === 'Fully Booked' || d.status === 'Over-Allocated');
-            if (isUnavail) map[id].isFullyBooked = true;
-          }
-        });
-      }
-
       setArtistAvailabilityMap(map);
     } catch {
       setArtistAvailabilityMap({});
@@ -162,16 +166,21 @@ export const Tasks = () => {
       let extractedProjects = Array.isArray(projectsData) ? projectsData : (projectsData?.projects || projectsData?.data || []);
       let extractedUsers = Array.isArray(usersData) ? usersData : (usersData?.users || usersData?.data || []);
 
+      if (currentUserId && !extractedUsers.some(u => u._id?.toString() === currentUserId.toString())) {
+        extractedUsers = [{ _id: currentUserId, name: currentUserName, role: userRoleName }, ...extractedUsers];
+      }
+
       setTasks(extractedTasks);
       setProjectsList(extractedProjects);
       setUsersList(extractedUsers);
 
-      if (extractedProjects.length > 0 && extractedUsers.length > 0) {
+      const defaultAssignee = currentUserId || extractedUsers[0]?._id || '';
+      if (extractedProjects.length > 0) {
         setNewTask(prev => ({
           ...prev,
           project: extractedProjects[0]._id,
-          assignee: extractedUsers[0]._id,
-          reviewer: extractedUsers[0]._id
+          assignee: defaultAssignee,
+          reviewer: extractedUsers[0]?._id || defaultAssignee
         }));
       }
     } catch (err) {
@@ -183,6 +192,7 @@ export const Tasks = () => {
 
   const handleCreateTask = async (e) => {
     e.preventDefault();
+    if (!requireClockIn()) return;
 
     const errors = {};
     const nameErr = validators.required(newTask.taskName, 'Task Name');
@@ -212,8 +222,15 @@ export const Tasks = () => {
     setSubmitting(true);
     try {
       await new Promise(resolve => setTimeout(resolve, 1200));
+      const s = new Date(newTask.startDate);
+      const e = new Date(newTask.endDate);
+      const calcTotalDays = (!isNaN(s.getTime()) && !isNaN(e.getTime()) && s <= e)
+        ? Math.max(1, Math.round((e.getTime() - s.getTime()) / (1000 * 3600 * 24)) + 1)
+        : 0;
+
       const response = await taskService.createTask({
         ...newTask,
+        totalDays: calcTotalDays,
         estimatedHours: Number(newTask.estimatedHours || 0)
       });
 
@@ -238,7 +255,7 @@ export const Tasks = () => {
       setNewTask({
         taskName: '',
         project: projectsList[0]?._id || '',
-        assignee: usersList[0]?._id || '',
+        assignee: currentUserId || usersList[0]?._id || '',
         reviewer: usersList[0]?._id || '',
         startDate: '',
         endDate: '',
@@ -258,7 +275,7 @@ export const Tasks = () => {
     setNewTask({
       taskName: '',
       project: projectsList[0]?._id || '',
-      assignee: usersList[0]?._id || '',
+      assignee: currentUserId || usersList[0]?._id || '',
       reviewer: usersList[0]?._id || '',
       startDate: '',
       endDate: '',
@@ -277,6 +294,7 @@ export const Tasks = () => {
   };
 
   const handleOpenEditModal = (task) => {
+    if (!requireClockIn()) return;
     setEditingTask(task);
     setNewTask({
       taskName: task.taskName || '',
@@ -319,8 +337,15 @@ export const Tasks = () => {
     setSubmitting(true);
     try {
       await new Promise(resolve => setTimeout(resolve, 1200));
+      const s = new Date(newTask.startDate);
+      const e = new Date(newTask.endDate);
+      const calcTotalDays = (!isNaN(s.getTime()) && !isNaN(e.getTime()) && s <= e)
+        ? Math.max(1, Math.round((e.getTime() - s.getTime()) / (1000 * 3600 * 24)) + 1)
+        : 0;
+
       const updatePayload = {
         ...newTask,
+        totalDays: calcTotalDays,
         estimatedHours: Number(newTask.estimatedHours || 0)
       };
 
@@ -464,6 +489,12 @@ export const Tasks = () => {
     return matchesSearch && matchesStatus;
   });
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, selectedStatusFilter]);
+
+  const paginatedTasks = filteredTasks.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
   return (
     <div className="dashboard-main-container smooth-fade-in">
       <Toast message={toast.message} type={toast.type} onClose={() => setToast({ message: '', type: 'info' })} />
@@ -492,7 +523,7 @@ export const Tasks = () => {
             </button>
           </div>
 
-          <button onClick={() => setIsCreateModalOpen(true)} className="btn-new-task">
+          <button onClick={() => requireClockIn(() => setIsCreateModalOpen(true))} className="btn-new-task">
             <Plus size={16} /> New Task
           </button>
         </div>
@@ -588,7 +619,7 @@ export const Tasks = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredTasks.map((task) => {
+                  {paginatedTasks.map((task) => {
                     const projName = typeof task.project === 'object' ? (task.project?.projectName || 'Project') : (task.project || 'Project');
                     let assigneeName = typeof task.assignee === 'object' ? (task.assignee?.name || 'Artist') : (task.assignee || 'Artist');
 
@@ -605,7 +636,7 @@ export const Tasks = () => {
                           <div>{projName}</div>
                           <div style={{ fontSize: '0.75rem', color: '#8c8882' }}>Assignee: {assigneeName}</div>
                         </td>
-                        <td style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>{formatDate(task.dueDate)}</td>
+                        <td style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>{formatDate(task.dueDate || task.endDate || task.startDate)}</td>
                         <td style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>
                           <span style={{ fontSize: '0.75rem', fontWeight: 700, color: task.priority === 'High' ? '#dc2626' : '#16a34a' }}>{task.priority}</span>
                         </td>
@@ -630,14 +661,15 @@ export const Tasks = () => {
             </div>
           ) : (
             <div className="responsive-cards-grid">
-            {filteredTasks.map((task) => {
+            {paginatedTasks.map((task) => {
               const projName = typeof task.project === 'object' ? (task.project?.projectName || 'Project') : (task.project || 'Project');
 
-              let assigneeName = 'Artist';
+              let assigneeName = 'Unassigned';
               if (typeof task.assignee === 'object' && task.assignee) {
-                assigneeName = task.assignee.name || task.assignee.email || 'Artist';
+                assigneeName = task.assignee.name || task.assignee.email || 'Unassigned';
               } else if (typeof task.assignee === 'string' && task.assignee) {
-                assigneeName = task.assignee === 'test' ? 'Arjun Mehta' : task.assignee;
+                const foundUser = usersList.find(u => u._id?.toString() === task.assignee?.toString());
+                assigneeName = foundUser ? foundUser.name : (task.assignee === 'test' ? 'Arjun Mehta' : task.assignee);
               }
 
               // Color-coded status badge styling
@@ -757,58 +789,62 @@ export const Tasks = () => {
                   </div>
 
                   {/* Card Bottom Footer */}
-                  <div style={{ borderTop: '1px solid #f2ece4', paddingTop: '0.85rem', marginTop: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <select
-                      value={task.status}
-                      onChange={(e) => handleStatusChange(task._id, e.target.value)}
-                      style={{
-                        padding: '0.35rem 0.65rem',
-                        borderRadius: '8px',
-                        border: '1px solid #d8d4cb',
-                        fontSize: '0.75rem',
-                        fontWeight: 700,
-                        backgroundColor: '#ffffff',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      {TASK_STATUSES.map(st => <option key={st} value={st}>{st}</option>)}
-                    </select>
-
-                    <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center' }}>
-                      <button
-                        onClick={() => { setSelectedTask(task); setIsDetailModalOpen(true); }}
-                        className="btn btn-secondary"
-                        style={{ fontSize: '0.75rem', padding: '0.4rem 0.65rem' }}
+                  <div style={{ borderTop: '1px solid #f2ece4', paddingTop: '0.85rem', marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                      <select
+                        value={task.status}
+                        onChange={(e) => handleStatusChange(task._id, e.target.value)}
+                        style={{
+                          padding: '0.35rem 0.65rem',
+                          borderRadius: '8px',
+                          border: '1px solid #d8d4cb',
+                          fontSize: '0.75rem',
+                          fontWeight: 700,
+                          backgroundColor: '#ffffff',
+                          cursor: 'pointer',
+                          flex: '1 1 auto',
+                          minWidth: '130px'
+                        }}
                       >
-                        <MessageSquare size={14} /> Review ({task.comments?.length || 0})
-                      </button>
+                        {TASK_STATUSES.map(st => <option key={st} value={st}>{st}</option>)}
+                      </select>
 
-                      <button
-                        onClick={() => handleOpenRescheduleModal(task)}
-                        className="btn btn-secondary"
-                        style={{ fontSize: '0.75rem', padding: '0.4rem 0.5rem', color: '#b45309' }}
-                        title="Reschedule Task Timeline"
-                      >
-                        <Calendar size={14} />
-                      </button>
+                      <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                        <button
+                          onClick={() => { setSelectedTask(task); setIsDetailModalOpen(true); }}
+                          className="btn btn-secondary"
+                          style={{ fontSize: '0.75rem', padding: '0.35rem 0.6rem', whiteSpace: 'nowrap' }}
+                        >
+                          <MessageSquare size={13} /> Review ({task.comments?.length || 0})
+                        </button>
 
-                      <button
-                        onClick={() => handleOpenEditModal(task)}
-                        className="btn btn-secondary"
-                        style={{ fontSize: '0.75rem', padding: '0.4rem 0.5rem', color: '#10529d' }}
-                        title="Edit Task Details"
-                      >
-                        <Edit3 size={14} />
-                      </button>
+                        <button
+                          onClick={() => handleOpenRescheduleModal(task)}
+                          className="btn btn-secondary"
+                          style={{ fontSize: '0.75rem', padding: '0.35rem 0.5rem', color: '#b45309' }}
+                          title="Reschedule Task Timeline"
+                        >
+                          <Calendar size={13} />
+                        </button>
 
-                      <button
-                        onClick={() => setDeletingTaskId(task._id)}
-                        className="btn btn-secondary"
-                        style={{ fontSize: '0.75rem', padding: '0.4rem 0.5rem', color: '#dc2626', borderColor: '#fecaca' }}
-                        title="Delete Task"
-                      >
-                        <Trash2 size={14} />
-                      </button>
+                        <button
+                          onClick={() => handleOpenEditModal(task)}
+                          className="btn btn-secondary"
+                          style={{ fontSize: '0.75rem', padding: '0.35rem 0.5rem', color: '#10529d' }}
+                          title="Edit Task Details"
+                        >
+                          <Edit3 size={13} />
+                        </button>
+
+                        <button
+                          onClick={() => setDeletingTaskId(task._id)}
+                          className="btn btn-secondary"
+                          style={{ fontSize: '0.75rem', padding: '0.35rem 0.5rem', color: '#dc2626', borderColor: '#fecaca' }}
+                          title="Delete Task"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -816,6 +852,13 @@ export const Tasks = () => {
             })}
           </div>
         )}
+
+        <Pagination
+          currentPage={currentPage}
+          totalItems={filteredTasks.length}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+        />
       </>
     )}
 
@@ -854,67 +897,30 @@ export const Tasks = () => {
           >
             {projectsList.map(p => <option key={p._id} value={p._id}>{p.projectName}</option>)}
           </FormField>
-          <FormField
-            label="Artist Assignee (Live Cross-Project Availability)"
-            name="assignee"
-            type="select"
-            value={newTask.assignee}
-            onChange={(e) => {
-              const selectedId = e.target.value;
-              const avail = artistAvailabilityMap[selectedId];
-              if (avail?.isFullyBooked) {
-                setToast({
-                  message: `Notice: ${avail.name} is booked on ${avail.bookedSummary}! Free after ${avail.availableAfter || 'current dates'}.`,
-                  type: 'error'
-                });
-              }
-              setNewTask({ ...newTask, assignee: selectedId });
-            }}
-            error={formErrors.assignee}
-            required
-          >
-            {usersList
-              .filter(u => {
-                const r = (typeof u.role === 'object' ? u.role?.name : u.role || '').toLowerCase();
-                return r.includes('artist') || r.includes('3d') || r.includes('visualizer') || r.includes('designer') || r.includes('lead');
-              })
-              .map(u => {
-                const uId = u._id.toString();
-                const avail = artistAvailabilityMap[uId];
-                const isUnavailable = avail?.isFullyBooked;
-                return (
-                  <option key={u._id} value={u._id}>
-                    {u.name} ({typeof u.role === 'object' ? u.role?.name : u.role}) — {isUnavailable ? `🔴 Booked on ${avail.bookedSummary}` : '🟢 Available'}
-                  </option>
-                );
-              })}
-          </FormField>
-
-          {/* Live Availability Status Banner */}
-          {newTask.assignee && artistAvailabilityMap[newTask.assignee] && (
-            <div style={{
-              padding: '0.65rem 0.85rem',
-              borderRadius: '8px',
-              marginBottom: '1rem',
-              fontSize: '0.78rem',
-              fontWeight: 600,
-              backgroundColor: artistAvailabilityMap[newTask.assignee].isFullyBooked ? '#fef2f2' : '#f0fdf4',
-              color: artistAvailabilityMap[newTask.assignee].isFullyBooked ? '#dc2626' : '#16a34a',
-              border: `1px solid ${artistAvailabilityMap[newTask.assignee].isFullyBooked ? '#fecaca' : '#bbf7d0'}`
-            }}>
-              {artistAvailabilityMap[newTask.assignee].isFullyBooked ? (
-                <div>
-                  <strong>🔴 Cross-Project Workload Notice:</strong> Artist is committed on {artistAvailabilityMap[newTask.assignee].bookedSummary}.
-                  {artistAvailabilityMap[newTask.assignee].availableAfter && (
-                    <span> Free for new assignments starting <strong>{artistAvailabilityMap[newTask.assignee].availableAfter}</strong>.</span>
-                  )}
-                </div>
-              ) : (
-                <div>
-                  <strong>🟢 Live Status:</strong> Artist is 100% available across all studio projects during selected dates!
-                </div>
-              )}
-            </div>
+          {isArtist ? (
+            <FormField
+              label="Artist Assignee *"
+              name="assigneeText"
+              type="text"
+              value={`${currentUserName} (${userRoleName}) [Auto-Assigned]`}
+              disabled
+            />
+          ) : (
+            <FormField
+              label="Artist Assignee"
+              name="assignee"
+              type="select"
+              value={newTask.assignee || currentUserId}
+              onChange={(e) => setNewTask({ ...newTask, assignee: e.target.value })}
+              error={formErrors.assignee}
+              required
+            >
+              {usersList.map(u => (
+                <option key={u._id} value={u._id}>
+                  {u.name || u.email} ({typeof u.role === 'object' ? (u.role?.name || 'Artist') : (u.role || 'Artist')})
+                </option>
+              ))}
+            </FormField>
           )}
           <FormField
             label="Reviewer / PM"
@@ -952,6 +958,30 @@ export const Tasks = () => {
             value={newTask.endDate}
             onChange={(e) => setNewTask({ ...newTask, endDate: e.target.value })}
           />
+          {newTask.startDate && newTask.endDate && (
+            <div style={{
+              marginBottom: '1rem',
+              padding: '0.65rem 0.85rem',
+              backgroundColor: '#f5efe6',
+              borderRadius: '8px',
+              border: '1px solid #e2ded8',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              fontSize: '0.85rem'
+            }}>
+              <span style={{ fontWeight: 600, color: 'var(--color-primary)' }}>📅 Calculated Task Duration:</span>
+              <span style={{ fontWeight: 700, fontSize: '0.95rem', color: '#1F1F1F' }}>
+                {(() => {
+                  const s = new Date(newTask.startDate);
+                  const e = new Date(newTask.endDate);
+                  if (isNaN(s.getTime()) || isNaN(e.getTime()) || s > e) return '0 Days';
+                  const days = Math.max(1, Math.round((e.getTime() - s.getTime()) / (1000 * 3600 * 24)) + 1);
+                  return `${days} Days`;
+                })()}
+              </span>
+            </div>
+          )}
           <FormField
             label="Priority"
             name="priority"
@@ -1043,6 +1073,30 @@ export const Tasks = () => {
             value={newTask.endDate}
             onChange={(e) => setNewTask({ ...newTask, endDate: e.target.value })}
           />
+          {newTask.startDate && newTask.endDate && (
+            <div style={{
+              marginBottom: '1rem',
+              padding: '0.65rem 0.85rem',
+              backgroundColor: '#f5efe6',
+              borderRadius: '8px',
+              border: '1px solid #e2ded8',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              fontSize: '0.85rem'
+            }}>
+              <span style={{ fontWeight: 600, color: 'var(--color-primary)' }}>📅 Calculated Task Duration:</span>
+              <span style={{ fontWeight: 700, fontSize: '0.95rem', color: '#1F1F1F' }}>
+                {(() => {
+                  const s = new Date(newTask.startDate);
+                  const e = new Date(newTask.endDate);
+                  if (isNaN(s.getTime()) || isNaN(e.getTime()) || s > e) return '0 Days';
+                  const days = Math.max(1, Math.round((e.getTime() - s.getTime()) / (1000 * 3600 * 24)) + 1);
+                  return `${days} Days`;
+                })()}
+              </span>
+            </div>
+          )}
           <FormField
             label="Task Status"
             name="status"
@@ -1232,6 +1286,8 @@ export const Tasks = () => {
           Are you sure you want to delete this task record from the project roster?
         </p>
       </Modal>
+
+      <ClockInGuardModal />
     </div>
   );
 };

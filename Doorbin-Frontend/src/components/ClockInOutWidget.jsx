@@ -202,7 +202,7 @@ export const ClockInOutWidget = ({ variant = 'topbar', onStatusChange }) => {
               }}
               title="Clock Out of shift"
             >
-              {loading ? <Loader2 size={14} className="spin" /> : <Square size={13} fill="currentColor" />}
+              {loading ? <Loader2 size={14} className="animate-spin" /> : <Square size={13} fill="currentColor" />}
               Clock Out
             </button>
           </div>
@@ -237,7 +237,7 @@ export const ClockInOutWidget = ({ variant = 'topbar', onStatusChange }) => {
                 gap: '0.25rem'
               }}
             >
-              {loading ? <Loader2 size={12} className="spin" /> : <Play size={11} fill="currentColor" />}
+              {loading ? <Loader2 size={12} className="animate-spin" /> : <Play size={11} fill="currentColor" />}
               Re-Clock
             </button>
           </div>
@@ -261,7 +261,7 @@ export const ClockInOutWidget = ({ variant = 'topbar', onStatusChange }) => {
               transition: 'all 0.2s ease'
             }}
           >
-            {loading ? <Loader2 size={14} className="spin" /> : <Play size={14} fill="currentColor" />}
+            {loading ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} fill="currentColor" />}
             Clock In
           </button>
         )}
@@ -372,7 +372,7 @@ export const ClockInOutWidget = ({ variant = 'topbar', onStatusChange }) => {
               gap: '0.5rem'
             }}
           >
-            {loading ? <Loader2 size={16} className="spin" /> : <Square size={16} fill="currentColor" />}
+            {loading ? <Loader2 size={16} className="animate-spin" /> : <Square size={16} fill="currentColor" />}
             Clock Out Now
           </button>
         ) : (
@@ -395,7 +395,7 @@ export const ClockInOutWidget = ({ variant = 'topbar', onStatusChange }) => {
               gap: '0.5rem'
             }}
           >
-            {loading ? <Loader2 size={16} className="spin" /> : <Play size={16} fill="currentColor" />}
+            {loading ? <Loader2 size={16} className="animate-spin" /> : <Play size={16} fill="currentColor" />}
             {isShiftDone ? 'Re-Clock Shift' : 'Clock In Now'}
           </button>
         )}

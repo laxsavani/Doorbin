@@ -22,9 +22,13 @@ import {
 } from 'lucide-react';
 import { ClockInOutWidget } from '../components/ClockInOutWidget';
 import { useViewMode } from '../hooks/useViewMode';
+import { Pagination } from '../components/Pagination';
 import './Dashboard.css';
 
 export const Hrm = () => {
+  const [empPage, setEmpPage] = useState(1);
+  const [attPage, setAttPage] = useState(1);
+  const pageSize = 10;
   const [activeTab, setActiveTab] = useState('employees'); // 'employees' | 'attendance' | 'leave' | 'holidays' | 'reviews'
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState(null);
@@ -416,7 +420,7 @@ export const Hrm = () => {
             </tr>
           </thead>
           <tbody>
-              {attendanceLogs.map(att => {
+              {attendanceLogs.slice((attPage - 1) * pageSize, attPage * pageSize).map(att => {
                 const isLeaveDay = att.status === 'On Leave' || att.status === 'Leave';
                 const checkInStr = isLeaveDay ? '--' : (att.checkIn ? formatISTTimeStr(att.checkIn) : (att.activeSession?.checkInFormatted || '--'));
                 const checkOutStr = isLeaveDay ? '--' : (att.checkOut ? formatISTTimeStr(att.checkOut) : (att.activeSession?.checkOutFormatted || '--'));
@@ -453,6 +457,13 @@ export const Hrm = () => {
           </tbody>
         </table>
       </div>
+
+      <Pagination
+        currentPage={attPage}
+        totalItems={attendanceLogs.length}
+        pageSize={pageSize}
+        onPageChange={setAttPage}
+      />
     </div>
   );
 

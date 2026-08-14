@@ -542,8 +542,13 @@ const getTeamSummary = async (req, res) => {
     const userQuery = { status: 'Active' };
     if (department) userQuery.department = department;
 
-    const users = await User.find(userQuery).populate('department', 'name');
-    const userIds = users.map(u => u._id);
+    const users = await User.find(userQuery).populate('department', 'name').populate('role', 'name');
+    // Exclude Directors from daily attendance tracking metrics per studio policy
+    const activeStaffUsers = users.filter(u => {
+      const rName = typeof u.role === 'object' ? u.role?.name : (u.role || '');
+      return rName.toLowerCase() !== 'director';
+    });
+    const userIds = activeStaffUsers.map(u => u._id);
 
     const attendanceRecords = await Attendance.find({
       employee: { $in: userIds },
@@ -553,10 +558,10 @@ const getTeamSummary = async (req, res) => {
     const attMap = new Map();
     attendanceRecords.forEach(a => attMap.set(a.employee.toString(), a));
 
-    const grid = users.map(u => {
+    const grid = activeStaffUsers.map(u => {
       const att = attMap.get(u._id.toString());
       return {
-        user: { _id: u._id, name: u.name, email: u.email, department: u.department },
+        user: { _id: u._id, name: u.name, email: u.email, department: u.department, role: u.role },
         status: att ? att.status : 'Absent',
         checkIn: att ? (att.checkIn || att.clockIn) : null,
         checkOut: att ? (att.checkOut || att.clockOut) : null,
