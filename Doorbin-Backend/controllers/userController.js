@@ -223,9 +223,42 @@ const resetUserPassword = async (req, res) => {
   }
 };
 
+// @desc    Create / register new user
+// @route   POST /api/users
+// @access  Private (Director / HR - userManagement)
+const createUser = async (req, res) => {
+  const { name, email, password, role, department, phone, status } = req.body;
+  try {
+    if (!name || !email || !password) {
+      return res.status(400).json({ message: 'Name, email, and password are required' });
+    }
+
+    const existing = await User.findOne({ email: email.toLowerCase().trim() });
+    if (existing) {
+      return res.status(400).json({ message: 'User already exists with this email address' });
+    }
+
+    const newUser = await User.create({
+      name: name.trim(),
+      email: email.toLowerCase().trim(),
+      password,
+      role,
+      department: department || null,
+      phone: phone || '',
+      status: status || 'Active'
+    });
+
+    const populated = await User.findById(newUser._id).select('-password').populate('role department');
+    return res.status(201).json({ message: 'User registered successfully', user: populated });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   getUsers,
   getUserById,
+  createUser,
   updateUserStatus,
   updateUserRole,
   updateUser,

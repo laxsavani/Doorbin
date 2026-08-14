@@ -101,12 +101,18 @@ export const Enquiries = () => {
       let extractedEnquiries = Array.isArray(data) ? data : (data?.enquiries || data?.data || []);
       let extractedUsers = Array.isArray(usersData) ? usersData : (usersData?.users || usersData?.data || []);
 
+      let bdExecutives = extractedUsers.filter(u => {
+        const r = (typeof u.role === 'object' ? u.role?.name : u.role || '').toLowerCase();
+        return r.includes('business') || r.includes('bd') || r.includes('sales') || r.includes('executive') || r.includes('director');
+      });
+      if (bdExecutives.length === 0) bdExecutives = extractedUsers;
+
       setEnquiries(extractedEnquiries);
-      setExecutives(extractedUsers);
+      setExecutives(bdExecutives);
       setSummaryReport(report);
 
-      if (extractedUsers.length > 0) {
-        setNewEnquiry(prev => ({ ...prev, assignedExecutive: extractedUsers[0]._id }));
+      if (bdExecutives.length > 0) {
+        setNewEnquiry(prev => ({ ...prev, assignedExecutive: bdExecutives[0]._id }));
       }
     } catch (err) {
       setToast({ message: err.message || 'Failed to load BD enquiry pipeline data', type: 'error' });
@@ -173,6 +179,28 @@ export const Enquiries = () => {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const resetCreateEnquiryForm = () => {
+    setNewEnquiry({
+      clientName: '',
+      architectName: '',
+      projectName: '',
+      projectType: '3D Renders & Walkthrough',
+      estimatedValue: '',
+      assignedExecutive: executives[0]?._id || '',
+      leadTemperature: 'Warm',
+      source: '',
+      notes: ''
+    });
+    setFormErrors({});
+    setIsCreateModalOpen(false);
+  };
+
+  const resetEditEnquiryForm = () => {
+    setEditingEnquiry(null);
+    setFormErrors({});
+    setIsEditModalOpen(false);
   };
 
   const handleConvertEnquiry = async (enq) => {
@@ -523,7 +551,11 @@ export const Enquiries = () => {
                       : (executives.find(u => u._id === enq.assignedExecutive)?.name || 'BD Executive');
 
                     return (
-                      <tr key={enq._id} style={{ borderBottom: '1px solid #f2ece4' }}>
+                      <tr
+                        key={enq._id}
+                        onClick={() => { setSelectedEnquiry(enq); setIsDetailModalOpen(true); }}
+                        style={{ borderBottom: '1px solid #f2ece4', cursor: 'pointer' }}
+                      >
                         <td style={{ padding: '1rem 1.25rem', textAlign: 'left', wordBreak: 'break-word' }}>
                           <div style={{ fontWeight: 700, color: '#1a1918' }}>{enq.projectName}</div>
                           <div style={{ fontSize: '0.78rem', color: '#8c8882' }}>Client: {enq.clientName}</div>
@@ -548,7 +580,8 @@ export const Enquiries = () => {
                         <td style={{ padding: '0.75rem 1.25rem', textAlign: 'center' }}>
                           <select
                             value={enq.status}
-                            onChange={(e) => handleStatusChange(enq._id, e.target.value)}
+                            onChange={(e) => { e.stopPropagation(); handleStatusChange(enq._id, e.target.value); }}
+                            onClick={(e) => e.stopPropagation()}
                             style={{
                               padding: '0.35rem 0.65rem',
                               borderRadius: '8px',
@@ -605,7 +638,12 @@ export const Enquiries = () => {
                   : (executives.find(u => u._id === enq.assignedExecutive)?.name || 'BD Executive');
 
                 return (
-                  <div key={enq._id} className="team-widget-card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                  <div
+                    key={enq._id}
+                    className="team-widget-card"
+                    onClick={() => { setSelectedEnquiry(enq); setIsDetailModalOpen(true); }}
+                    style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', cursor: 'pointer' }}
+                  >
                     <div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.65rem' }}>
                         <span className="task-status-blue" style={{ fontSize: '0.68rem', textTransform: 'uppercase' }}>
@@ -876,11 +914,11 @@ export const Enquiries = () => {
       {/* Modal for Creating New Enquiry */}
       <Modal
         isOpen={isCreateModalOpen}
-        onClose={() => setIsCreateModalOpen(false)}
+        onClose={resetCreateEnquiryForm}
         title="Add New Business Development Enquiry"
         footer={
           <>
-            <button className="btn btn-secondary" onClick={() => setIsCreateModalOpen(false)} disabled={submitting}>Cancel</button>
+            <button className="btn btn-secondary" onClick={resetCreateEnquiryForm} disabled={submitting}>Cancel</button>
             <button className="btn btn-primary" onClick={handleCreateEnquiry} disabled={submitting} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
               {submitting ? <><Loader2 className="animate-spin" size={14} /> Creating...</> : 'Create Enquiry'}
             </button>
@@ -972,11 +1010,11 @@ export const Enquiries = () => {
       {/* Modal for Editing Business Development Enquiry */}
       <Modal
         isOpen={isEditModalOpen}
-        onClose={() => setIsEditModalOpen(false)}
+        onClose={resetEditEnquiryForm}
         title="Edit Business Development Enquiry"
         footer={
           <>
-            <button className="btn btn-secondary" onClick={() => setIsEditModalOpen(false)} disabled={submitting}>Cancel</button>
+            <button className="btn btn-secondary" onClick={resetEditEnquiryForm} disabled={submitting}>Cancel</button>
             <button className="btn btn-primary" onClick={handleUpdateEnquiry} disabled={submitting} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
               {submitting ? <><Loader2 className="animate-spin" size={14} /> Updating...</> : 'Update Enquiry'}
             </button>

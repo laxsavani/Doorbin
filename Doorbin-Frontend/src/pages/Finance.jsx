@@ -26,7 +26,8 @@ import {
   LayoutGrid,
   List,
   FileSpreadsheet,
-  Calendar
+  Calendar,
+  Loader2
 } from 'lucide-react';
 import { useViewMode } from '../hooks/useViewMode';
 import './Dashboard.css';
@@ -34,6 +35,7 @@ import './Dashboard.css';
 export const Finance = () => {
   const [activeTab, setActiveTab] = useState('quotations'); // 'quotations' | 'invoices' | 'payments' | 'ageing'
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const [toast, setToast] = useState(null);
   const [viewMode, setViewMode] = useViewMode();
 
@@ -125,7 +127,9 @@ export const Finance = () => {
       return;
     }
 
+    setSubmitting(true);
     try {
+      await new Promise(resolve => setTimeout(resolve, 1200));
       const selectedClient = safeClients.find(c => c._id === quoteForm.clientId);
       const selectedProject = safeProjects.find(p => p._id === quoteForm.projectId || p.projectName === quoteForm.projectTitle);
 
@@ -143,6 +147,8 @@ export const Finance = () => {
       await loadFinanceData();
     } catch (err) {
       setToast({ message: err.message || 'Failed to create quotation', type: 'error' });
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -154,7 +160,9 @@ export const Finance = () => {
       return;
     }
 
+    setSubmitting(true);
     try {
+      await new Promise(resolve => setTimeout(resolve, 1200));
       const newInvoice = await financeService.createInvoice({
         clientId: invoiceForm.clientId,
         projectId: invoiceForm.projectId,
@@ -170,6 +178,8 @@ export const Finance = () => {
       await loadFinanceData();
     } catch (err) {
       setToast({ message: err.message || 'Failed to create invoice', type: 'error' });
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -181,7 +191,9 @@ export const Finance = () => {
       return;
     }
 
+    setSubmitting(true);
     try {
+      await new Promise(resolve => setTimeout(resolve, 1200));
       const newPayment = await financeService.recordPayment({
         invoiceId: paymentForm.invoiceId,
         amountPaid: Number(paymentForm.amountPaid),
@@ -196,7 +208,24 @@ export const Finance = () => {
       await loadFinanceData();
     } catch (err) {
       setToast({ message: err.message || 'Failed to record payment', type: 'error' });
+    } finally {
+      setSubmitting(false);
     }
+  };
+
+  const resetQuotationForm = () => {
+    setQuoteForm({ clientId: '', projectId: '', projectTitle: '', validDays: 30, itemDesc: '', itemRate: '', gstPercentage: 18, notes: '' });
+    setIsQuotationModalOpen(false);
+  };
+
+  const resetInvoiceForm = () => {
+    setInvoiceForm({ clientId: '', projectId: '', milestoneName: '', subtotal: '', gstPercentage: 18, dueDateDays: 15 });
+    setIsInvoiceModalOpen(false);
+  };
+
+  const resetPaymentForm = () => {
+    setPaymentForm({ invoiceId: '', amountPaid: '', paymentMode: 'Bank Transfer / NEFT', transactionReference: '', remarks: '' });
+    setIsPaymentModalOpen(false);
   };
 
   const handleDeleteQuotation = async (id) => {
@@ -1102,7 +1131,7 @@ export const Finance = () => {
 
       {/* CREATE QUOTATION MODAL */}
       {isQuotationModalOpen && (
-        <Modal isOpen={isQuotationModalOpen} title="Create Client Quotation" onClose={() => setIsQuotationModalOpen(false)}>
+        <Modal isOpen={isQuotationModalOpen} title="Create Client Quotation" onClose={resetQuotationForm}>
           <form onSubmit={handleCreateQuotation}>
             <FormField label="Select Client" name="clientId" type="select" value={quoteForm.clientId} onChange={e => setQuoteForm({ ...quoteForm, clientId: e.target.value })} required>
               <option value="">-- Choose Client --</option>
@@ -1127,8 +1156,10 @@ export const Finance = () => {
             <FormField label="Terms & Notes" name="notes" type="textarea" value={quoteForm.notes} onChange={e => setQuoteForm({ ...quoteForm, notes: e.target.value })} placeholder="50% advance, balance on final delivery." />
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1rem' }}>
-              <button type="button" className="btn btn-secondary" onClick={() => setIsQuotationModalOpen(false)}>Cancel</button>
-              <button type="submit" className="btn btn-primary">Generate Quotation</button>
+              <button type="button" className="btn btn-secondary" onClick={() => setIsQuotationModalOpen(false)} disabled={submitting}>Cancel</button>
+              <button type="submit" className="btn btn-primary" disabled={submitting} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                {submitting ? <><Loader2 className="animate-spin" size={14} /> Generating...</> : 'Generate Quotation'}
+              </button>
             </div>
           </form>
         </Modal>
@@ -1136,7 +1167,7 @@ export const Finance = () => {
 
       {/* CREATE INVOICE MODAL */}
       {isInvoiceModalOpen && (
-        <Modal isOpen={isInvoiceModalOpen} title="Raise Milestone Invoice" onClose={() => setIsInvoiceModalOpen(false)}>
+        <Modal isOpen={isInvoiceModalOpen} title="Raise Milestone Invoice" onClose={resetInvoiceForm}>
           <form onSubmit={handleCreateInvoice}>
             <FormField label="Select Client" name="clientId" type="select" value={invoiceForm.clientId} onChange={e => setInvoiceForm({ ...invoiceForm, clientId: e.target.value })} required>
               <option value="">-- Choose Client --</option>
@@ -1160,8 +1191,10 @@ export const Finance = () => {
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1rem' }}>
-              <button type="button" className="btn btn-secondary" onClick={() => setIsInvoiceModalOpen(false)}>Cancel</button>
-              <button type="submit" className="btn btn-primary">Issue Invoice</button>
+              <button type="button" className="btn btn-secondary" onClick={() => setIsInvoiceModalOpen(false)} disabled={submitting}>Cancel</button>
+              <button type="submit" className="btn btn-primary" disabled={submitting} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                {submitting ? <><Loader2 className="animate-spin" size={14} /> Issuing...</> : 'Issue Invoice'}
+              </button>
             </div>
           </form>
         </Modal>
@@ -1169,7 +1202,7 @@ export const Finance = () => {
 
       {/* RECORD PAYMENT MODAL */}
       {isPaymentModalOpen && (
-        <Modal isOpen={isPaymentModalOpen} title="Record Client Payment Receipt" onClose={() => setIsPaymentModalOpen(false)}>
+        <Modal isOpen={isPaymentModalOpen} title="Record Client Payment Receipt" onClose={resetPaymentForm}>
           <form onSubmit={handleRecordPayment}>
             <FormField label="Target Pending Invoice" name="invoiceId" type="select" value={paymentForm.invoiceId} onChange={e => setPaymentForm({ ...paymentForm, invoiceId: e.target.value })} required>
               <option value="">-- Select Pending Invoice --</option>
@@ -1206,8 +1239,10 @@ export const Finance = () => {
             <FormField label="Transaction Ref / UTR No." name="transactionReference" value={paymentForm.transactionReference} onChange={e => setPaymentForm({ ...paymentForm, transactionReference: e.target.value })} placeholder="HDFC9823019830" />
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1rem' }}>
-              <button type="button" className="btn btn-secondary" onClick={() => setIsPaymentModalOpen(false)}>Cancel</button>
-              <button type="submit" className="btn btn-primary">Record Payment</button>
+              <button type="button" className="btn btn-secondary" onClick={() => setIsPaymentModalOpen(false)} disabled={submitting}>Cancel</button>
+              <button type="submit" className="btn btn-primary" disabled={submitting} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                {submitting ? <><Loader2 className="animate-spin" size={14} /> Recording...</> : 'Record Payment'}
+              </button>
             </div>
           </form>
         </Modal>

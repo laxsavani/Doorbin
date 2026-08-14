@@ -33,6 +33,18 @@ export const resourceService = {
     return response.data;
   },
 
+  // GET /resources/project-availability (Pure project assignment date-overlap model)
+  getProjectAvailability: async (artistId, excludeProjectId = null) => {
+    try {
+      const params = { artistId };
+      if (excludeProjectId) params.excludeProjectId = excludeProjectId;
+      const response = await apiClient.get('/resources/project-availability', { params });
+      return response.data;
+    } catch (err) {
+      return { artistId, hasConflicts: false, blockedRanges: [] };
+    }
+  },
+
   // GET /resources/:artistId/allocation (Detailed Task Allocation Breakdown)
   getArtistAllocation: async (artistId) => {
     if (!artistId || !/^[0-9a-fA-F]{24}$/.test(artistId)) {

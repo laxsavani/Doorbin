@@ -26,8 +26,17 @@ export const userService = {
 
   // POST /users - Create new user account (Director only)
   async createUser(userData) {
-    const response = await apiClient.post('/users', userData);
-    return response.data;
+    try {
+      const response = await apiClient.post('/users', userData);
+      return response.data;
+    } catch (err) {
+      if (err.response && err.response.status === 404) {
+        // Fallback to /auth/register endpoint if /users POST route isn't deployed on target server
+        const fallbackResponse = await apiClient.post('/auth/register', userData);
+        return fallbackResponse.data;
+      }
+      throw err;
+    }
   },
 
   // PUT /users/:id - Update user profile, skills, designation, shift times

@@ -8,7 +8,7 @@ import { FormField } from '../components/FormField';
 import { Toast } from '../components/Toast';
 import { Loader } from '../components/Loader';
 import { validators, focusFirstErrorField } from '../utils/validation';
-import { Search, UserPlus, LayoutGrid, List, Edit } from 'lucide-react';
+import { Search, UserPlus, LayoutGrid, List, Edit, Loader2 } from 'lucide-react';
 import { useViewMode } from '../hooks/useViewMode';
 import './Dashboard.css';
 
@@ -21,6 +21,8 @@ export const Users = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState(null);
   const [viewMode, setViewMode] = useViewMode();
 
   const [newUser, setNewUser] = useState({
@@ -144,6 +146,26 @@ export const Users = () => {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const resetCreateUserForm = () => {
+    setNewUser({
+      name: '',
+      email: '',
+      password: '',
+      phone: '',
+      role: rolesList[0]?._id || '',
+      department: departmentsList[0]?._id || '',
+      status: 'Active'
+    });
+    setFormErrors({});
+    setIsModalOpen(false);
+  };
+
+  const resetEditUserForm = () => {
+    setEditingUser({ name: '', email: '', password: '', phone: '', role: '', department: '', status: 'Active' });
+    setFormErrors({});
+    setIsEditModalOpen(false);
   };
 
   const handleOpenEditModal = (user) => {
@@ -280,7 +302,12 @@ export const Users = () => {
                 const deptName = typeof user.department === 'object' ? user.department?.name : (user.department || 'General');
 
                 return (
-                  <div key={user._id} className="responsive-card-item">
+                  <div
+                    key={user._id}
+                    className="responsive-card-item"
+                    onClick={() => { setSelectedUser(user); setIsDetailModalOpen(true); }}
+                    style={{ cursor: 'pointer' }}
+                  >
                     <div className="responsive-card-header">
                       <div>
                         <div className="responsive-card-title">{user.name}</div>
@@ -298,7 +325,8 @@ export const Users = () => {
                         <strong style={{ display: 'block', marginBottom: '0.25rem' }}>Role Assignment:</strong>
                         <select
                           value={roleId || roleName}
-                          onChange={(e) => handleRoleChange(user._id, e.target.value)}
+                          onChange={(e) => { e.stopPropagation(); handleRoleChange(user._id, e.target.value); }}
+                          onClick={(e) => e.stopPropagation()}
                           style={{
                             padding: '0.35rem 0.65rem',
                             borderRadius: '8px',
@@ -318,18 +346,25 @@ export const Users = () => {
                       </div>
                     </div>
 
-                    <div className="responsive-card-footer" style={{ gap: '0.4rem' }}>
+                    <div className="responsive-card-footer" style={{ gap: '0.4rem', flexWrap: 'wrap' }}>
                       <button
-                        onClick={() => handleOpenEditModal(user)}
+                        onClick={(e) => { e.stopPropagation(); setSelectedUser(user); setIsDetailModalOpen(true); }}
                         className="btn btn-secondary"
-                        style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem', flex: 1, justifyContent: 'center' }}
+                        style={{ padding: '0.35rem 0.65rem', fontSize: '0.75rem' }}
                       >
-                        <Edit size={13} /> Edit User
+                        Details
                       </button>
                       <button
-                        onClick={() => handleStatusToggle(user._id, user.status || 'Active')}
+                        onClick={(e) => { e.stopPropagation(); handleOpenEditModal(user); }}
                         className="btn btn-secondary"
-                        style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem', flex: 1, justifyContent: 'center' }}
+                        style={{ padding: '0.35rem 0.65rem', fontSize: '0.75rem' }}
+                      >
+                        <Edit size={13} /> Edit
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleStatusToggle(user._id, user.status || 'Active'); }}
+                        className="btn btn-secondary"
+                        style={{ padding: '0.35rem 0.65rem', fontSize: '0.75rem' }}
                       >
                         {user.status === 'Active' ? 'Deactivate' : 'Activate'}
                       </button>
@@ -358,7 +393,11 @@ export const Users = () => {
                     const deptName = typeof user.department === 'object' ? user.department?.name : (user.department || 'General');
 
                     return (
-                      <tr key={user._id} style={{ borderBottom: '1px solid #f2ece4' }}>
+                      <tr
+                        key={user._id}
+                        onClick={() => { setSelectedUser(user); setIsDetailModalOpen(true); }}
+                        style={{ borderBottom: '1px solid #f2ece4', cursor: 'pointer' }}
+                      >
                         <td style={{ padding: '1rem 1.25rem', textAlign: 'left', wordBreak: 'break-word' }}>
                           <div style={{ fontWeight: 700, color: '#1a1918' }}>{user.name}</div>
                           <div style={{ fontSize: '0.78rem', color: '#8c8882' }}>{user.email}</div>
@@ -370,7 +409,8 @@ export const Users = () => {
                         <td style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>
                           <select
                             value={roleId || roleName}
-                            onChange={(e) => handleRoleChange(user._id, e.target.value)}
+                            onChange={(e) => { e.stopPropagation(); handleRoleChange(user._id, e.target.value); }}
+                            onClick={(e) => e.stopPropagation()}
                             style={{
                               padding: '0.35rem 0.65rem',
                               borderRadius: '8px',
@@ -393,18 +433,25 @@ export const Users = () => {
                           </span>
                         </td>
                         <td style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>
-                          <div style={{ display: 'inline-flex', gap: '0.4rem', justifyContent: 'center' }}>
+                          <div style={{ display: 'inline-flex', gap: '0.35rem', justifyContent: 'center' }}>
                             <button
-                              onClick={() => handleOpenEditModal(user)}
+                              onClick={(e) => { e.stopPropagation(); setSelectedUser(user); setIsDetailModalOpen(true); }}
                               className="btn btn-secondary"
-                              style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}
+                              style={{ padding: '0.35rem 0.65rem', fontSize: '0.75rem' }}
+                            >
+                              Details
+                            </button>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleOpenEditModal(user); }}
+                              className="btn btn-secondary"
+                              style={{ padding: '0.35rem 0.65rem', fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}
                             >
                               <Edit size={13} /> Edit
                             </button>
                             <button
-                              onClick={() => handleStatusToggle(user._id, user.status || 'Active')}
+                              onClick={(e) => { e.stopPropagation(); handleStatusToggle(user._id, user.status || 'Active'); }}
                               className="btn btn-secondary"
-                              style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem' }}
+                              style={{ padding: '0.35rem 0.65rem', fontSize: '0.75rem' }}
                             >
                               {user.status === 'Active' ? 'Deactivate' : 'Activate'}
                             </button>
@@ -423,13 +470,13 @@ export const Users = () => {
       {/* Modal for Creating User */}
       <Modal
         isOpen={isModalOpen}
-        onClose={() => !isSubmitting && setIsModalOpen(false)}
+        onClose={() => !isSubmitting && resetCreateUserForm()}
         title="Add New User"
         footer={
           <>
-            <button className="btn btn-secondary" onClick={() => setIsModalOpen(false)} disabled={isSubmitting}>Cancel</button>
-            <button className="btn btn-primary" onClick={handleCreateUser} disabled={isSubmitting}>
-              {isSubmitting ? 'Registering...' : 'Register User'}
+            <button className="btn btn-secondary" onClick={resetCreateUserForm} disabled={isSubmitting}>Cancel</button>
+            <button className="btn btn-primary" onClick={handleCreateUser} disabled={isSubmitting} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+              {isSubmitting ? <><Loader2 className="animate-spin" size={14} /> Registering...</> : 'Register User'}
             </button>
           </>
         }
@@ -518,13 +565,13 @@ export const Users = () => {
       {/* Modal for Editing User */}
       <Modal
         isOpen={isEditModalOpen}
-        onClose={() => !isSubmitting && setIsEditModalOpen(false)}
+        onClose={() => !isSubmitting && resetEditUserForm()}
         title="Edit User Profile"
         footer={
           <>
-            <button className="btn btn-secondary" onClick={() => setIsEditModalOpen(false)} disabled={isSubmitting}>Cancel</button>
-            <button className="btn btn-primary" onClick={handleUpdateUser} disabled={isSubmitting}>
-              {isSubmitting ? 'Saving Changes...' : 'Save Changes'}
+            <button className="btn btn-secondary" onClick={resetEditUserForm} disabled={isSubmitting}>Cancel</button>
+            <button className="btn btn-primary" onClick={handleUpdateUser} disabled={isSubmitting} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+              {isSubmitting ? <><Loader2 className="animate-spin" size={14} /> Saving Changes...</> : 'Save Changes'}
             </button>
           </>
         }
@@ -607,6 +654,50 @@ export const Users = () => {
           </FormField>
         </form>
       </Modal>
+
+      {/* User Details Modal */}
+      {selectedUser && (
+        <Modal
+          isOpen={isDetailModalOpen}
+          onClose={() => setIsDetailModalOpen(false)}
+          title={`User Profile — ${selectedUser.name}`}
+          footer={
+            <button className="btn btn-secondary" onClick={() => setIsDetailModalOpen(false)}>Close</button>
+          }
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            <div style={{ backgroundColor: '#faf9f6', padding: '1rem 1.25rem', borderRadius: '12px', border: '1px solid #eeeae3' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                <span className="task-status-blue" style={{ fontSize: '0.725rem', textTransform: 'uppercase' }}>
+                  {typeof selectedUser.role === 'object' ? selectedUser.role?.name : selectedUser.role}
+                </span>
+                <span className={`status-badge-pill ${selectedUser.status === 'Active' ? 'badge-on-track' : 'badge-at-risk'}`}>
+                  {selectedUser.status || 'Active'}
+                </span>
+              </div>
+              <div style={{ fontSize: '1.2rem', fontWeight: 700, color: '#1a1918' }}>{selectedUser.name}</div>
+              <div style={{ fontSize: '0.85rem', color: '#4a4742', marginTop: '0.25rem' }}>
+                📧 {selectedUser.email} {selectedUser.phone ? `· 📞 ${selectedUser.phone}` : ''}
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.75rem' }}>
+              <div style={{ backgroundColor: '#ffffff', padding: '0.75rem 1rem', borderRadius: '10px', border: '1px solid #eeeae3' }}>
+                <div style={{ fontSize: '0.725rem', color: '#8c8882', fontWeight: 600 }}>DEPARTMENT</div>
+                <div style={{ fontSize: '0.95rem', fontWeight: 700, color: '#1F1F1F', marginTop: '0.15rem' }}>
+                  {typeof selectedUser.department === 'object' ? selectedUser.department?.name : (selectedUser.department || 'General')}
+                </div>
+              </div>
+              <div style={{ backgroundColor: '#ffffff', padding: '0.75rem 1rem', borderRadius: '10px', border: '1px solid #eeeae3' }}>
+                <div style={{ fontSize: '0.725rem', color: '#8c8882', fontWeight: 600 }}>DAILY CAPACITY</div>
+                <div style={{ fontSize: '0.95rem', fontWeight: 700, color: '#B68D40', marginTop: '0.15rem' }}>
+                  {selectedUser.dailyCapacityHours || 8} hrs/day
+                </div>
+              </div>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 };

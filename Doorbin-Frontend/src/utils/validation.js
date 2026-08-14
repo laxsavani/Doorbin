@@ -28,6 +28,15 @@ export const validators = {
     return null;
   },
 
+  phone: (value, fieldName = 'Phone Number') => {
+    if (!value) return null;
+    const phoneRegex = /^[+]*[(]?[0-9]{1,4}[)]?[-\s./0-9]*$/;
+    if (!phoneRegex.test(value) || value.replace(/\D/g, '').length < 7) {
+      return `${fieldName} must be a valid phone number`;
+    }
+    return null;
+  },
+
   validateFile: (file, allowedTypes = ['image/jpeg', 'image/png', 'image/webp'], maxSizeBytes = 5 * 1024 * 1024) => {
     if (!file) return 'Please select a file to upload';
     

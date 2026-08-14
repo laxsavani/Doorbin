@@ -172,6 +172,28 @@ export const Clients = () => {
     }
   };
 
+  const resetCreateClientForm = () => {
+    setNewClient({
+      companyName: '',
+      clientName: '',
+      email: '',
+      phone: '',
+      address: '',
+      gstDetails: '',
+      industry: 'Real Estate & Infrastructure',
+      notes: '',
+      status: 'Active'
+    });
+    setFormErrors({});
+    setIsCreateModalOpen(false);
+  };
+
+  const resetEditClientForm = () => {
+    setEditingClient(null);
+    setFormErrors({});
+    setIsEditModalOpen(false);
+  };
+
   const handleOpenEditModal = (client) => {
     setEditingClient(client);
     setNewClient({
@@ -373,7 +395,11 @@ export const Clients = () => {
                 </thead>
                 <tbody>
                   {filteredClients.map((client) => (
-                    <tr key={client._id} style={{ borderBottom: '1px solid #f2ece4' }}>
+                    <tr
+                      key={client._id}
+                      onClick={() => { setSelectedClient(client); setIsDetailModalOpen(true); }}
+                      style={{ borderBottom: '1px solid #f2ece4', cursor: 'pointer' }}
+                    >
                       <td style={{ padding: '1rem 1.25rem', textAlign: 'left', wordBreak: 'break-word' }}>
                         <div style={{ fontWeight: 700, color: '#1a1918' }}>{client.companyName}</div>
                         {client.gstDetails && <div style={{ fontSize: '0.725rem', color: '#8c8882' }}>GSTIN: {client.gstDetails}</div>}
@@ -390,14 +416,14 @@ export const Clients = () => {
                         </span>
                       </td>
                       <td style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>
-                        <div style={{ display: 'inline-flex', gap: '0.5rem', justifyContent: 'center' }}>
-                          <button onClick={() => { setSelectedClient(client); setIsDetailModalOpen(true); }} className="btn btn-secondary" style={{ padding: '0.35rem 0.65rem', fontSize: '0.75rem' }}>
-                            <MessageSquare size={14} /> Logs ({client.communicationLog?.length || 0})
+                        <div style={{ display: 'inline-flex', gap: '0.35rem', justifyContent: 'center' }}>
+                          <button onClick={(e) => { e.stopPropagation(); setSelectedClient(client); setIsDetailModalOpen(true); }} className="btn btn-secondary" style={{ padding: '0.35rem 0.65rem', fontSize: '0.75rem' }}>
+                            Details
                           </button>
-                          <button onClick={() => handleOpenEditModal(client)} className="btn btn-secondary" style={{ padding: '0.35rem 0.65rem' }}>
+                          <button onClick={(e) => { e.stopPropagation(); handleOpenEditModal(client); }} className="btn btn-secondary" style={{ padding: '0.35rem 0.65rem' }}>
                             <Edit3 size={14} />
                           </button>
-                          <button onClick={() => setDeletingClientId(client._id)} className="btn btn-secondary" style={{ padding: '0.35rem 0.65rem', color: '#c7452e' }}>
+                          <button onClick={(e) => { e.stopPropagation(); setDeletingClientId(client._id); }} className="btn btn-secondary" style={{ padding: '0.35rem 0.65rem', color: '#c7452e' }}>
                             <Trash2 size={14} />
                           </button>
                         </div>
@@ -410,7 +436,12 @@ export const Clients = () => {
           ) : (
             <div className="responsive-cards-grid">
             {filteredClients.map((client) => (
-              <div key={client._id} className="team-widget-card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+              <div
+                key={client._id}
+                className="team-widget-card"
+                onClick={() => { setSelectedClient(client); setIsDetailModalOpen(true); }}
+                style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', cursor: 'pointer' }}
+              >
                 <div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
                     <span className={`status-badge-pill ${client.status === 'Active' ? 'badge-on-track' : 'badge-at-risk'}`}>
@@ -444,13 +475,13 @@ export const Clients = () => {
                   </div>
                 </div>
 
-                <div style={{ borderTop: '1px solid #f2ece4', paddingTop: '0.85rem', marginTop: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ borderTop: '1px solid #f2ece4', paddingTop: '0.85rem', marginTop: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                   <button
-                    onClick={() => { setSelectedClient(client); setIsDetailModalOpen(true); }}
+                    onClick={(e) => { e.stopPropagation(); setSelectedClient(client); setIsDetailModalOpen(true); }}
                     className="btn btn-secondary"
-                    style={{ fontSize: '0.75rem', padding: '0.4rem 0.85rem' }}
+                    style={{ fontSize: '0.75rem', padding: '0.35rem 0.75rem' }}
                   >
-                    <MessageSquare size={14} /> CRM Logs & Contacts ({client.communicationLog?.length || 0})
+                    Details & Logs ({client.communicationLog?.length || 0})
                   </button>
 
                   <div style={{ display: 'flex', gap: '0.35rem' }}>
@@ -480,11 +511,11 @@ export const Clients = () => {
       {/* Create New Client Modal */}
       <Modal
         isOpen={isCreateModalOpen}
-        onClose={() => setIsCreateModalOpen(false)}
+        onClose={resetCreateClientForm}
         title="Add New Client Record"
         footer={
           <>
-            <button className="btn btn-secondary" onClick={() => setIsCreateModalOpen(false)} disabled={submitting}>Cancel</button>
+            <button className="btn btn-secondary" onClick={resetCreateClientForm} disabled={submitting}>Cancel</button>
             <button className="btn btn-primary" onClick={handleCreateClient} disabled={submitting} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
               {submitting ? <><Loader2 className="animate-spin" size={14} /> Creating...</> : 'Save Client'}
             </button>
@@ -566,11 +597,11 @@ export const Clients = () => {
       {/* Edit Client Modal */}
       <Modal
         isOpen={isEditModalOpen}
-        onClose={() => setIsEditModalOpen(false)}
+        onClose={resetEditClientForm}
         title="Edit Client Record"
         footer={
           <>
-            <button className="btn btn-secondary" onClick={() => setIsEditModalOpen(false)} disabled={submitting}>Cancel</button>
+            <button className="btn btn-secondary" onClick={resetEditClientForm} disabled={submitting}>Cancel</button>
             <button className="btn btn-primary" onClick={handleUpdateClient} disabled={submitting} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
               {submitting ? <><Loader2 className="animate-spin" size={14} /> Updating...</> : 'Update Client'}
             </button>
@@ -664,26 +695,45 @@ export const Clients = () => {
         </form>
       </Modal>
 
-      {/* Client Detail & CRM Log Modal */}
+      {/* Client Detail & Log Drawer */}
       {selectedClient && (
         <Modal
           isOpen={isDetailModalOpen}
           onClose={() => setIsDetailModalOpen(false)}
-          title={`${selectedClient.companyName} — CRM & Communication`}
+          title={`Client Details — ${selectedClient.companyName}`}
           footer={
             <button className="btn btn-secondary" onClick={() => setIsDetailModalOpen(false)}>Close</button>
           }
         >
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-            {/* Client Summary */}
-            <div style={{ backgroundColor: '#faf9f6', padding: '1rem', borderRadius: '12px', border: '1px solid #eeeae3' }}>
-              <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#1a1918' }}>Primary Contact: {selectedClient.clientName}</div>
-              <div style={{ fontSize: '0.8rem', color: '#8c8882', marginTop: '0.2rem' }}>
-                {selectedClient.email} · {selectedClient.phone}
+            {/* Client Header Info */}
+            <div style={{ backgroundColor: '#faf9f6', padding: '1rem 1.25rem', borderRadius: '12px', border: '1px solid #eeeae3' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                <span className="project-category-text">{selectedClient.industry || 'Real Estate'}</span>
+                <span className={`status-badge-pill ${selectedClient.status === 'Active' ? 'badge-on-track' : 'badge-at-risk'}`}>
+                  {selectedClient.status || 'Active'}
+                </span>
               </div>
+              <div style={{ fontSize: '1.2rem', fontWeight: 700, color: '#1a1918' }}>{selectedClient.companyName}</div>
+              <div style={{ fontSize: '0.85rem', color: '#4a4742', marginTop: '0.25rem', fontWeight: 600 }}>
+                Primary Contact: {selectedClient.clientName}
+              </div>
+              <div style={{ fontSize: '0.8rem', color: '#8c8882', marginTop: '0.2rem' }}>
+                📧 {selectedClient.email} · 📞 {selectedClient.phone}
+              </div>
+              {selectedClient.gstDetails && (
+                <div style={{ fontSize: '0.78rem', color: '#1F1F1F', marginTop: '0.35rem', fontFamily: 'monospace', fontWeight: 600 }}>
+                  GSTIN: {selectedClient.gstDetails}
+                </div>
+              )}
               {selectedClient.address && (
                 <div style={{ fontSize: '0.78rem', color: '#4a4742', marginTop: '0.35rem' }}>
-                  Address: {selectedClient.address}
+                  📍 Address: {selectedClient.address}
+                </div>
+              )}
+              {selectedClient.notes && (
+                <div style={{ fontSize: '0.78rem', color: '#78746d', marginTop: '0.35rem', borderTop: '1px dashed #dedad2', paddingTop: '0.35rem' }}>
+                  📝 Notes: {selectedClient.notes}
                 </div>
               )}
             </div>

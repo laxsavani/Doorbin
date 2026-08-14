@@ -322,16 +322,87 @@ const getAvailability = async (req, res) => {
       };
     });
 
-    return res.json({
-      dateFormat: 'DD/MM/YYYY',
-      range: { from: formatDDMMYYYY(fromDate), to: formatDDMMYYYY(toDate), weekdayCount: windowWeekdays.length },
-      totalArtists: result.length,
-      artists: result
-    });
-  } catch (error) {
-    return res.status(500).json({ message: error.message });
-  }
-};
+      return res.status(200).json({
+        totalArtists: artists.length,
+        from: formatDDMMYYYY(fromDate),
+        to: formatDDMMYYYY(toDate),
+        artists: result
+      });
+    } catch (error) {
+      return res.status(500).json({ message: error.message });
+    }
+  };
+
+  // @desc    Get Pure Project-Assignment-Based Availability (Simple Date Range Overlap)
+  // @route   GET /api/resources/project-availability
+  // @access  Private
+  const getProjectAvailability = async (req, res) => {
+    try {
+      const { artistId, excludeProjectId } = req.query;
+      if (!artistId) {
+        return res.status(400).json({ message: 'artistId query parameter is required' });
+      }
+
+      const queryFilter = {
+        assignedTeam: artistId,
+        status: { $nin: ['Completed', 'Cancelled', 'completed', 'cancelled'] },
+        isDeleted: { $ne: true }
+      };
+      if (excludeProjectId && mongoose.Types.ObjectId.isValid(excludeProjectId)) {
+        queryFilter._id = { $ne: excludeProjectId };
+      }
+
+      const projects = await Project.find(queryFilter).select('projectName startDate endDate');
+      
+      const taskQuery = {
+        assignee: artistId,
+        status: { $nin: ['Completed', 'Approved', 'Cancelled'] }
+      };
+      if (excludeProjectId && mongoose.Types.ObjectId.isValid(excludeProjectId)) {
+        taskQuery.project = { $ne: excludeProjectId };
+      }
+      const tasks = await Task.find(taskQuery).populate('project', 'projectName');
+
+      const blockedRanges = [];
+      const seenProjects = new Set();
+
+      projects.forEach(p => {
+        if (p.startDate && p.endDate) {
+          blockedRanges.push({
+            projectId: p._id,
+            projectName: p.projectName,
+            blockedFrom: p.startDate,
+            blockedTo: p.endDate,
+            type: 'Project'
+          });
+          seenProjects.add(p._id.toString());
+        }
+      });
+
+      tasks.forEach(t => {
+        const pId = t.project?._id?.toString();
+        if (pId && !seenProjects.has(pId) && (t.startDate || t.dueDate)) {
+          const tStart = t.startDate || t.dueDate;
+          const tEnd = t.endDate || t.dueDate;
+          blockedRanges.push({
+            projectId: pId,
+            projectName: t.project?.projectName || 'Assigned Task',
+            blockedFrom: tStart,
+            blockedTo: tEnd,
+            type: 'Task'
+          });
+        }
+      });
+
+      return res.status(200).json({
+        artistId,
+        hasConflicts: blockedRanges.length > 0,
+        blockedRanges
+      });
+    } catch (err) {
+      return res.status(500).json({ message: err.message });
+    }
+  };
 
 // @desc    Get Detailed Allocation for a specific Artist
 // @route   GET /api/resources/:artistId/allocation
@@ -796,6 +867,7 @@ module.exports = {
   getArtistProfile,
   deleteArtistProfile,
   getAvailability,
+  getProjectAvailability,
   getArtistAllocation,
   getConflicts,
   getUtilization,

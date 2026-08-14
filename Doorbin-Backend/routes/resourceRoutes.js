@@ -5,6 +5,7 @@ const {
   getArtistProfile,
   deleteArtistProfile,
   getAvailability,
+  getProjectAvailability,
   getArtistAllocation,
   getConflicts,
   getUtilization,
@@ -151,6 +152,7 @@ router.delete('/artist-profile/:userId', protect, directorOrHRAccess, deleteArti
  *         description: Date range query exceeds maximum 90-day limit
  */
 router.get('/availability', protect, resourceAllocationAccess, getAvailability);
+router.get('/project-availability', protect, resourceAllocationAccess, getProjectAvailability);
 
 /**
  * @swagger

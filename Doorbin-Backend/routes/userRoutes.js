@@ -3,6 +3,7 @@ const router = express.Router();
 const {
   getUsers,
   getUserById,
+  createUser,
   updateUserStatus,
   updateUserRole,
   updateUser,
@@ -58,6 +59,7 @@ const userOrHrAccess = (req, res, next) => {
  *         description: Access denied
  */
 router.get('/', protect, userOrHrAccess, getUsers);
+router.post('/', protect, checkPermission('userManagement'), createUser);
 
 /**
  * @swagger

@@ -10,7 +10,7 @@ import { Toast } from '../components/Toast';
 import { Loader } from '../components/Loader';
 import { validators, focusFirstErrorField } from '../utils/validation';
 import { formatDate } from '../utils/dateUtils';
-import { Plus, Search, FolderKanban, CheckCircle2, Clock, Trash2, ShieldCheck, UserCheck, Calendar, DollarSign, Layers, Edit3, LayoutGrid, List } from 'lucide-react';
+import { Plus, Search, FolderKanban, CheckCircle2, Clock, Trash2, ShieldCheck, UserCheck, Calendar, DollarSign, Layers, Edit3, LayoutGrid, List, Loader2 } from 'lucide-react';
 import { useViewMode } from '../hooks/useViewMode';
 import './Dashboard.css';
 
@@ -30,6 +30,7 @@ export const Projects = () => {
   const [usersList, setUsersList] = useState([]);
   const [teamAvailabilityMap, setTeamAvailabilityMap] = useState({});
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const [viewMode, setViewMode] = useViewMode();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -80,50 +81,77 @@ export const Projects = () => {
       setTeamAvailabilityMap({});
       return;
     }
-    try {
-      const params = { from, to };
-      if (excludeProjectId) params.excludeProjectId = excludeProjectId;
+    const startObj = new Date(from);
+    const endObj = new Date(to);
 
-      const data = await resourceService.getArtistAvailability(params);
-      const artistsArr = Array.isArray(data) ? data : (data?.artists || []);
+    try {
       const map = {};
 
-      artistsArr.forEach(a => {
-        const id = (a.artistId || a._id || '').toString();
-        const sched = a.dailySchedule || [];
-        const totalDays = sched.length;
-        const bookedDays = sched.filter(d => d.status === 'Fully Booked' || d.status === 'Over-Allocated' || d.allocatedHours >= (a.dailyCapacityHours || 8)).length;
-        const freeDays = Math.max(0, totalDays - bookedDays);
+      usersList.forEach(u => {
+        const uId = u._id.toString();
 
-        let badgeStatus = 'available'; // 'available' | 'partial' | 'unavailable'
-        let statusText = '🟢 Available';
+        // 1. Pure project assignment overlap check across all studio projects
+        const overlappingProjects = projects.filter(p => {
+          if (excludeProjectId && p._id.toString() === excludeProjectId.toString()) return false;
+          if (p.status === 'Completed' || p.status === 'Cancelled') return false;
+          const teamIds = (p.assignedTeam || []).map(m => (typeof m === 'object' ? m._id?.toString() : m?.toString()));
+          if (!teamIds.includes(uId)) return false;
 
-        if (totalDays > 0) {
-          if (bookedDays >= totalDays || freeDays === 0) {
-            badgeStatus = 'unavailable';
-            statusText = '🔴 Unavailable (Fully Booked)';
-          } else if (bookedDays > 0) {
-            badgeStatus = 'partial';
-            statusText = `🟡 ${freeDays} Days Available (${bookedDays} Days Conflict)`;
-          } else {
-            badgeStatus = 'available';
-            statusText = '🟢 Available';
+          const pStart = p.startDate ? new Date(p.startDate) : null;
+          const pEnd = p.endDate ? new Date(p.endDate) : null;
+          if (!pStart || !pEnd) return false;
+
+          return (pStart <= endObj && pEnd >= startObj);
+        });
+
+        const bookedItems = overlappingProjects.map(p => ({
+          title: p.projectName,
+          end: p.endDate
+        }));
+
+        const isFullyBooked = bookedItems.length > 0;
+        let latestEndStr = null;
+        if (bookedItems.length > 0) {
+          const maxEnd = bookedItems.reduce((max, item) => {
+            if (!item.end) return max;
+            const d = new Date(item.end);
+            return d > max ? d : max;
+          }, new Date(0));
+          if (maxEnd.getTime() > 0) {
+            latestEndStr = formatDate(maxEnd.toISOString());
           }
         }
 
-        map[id] = {
-          name: a.name,
-          badgeStatus,
-          statusText,
-          freeDays,
-          bookedDays,
-          totalDays,
-          freeDatesSummary: a.freeDatesSummary || '',
-          conflictDatesSummary: a.conflictDatesSummary || '',
-          isFullyBooked: badgeStatus === 'unavailable',
-          isPartial: badgeStatus === 'partial'
+        map[uId] = {
+          name: u.name,
+          badgeStatus: isFullyBooked ? 'unavailable' : 'available',
+          statusText: isFullyBooked ? `🔴 Assigned to ${bookedItems.map(b => `"${b.title}"`).join(', ')}` : '🟢 Available',
+          bookedSummary: bookedItems.map(b => `"${b.title}"`).join(', '),
+          availableAfter: latestEndStr,
+          isFullyBooked
         };
       });
+
+      // Try fetching backend project-availability if available
+      try {
+        const bgPromises = usersList.map(u => resourceService.getProjectAvailability(u._id, excludeProjectId));
+        const resList = await Promise.all(bgPromises);
+        resList.forEach(res => {
+          if (res && res.artistId && res.hasConflicts) {
+            const uId = res.artistId.toString();
+            const bSummary = res.blockedRanges.map(b => `"${b.projectName}"`).join(', ');
+            if (map[uId]) {
+              map[uId].isFullyBooked = true;
+              map[uId].badgeStatus = 'unavailable';
+              map[uId].statusText = `🔴 Assigned to ${bSummary}`;
+              map[uId].bookedSummary = bSummary;
+            }
+          }
+        });
+      } catch (err) {
+        // Fallback to local state calculation
+      }
+
       setTeamAvailabilityMap(map);
     } catch {
       setTeamAvailabilityMap({});
@@ -184,7 +212,9 @@ export const Projects = () => {
       return;
     }
 
+    setSubmitting(true);
     try {
+      await new Promise(resolve => setTimeout(resolve, 1200));
       const response = await projectService.createProject({
         ...newProject,
         budget: Number(newProject.budget || 0)
@@ -222,7 +252,34 @@ export const Projects = () => {
       setIsCreateModalOpen(false);
     } catch (err) {
       setToast({ message: err.message || 'Failed to create project', type: 'error' });
+    } finally {
+      setSubmitting(false);
     }
+  };
+
+  const resetCreateProjectForm = () => {
+    setNewProject({
+      projectName: '',
+      client: clientsList[0]?._id || '',
+      projectCategory: 'Architecture',
+      projectSubType: '',
+      priority: 'Medium',
+      budget: '',
+      startDate: '',
+      endDate: '',
+      billingParty: '',
+      productionManager: usersList[0]?._id || '',
+      assignedTeam: [],
+      status: 'Not Started'
+    });
+    setFormErrors({});
+    setIsCreateModalOpen(false);
+  };
+
+  const resetEditProjectForm = () => {
+    setEditingProject(null);
+    setFormErrors({});
+    setIsEditModalOpen(false);
   };
 
   const handleOpenEditModal = (proj) => {
@@ -268,6 +325,7 @@ export const Projects = () => {
       return;
     }
 
+    setSubmitting(true);
     try {
       const updatePayload = {
         ...newProject,
@@ -465,7 +523,11 @@ export const Projects = () => {
                     const pmName = typeof proj.productionManager === 'object' ? (proj.productionManager?.name || 'PM') : 'PM';
 
                     return (
-                      <tr key={proj._id} style={{ borderBottom: '1px solid #f2ece4' }}>
+                      <tr
+                        key={proj._id}
+                        onClick={() => { setSelectedProject(proj); setIsDetailModalOpen(true); }}
+                        style={{ borderBottom: '1px solid #f2ece4', cursor: 'pointer' }}
+                      >
                         <td style={{ padding: '1rem 1.25rem', textAlign: 'left', wordBreak: 'break-word' }}>
                           <div style={{ fontWeight: 700, color: '#1a1918' }}>{proj.projectName}</div>
                           <span className="task-status-blue" style={{ fontSize: '0.65rem' }}>{proj.projectCategory}</span>
@@ -486,11 +548,11 @@ export const Projects = () => {
                           </span>
                         </td>
                         <td style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>
-                          <div style={{ display: 'inline-flex', gap: '0.5rem', justifyContent: 'center' }}>
-                            <button onClick={() => { setSelectedProject(proj); setIsDetailModalOpen(true); }} className="btn btn-secondary" style={{ padding: '0.35rem 0.65rem', fontSize: '0.75rem' }}>
-                              Stages Drawer
+                          <div style={{ display: 'inline-flex', gap: '0.35rem', justifyContent: 'center' }}>
+                            <button onClick={(e) => { e.stopPropagation(); setSelectedProject(proj); setIsDetailModalOpen(true); }} className="btn btn-secondary" style={{ padding: '0.35rem 0.65rem', fontSize: '0.75rem' }}>
+                              Details
                             </button>
-                            <button onClick={() => handleOpenEditModal(proj)} className="btn btn-secondary" style={{ padding: '0.35rem 0.65rem' }}>
+                            <button onClick={(e) => { e.stopPropagation(); handleOpenEditModal(proj); }} className="btn btn-secondary" style={{ padding: '0.35rem 0.65rem' }}>
                               <Edit3 size={14} />
                             </button>
                           </div>
@@ -503,12 +565,17 @@ export const Projects = () => {
             </div>
           ) : (
             <div className="responsive-cards-grid">
-            {filteredProjects.map((proj) => {
-              const clientName = typeof proj.client === 'object' ? (proj.client?.companyName || proj.client?.clientName) : 'Client';
-              const pmName = typeof proj.productionManager === 'object' ? (proj.productionManager?.name || 'PM') : 'PM';
+              {filteredProjects.map((proj) => {
+                const clientName = typeof proj.client === 'object' ? (proj.client?.companyName || proj.client?.clientName) : 'Client';
+                const pmName = typeof proj.productionManager === 'object' ? (proj.productionManager?.name || 'PM') : 'PM';
 
-              return (
-                <div key={proj._id} className="team-widget-card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                return (
+                  <div
+                    key={proj._id}
+                    className="team-widget-card"
+                    onClick={() => { setSelectedProject(proj); setIsDetailModalOpen(true); }}
+                    style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', cursor: 'pointer' }}
+                  >
                   <div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.65rem' }}>
                       <span className="task-status-blue" style={{ fontSize: '0.68rem', textTransform: 'uppercase' }}>
@@ -564,25 +631,25 @@ export const Projects = () => {
                     </div>
                   </div>
 
-                  <div style={{ borderTop: '1px solid #f2ece4', paddingTop: '0.85rem', marginTop: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ borderTop: '1px solid #f2ece4', paddingTop: '0.85rem', marginTop: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                     <button
-                      onClick={() => { setSelectedProject(proj); setIsDetailModalOpen(true); }}
+                      onClick={(e) => { e.stopPropagation(); setSelectedProject(proj); setIsDetailModalOpen(true); }}
                       className="btn btn-secondary"
-                      style={{ fontSize: '0.75rem', padding: '0.4rem 0.85rem' }}
+                      style={{ fontSize: '0.75rem', padding: '0.35rem 0.75rem' }}
                     >
-                      <Layers size={14} /> Workflow Stages & Approval ({proj.stages?.length || 0})
+                      Details & Stages ({proj.stages?.length || 0})
                     </button>
 
                     <div style={{ display: 'flex', gap: '0.35rem' }}>
                       <button
-                        onClick={() => handleOpenEditModal(proj)}
+                        onClick={(e) => { e.stopPropagation(); handleOpenEditModal(proj); }}
                         style={{ background: 'none', border: 'none', color: '#10529d', cursor: 'pointer', padding: '0.35rem' }}
                         title="Edit Project Details"
                       >
                         <Edit3 size={16} />
                       </button>
                       <button
-                        onClick={() => setDeletingProjectId(proj._id)}
+                        onClick={(e) => { e.stopPropagation(); setDeletingProjectId(proj._id); }}
                         style={{ background: 'none', border: 'none', color: '#c7452e', cursor: 'pointer', padding: '0.35rem' }}
                         title="Delete Project"
                       >
@@ -601,12 +668,14 @@ export const Projects = () => {
       {/* Modal for Creating Project */}
       <Modal
         isOpen={isCreateModalOpen}
-        onClose={() => setIsCreateModalOpen(false)}
+        onClose={resetCreateProjectForm}
         title="Create New Visualization Project"
         footer={
           <>
-            <button className="btn btn-secondary" onClick={() => setIsCreateModalOpen(false)}>Cancel</button>
-            <button className="btn btn-primary" onClick={handleCreateProject}>Create Project</button>
+            <button className="btn btn-secondary" onClick={resetCreateProjectForm} disabled={submitting}>Cancel</button>
+            <button className="btn btn-primary" onClick={handleCreateProject} disabled={submitting} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+              {submitting ? <><Loader2 className="animate-spin" size={14} /> Creating...</> : 'Create Project'}
+            </button>
           </>
         }
       >
@@ -657,7 +726,16 @@ export const Projects = () => {
             error={formErrors.productionManager}
             required
           >
-            {usersList.map(u => <option key={u._id} value={u._id}>{u.name} ({u.email})</option>)}
+            {usersList
+              .filter(u => {
+                const r = (typeof u.role === 'object' ? u.role?.name : u.role || '').toLowerCase();
+                return r.includes('production') || r.includes('manager') || r.includes('director') || r === 'pm';
+              })
+              .concat(usersList.filter(u => {
+                const r = (typeof u.role === 'object' ? u.role?.name : u.role || '').toLowerCase();
+                return !(r.includes('production') || r.includes('manager') || r.includes('director') || r === 'pm');
+              }).length === usersList.length ? [] : [])
+              .map(u => <option key={u._id} value={u._id}>{u.name} ({typeof u.role === 'object' ? u.role?.name : u.role})</option>)}
           </FormField>
           <FormField
             label="Budget Amount (₹ INR)"
@@ -771,12 +849,14 @@ export const Projects = () => {
       {/* Modal for Editing Project Details */}
       <Modal
         isOpen={isEditModalOpen}
-        onClose={() => setIsEditModalOpen(false)}
+        onClose={resetEditProjectForm}
         title="Edit Visualization Project Details"
         footer={
           <>
-            <button className="btn btn-secondary" onClick={() => setIsEditModalOpen(false)}>Cancel</button>
-            <button className="btn btn-primary" onClick={handleUpdateProject}>Update Project</button>
+            <button className="btn btn-secondary" onClick={resetEditProjectForm} disabled={submitting}>Cancel</button>
+            <button className="btn btn-primary" onClick={handleUpdateProject} disabled={submitting} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+              {submitting ? <><Loader2 className="animate-spin" size={14} /> Updating...</> : 'Update Project'}
+            </button>
           </>
         }
       >
@@ -814,11 +894,16 @@ export const Projects = () => {
             onChange={(e) => setNewProject({ ...newProject, productionManager: e.target.value })}
           >
             <option value="">Select PM</option>
-            {usersList.map(u => (
-              <option key={u._id} value={u._id}>
-                {u.name} ({typeof u.role === 'object' ? u.role?.name : u.role})
-              </option>
-            ))}
+            {usersList
+              .filter(u => {
+                const r = (typeof u.role === 'object' ? u.role?.name : u.role || '').toLowerCase();
+                return r.includes('production') || r.includes('manager') || r.includes('director') || r === 'pm';
+              })
+              .map(u => (
+                <option key={u._id} value={u._id}>
+                  {u.name} ({typeof u.role === 'object' ? u.role?.name : u.role})
+                </option>
+              ))}
           </FormField>
           <FormField
             label="Project Category"
@@ -880,9 +965,14 @@ export const Projects = () => {
               Assign Project Team Members (1, 2, 3, 4+ Persons)
             </label>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: '160px', overflowY: 'auto', border: '1px solid #e2ded8', borderRadius: '8px', padding: '0.75rem', backgroundColor: '#faf8f5' }}>
-              {artistUsersList.map(u => {
-                const uId = u._id.toString();
-                const isSelected = (newProject.assignedTeam || []).includes(uId);
+              {usersList
+                .filter(u => {
+                  const r = (typeof u.role === 'object' ? u.role?.name : u.role || '').toLowerCase();
+                  return r.includes('artist') || r.includes('3d') || r.includes('visualizer') || r.includes('designer') || r.includes('lead') || r.includes('production') || r.includes('manager');
+                })
+                .map(u => {
+                  const uId = u._id.toString();
+                  const isSelected = (newProject.assignedTeam || []).includes(uId);
                 const avail = teamAvailabilityMap[uId];
 
                 let badgeText = '🟢 Available';
@@ -947,23 +1037,89 @@ export const Projects = () => {
         </form>
       </Modal>
 
-      {/* Project Workflow Stages & Approval Drawer */}
+      {/* Full Project Details Modal */}
       {selectedProject && (
         <Modal
           isOpen={isDetailModalOpen}
           onClose={() => setIsDetailModalOpen(false)}
-          title={`${selectedProject.projectName} — Workflow Stages & Approvals`}
+          title={`Project Details — ${selectedProject.projectName}`}
           footer={
             <button className="btn btn-secondary" onClick={() => setIsDetailModalOpen(false)}>Close</button>
           }
         >
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-            <div style={{ backgroundColor: '#faf9f6', padding: '1rem', borderRadius: '12px', border: '1px solid #eeeae3' }}>
-              <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#1F1F1F' }}>Category: {selectedProject.projectCategory}</div>
-              <div style={{ fontSize: '0.8rem', color: '#8c8882', marginTop: '0.2rem' }}>
-                Overall Progress: {selectedProject.progressPercentage}% · Status: {selectedProject.status}
+            {/* Overview Header Block */}
+            <div style={{ backgroundColor: '#faf9f6', padding: '1rem 1.25rem', borderRadius: '12px', border: '1px solid #eeeae3' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                <span className="task-status-blue" style={{ fontSize: '0.725rem', textTransform: 'uppercase' }}>
+                  {selectedProject.projectCategory}
+                </span>
+                <span className={`status-badge-pill ${selectedProject.status === 'Completed' ? 'badge-on-track' : 'badge-at-risk'}`}>
+                  {selectedProject.status}
+                </span>
+              </div>
+              <div style={{ fontSize: '1.2rem', fontWeight: 700, color: '#1a1918' }}>{selectedProject.projectName}</div>
+              <div style={{ fontSize: '0.85rem', color: '#4a4742', marginTop: '0.25rem', fontWeight: 600 }}>
+                Client: {typeof selectedProject.client === 'object' ? (selectedProject.client?.companyName || selectedProject.client?.clientName) : 'Client'} · PM: {typeof selectedProject.productionManager === 'object' ? (selectedProject.productionManager?.name || 'PM') : 'PM'}
               </div>
             </div>
+
+            {/* Key Metrics Grid */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '0.75rem' }}>
+              <div style={{ backgroundColor: '#ffffff', padding: '0.75rem 1rem', borderRadius: '10px', border: '1px solid #eeeae3' }}>
+                <div style={{ fontSize: '0.725rem', color: '#8c8882', fontWeight: 600 }}>BUDGET</div>
+                <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#15803d', marginTop: '0.15rem' }}>
+                  ₹{Number(selectedProject.budget || 0).toLocaleString()}
+                </div>
+              </div>
+              <div style={{ backgroundColor: '#ffffff', padding: '0.75rem 1rem', borderRadius: '10px', border: '1px solid #eeeae3' }}>
+                <div style={{ fontSize: '0.725rem', color: '#8c8882', fontWeight: 600 }}>PROGRESS</div>
+                <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#B68D40', marginTop: '0.15rem' }}>
+                  {selectedProject.progressPercentage || 0}%
+                </div>
+              </div>
+              <div style={{ backgroundColor: '#ffffff', padding: '0.75rem 1rem', borderRadius: '10px', border: '1px solid #eeeae3' }}>
+                <div style={{ fontSize: '0.725rem', color: '#8c8882', fontWeight: 600 }}>PRIORITY</div>
+                <div style={{ fontSize: '1rem', fontWeight: 700, color: selectedProject.priority === 'High' ? '#dc2626' : (selectedProject.priority === 'Medium' ? '#d97706' : '#16a34a'), marginTop: '0.15rem' }}>
+                  {selectedProject.priority || 'Medium'}
+                </div>
+              </div>
+              <div style={{ backgroundColor: '#ffffff', padding: '0.75rem 1rem', borderRadius: '10px', border: '1px solid #eeeae3' }}>
+                <div style={{ fontSize: '0.725rem', color: '#8c8882', fontWeight: 600 }}>TIMELINE</div>
+                <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#1a1918', marginTop: '0.25rem' }}>
+                  {formatDate(selectedProject.startDate)} — {formatDate(selectedProject.endDate)}
+                </div>
+              </div>
+            </div>
+
+            {/* Team Members List */}
+            {selectedProject.assignedTeam && selectedProject.assignedTeam.length > 0 && (
+              <div style={{ backgroundColor: '#ffffff', padding: '0.85rem 1rem', borderRadius: '10px', border: '1px solid #eeeae3' }}>
+                <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#8c8882', marginBottom: '0.4rem' }}>
+                  ASSIGNED TEAM ({selectedProject.assignedTeam.length}):
+                </div>
+                <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                  {selectedProject.assignedTeam.map((m, idx) => {
+                    const name = typeof m === 'object' ? (m.name || 'Member') : (usersList.find(u => u._id === m)?.name || 'Member');
+                    return (
+                      <span key={idx} style={{ fontSize: '0.75rem', backgroundColor: '#f5efe6', border: '1px solid #e2ded8', borderRadius: '6px', padding: '0.2rem 0.55rem', color: '#1F1F1F', fontWeight: 600 }}>
+                        👤 {name}
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Scope / Notes */}
+            {selectedProject.notes && (
+              <div style={{ backgroundColor: '#ffffff', padding: '0.85rem 1rem', borderRadius: '10px', border: '1px solid #eeeae3' }}>
+                <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#8c8882', marginBottom: '0.25rem' }}>
+                  SCOPE NOTES & DETAILS:
+                </div>
+                <div style={{ fontSize: '0.85rem', color: '#4a4742', whiteSpace: 'pre-line' }}>{selectedProject.notes}</div>
+              </div>
+            )}
 
             {/* Stages List */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
