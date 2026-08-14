@@ -161,16 +161,24 @@ export const NotificationBell = () => {
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
-  const markAllAsRead = () => {
-    const allIds = notifications.map(n => n.id);
+  const markAllAsRead = async () => {
+    const readIds = getReadIds();
+    const currentIds = notifications.map(n => n.id);
+    const mergedSet = new Set([...readIds, ...currentIds]);
+    const updatedReadArray = Array.from(mergedSet);
+
     try {
-      localStorage.setItem(`doorbin_read_notifs_${currentUserId}`, JSON.stringify(allIds));
+      localStorage.setItem(`doorbin_read_notifs_${currentUserId}`, JSON.stringify(updatedReadArray));
     } catch {}
 
-    setNotifications(notifications.map(n => ({ ...n, read: true })));
+    try {
+      await notificationService.markRead('all').catch(() => {});
+    } catch {}
+
+    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
   };
 
-  const dismissNotification = (id) => {
+  const handleMarkItemRead = async (id) => {
     const readIds = getReadIds();
     if (!readIds.includes(id)) {
       readIds.push(id);
@@ -178,7 +186,28 @@ export const NotificationBell = () => {
         localStorage.setItem(`doorbin_read_notifs_${currentUserId}`, JSON.stringify(readIds));
       } catch {}
     }
-    setNotifications(notifications.filter(n => n.id !== id));
+
+    try {
+      await notificationService.markRead(id).catch(() => {});
+    } catch {}
+
+    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+  };
+
+  const dismissNotification = async (id) => {
+    const readIds = getReadIds();
+    if (!readIds.includes(id)) {
+      readIds.push(id);
+      try {
+        localStorage.setItem(`doorbin_read_notifs_${currentUserId}`, JSON.stringify(readIds));
+      } catch {}
+    }
+
+    try {
+      await notificationService.deleteNotification(id).catch(() => {});
+    } catch {}
+
+    setNotifications(prev => prev.filter(n => n.id !== id));
   };
 
   return (
@@ -306,16 +335,18 @@ export const NotificationBell = () => {
                 return (
                   <div
                     key={n.id}
+                    onClick={() => handleMarkItemRead(n.id)}
                     style={{
                       padding: '0.75rem 0.85rem',
                       borderRadius: '10px',
                       marginBottom: '0.35rem',
-                      backgroundColor: n.is2DayReminder ? '#fff7ed' : (n.read ? '#ffffff' : '#fefce8'),
-                      border: n.is2DayReminder ? '1px solid #ffedd5' : (n.read ? '1px solid #f3eee7' : '1px solid #fef08a'),
+                      backgroundColor: n.is2DayReminder ? (n.read ? '#ffffff' : '#fff7ed') : (n.read ? '#ffffff' : '#fefce8'),
+                      border: n.is2DayReminder ? (n.read ? '1px solid #f3eee7' : '1px solid #ffedd5') : (n.read ? '1px solid #f3eee7' : '1px solid #fef08a'),
                       display: 'flex',
                       alignItems: 'flex-start',
                       gap: '0.65rem',
-                      position: 'relative'
+                      position: 'relative',
+                      cursor: 'pointer'
                     }}
                   >
                     <div
@@ -361,7 +392,7 @@ export const NotificationBell = () => {
                     </div>
 
                     <button
-                      onClick={() => dismissNotification(n.id)}
+                      onClick={(e) => { e.stopPropagation(); dismissNotification(n.id); }}
                       style={{
                         background: 'none',
                         border: 'none',
