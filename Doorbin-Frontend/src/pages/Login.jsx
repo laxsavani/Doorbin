@@ -200,7 +200,7 @@ export const Login = () => {
 
       setTimeout(() => {
         navigate('/dashboard');
-      }, 2500);
+      }, 1400);
     } catch (err) {
       const attempts = Number(localStorage.getItem('doorbin_login_failed_attempts') || 0) + 1;
       localStorage.setItem('doorbin_login_failed_attempts', String(attempts));

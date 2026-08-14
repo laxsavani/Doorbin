@@ -28,11 +28,11 @@ export const validators = {
     return null;
   },
 
-  phone: (value, fieldName = 'Phone Number') => {
-    if (!value) return null;
-    const phoneRegex = /^[+]*[(]?[0-9]{1,4}[)]?[-\s./0-9]*$/;
-    if (!phoneRegex.test(value) || value.replace(/\D/g, '').length < 7) {
-      return `${fieldName} must be a valid phone number`;
+  phone: (value, fieldName = 'Mobile Number') => {
+    if (!value || String(value).trim() === '') return null;
+    const cleanDigits = String(value).replace(/\D/g, '');
+    if (cleanDigits.length !== 10) {
+      return `${fieldName} must be exactly 10 digits`;
     }
     return null;
   },

@@ -134,11 +134,31 @@ export const Hrm = () => {
     }
   };
 
+  // Form validation error states
+  const [empPhoneError, setEmpPhoneError] = useState('');
+
+  const handleEmpPhoneChange = (e) => {
+    const digits = e.target.value.replace(/\D/g, '').slice(0, 10);
+    setEmpForm(prev => ({ ...prev, phone: digits }));
+
+    if (digits.length > 0 && digits.length !== 10) {
+      setEmpPhoneError('Mobile number must be exactly 10 digits');
+    } else {
+      setEmpPhoneError('');
+    }
+  };
+
   // Add Employee Handler
   const handleAddEmployee = async (e) => {
     e.preventDefault();
     if (!empForm.name || !empForm.email || !empForm.designation) {
       setToast({ message: 'Please complete mandatory employee details', type: 'error' });
+      return;
+    }
+
+    if (empForm.phone && empForm.phone.length !== 10) {
+      setEmpPhoneError('Mobile number must be exactly 10 digits');
+      setToast({ message: 'Mobile number must be exactly 10 digits', type: 'error' });
       return;
     }
 
@@ -148,6 +168,7 @@ export const Hrm = () => {
       setIsEmployeeModalOpen(false);
       setToast({ message: `Employee ${newEmp.name} onboarded!`, type: 'success' });
       setEmpForm({ name: '', email: '', phone: '', designation: '', role: 'Artist', monthlySalary: '' });
+      setEmpPhoneError('');
     } catch (err) {
       setToast({ message: err.message || 'Failed to onboard employee', type: 'error' });
     }
@@ -788,7 +809,18 @@ export const Hrm = () => {
         <Modal isOpen={isEmployeeModalOpen} title="Onboard New Staff Member" onClose={() => setIsEmployeeModalOpen(false)}>
           <form onSubmit={handleAddEmployee}>
             <FormField label="Full Name" name="name" value={empForm.name} onChange={e => setEmpForm({ ...empForm, name: e.target.value })} required />
-            <FormField label="Email Address" name="email" type="email" value={empForm.email} onChange={e => setEmpForm({ ...empForm, email: e.target.value })} required />
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+              <FormField label="Email Address" name="email" type="email" value={empForm.email} onChange={e => setEmpForm({ ...empForm, email: e.target.value })} required />
+              <FormField 
+                label="Mobile Number" 
+                name="phone" 
+                maxLength={10} 
+                placeholder="e.g. 9876543210" 
+                value={empForm.phone} 
+                onChange={handleEmpPhoneChange} 
+                error={empPhoneError} 
+              />
+            </div>
             <FormField label="Designation Title" name="designation" value={empForm.designation} onChange={e => setEmpForm({ ...empForm, designation: e.target.value })} placeholder="3D Lighting Artist" required />
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>

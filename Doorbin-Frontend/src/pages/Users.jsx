@@ -104,6 +104,23 @@ export const Users = () => {
     }
   };
 
+  const handlePhoneChange = (val, isEdit = false) => {
+    const digits = val.replace(/\D/g, '').slice(0, 10);
+    if (isEdit) {
+      setEditingUser(prev => ({ ...prev, phone: digits }));
+    } else {
+      setNewUser(prev => ({ ...prev, phone: digits }));
+    }
+
+    let err = null;
+    if (digits.length > 0 && digits.length !== 10) {
+      err = 'Mobile number must be exactly 10 digits';
+    } else if (digits.length === 0 && !isEdit) {
+      err = 'Mobile number is required';
+    }
+    setFormErrors(prev => ({ ...prev, phone: err }));
+  };
+
   const handleCreateUser = async (e) => {
     if (e) e.preventDefault();
 
@@ -514,9 +531,10 @@ export const Users = () => {
           <FormField
             label="Phone Number"
             name="phone"
-            placeholder="+91 9876543210"
+            maxLength={10}
+            placeholder="e.g. 9876543210"
             value={newUser.phone}
-            onChange={(e) => setNewUser({ ...newUser, phone: e.target.value })}
+            onChange={(e) => handlePhoneChange(e.target.value, false)}
             error={formErrors.phone}
             required
           />
@@ -608,9 +626,10 @@ export const Users = () => {
           <FormField
             label="Phone Number"
             name="edit_phone"
-            placeholder="+91 9876543210"
+            maxLength={10}
+            placeholder="e.g. 9876543210"
             value={editingUser.phone}
-            onChange={(e) => setEditingUser({ ...editingUser, phone: e.target.value })}
+            onChange={(e) => handlePhoneChange(e.target.value, true)}
             error={formErrors.phone}
           />
           <FormField

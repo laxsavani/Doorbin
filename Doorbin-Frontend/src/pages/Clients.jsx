@@ -97,6 +97,19 @@ export const Clients = () => {
     }
   };
 
+  const handleClientPhoneChange = (val) => {
+    const digits = val.replace(/\D/g, '').slice(0, 10);
+    setNewClient(prev => ({ ...prev, phone: digits }));
+
+    let err = null;
+    if (digits.length > 0 && digits.length !== 10) {
+      err = 'Mobile number must be exactly 10 digits';
+    } else if (digits.length === 0) {
+      err = 'Phone Number is required';
+    }
+    setFormErrors(prev => ({ ...prev, phone: err }));
+  };
+
   const handleCreateClient = async (e) => {
     e.preventDefault();
 
@@ -110,7 +123,7 @@ export const Clients = () => {
     const emailErr = validators.email(newClient.email);
     if (emailErr) errors.email = emailErr;
 
-    const phoneErr = validators.required(newClient.phone, 'Phone Number');
+    const phoneErr = validators.required(newClient.phone, 'Phone Number') || validators.phone(newClient.phone);
     if (phoneErr) errors.phone = phoneErr;
 
     if (newClient.gstDetails && newClient.gstDetails.trim().length > 15) {
@@ -570,9 +583,10 @@ export const Clients = () => {
           <FormField
             label="Phone Number"
             name="phone"
-            placeholder="+91 98250 12345"
+            maxLength={10}
+            placeholder="e.g. 9876543210"
             value={newClient.phone}
-            onChange={(e) => setNewClient({ ...newClient, phone: e.target.value })}
+            onChange={(e) => handleClientPhoneChange(e.target.value)}
             error={formErrors.phone}
             required
           />
