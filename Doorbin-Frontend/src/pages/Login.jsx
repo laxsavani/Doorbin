@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Toast } from '../components/Toast';
 import { validators, focusFirstErrorField } from '../utils/validation';
@@ -421,10 +421,11 @@ export const Login = () => {
 
           {/* Form Footer */}
           <div className="login-form-footer">
-            &copy; 2026 Doorbin Visuals · High-End Architectural Visualization
+            &copy; 2026 Doorbin Visuals - High-End Architectural Visualization
           </div>
         </div>
       </div>
     </div>
   );
 };
+

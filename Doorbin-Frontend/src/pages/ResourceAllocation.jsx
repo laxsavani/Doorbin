@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { resourceService } from '../services/resourceService';
 import { userService } from '../services/userService';
 import { Modal } from '../components/Modal';
@@ -538,7 +538,7 @@ export const ResourceAllocation = () => {
                   <div>
                     <div style={{ fontWeight: 800, fontSize: '0.9rem', color: '#1F1F1F' }}>{sk.skill}</div>
                     <div style={{ fontSize: '0.78rem', color: '#78746d' }}>
-                      Required: {sk.requiredHours} hrs · Available: {sk.availableHours} hrs
+                      Required: {sk.requiredHours} hrs - Available: {sk.availableHours} hrs
                     </div>
                   </div>
                   <span
@@ -579,3 +579,4 @@ export const ResourceAllocation = () => {
     </div>
   );
 };
+

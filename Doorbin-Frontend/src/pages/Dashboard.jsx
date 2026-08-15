@@ -104,7 +104,7 @@ export const Dashboard = () => {
             Good morning, {userName.split(' ')[0]}
           </h1>
           <p className="hero-sub-summary">
-            {userRole} Workspace · {displayTasks.length} active tasks · Studio operational
+            {userRole} Workspace · {displayTasks.length} active tasks - Studio operational
           </p>
         </div>
       </div>
@@ -383,3 +383,4 @@ export const Dashboard = () => {
     </main>
   );
 };
+

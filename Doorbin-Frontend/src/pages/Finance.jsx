@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { financeService } from '../services/financeService';
 import { clientService } from '../services/clientService';
 import { projectService } from '../services/projectService';
@@ -411,7 +411,7 @@ export const Finance = () => {
           });
         } else {
           let csvData = `Doorbin Visuals - PAYMENT RECEIPTS REPORT (${dateFilter.toUpperCase()})\nGenerated Date: ${new Date().toLocaleString()}\n\n`;
-          csvData += `Receipt Number,Invoice Reference,Client Name,Payment Date,Payment Mode,Reference / Cheque No,Amount Paid (INR)\n`;
+          csvData += `Receipt Number,Invoice Reference,Client Name,Payment Date,Payment Mode,Reference / Cheque No,Amount Paid (₹)\n`;
           filteredPayments.forEach(p => {
             csvData += `"${p.receiptNumber || 'REC-001'}","${p.invoice?.invoiceNumber || p.invoiceNumber || 'N/A'}","${p.client?.companyName || 'N/A'}","${p.paymentDateFormatted || ''}","${p.paymentMode || 'Bank Transfer'}","${p.referenceNumber || 'N/A'}",${p.amountPaid || 0}\n`;
           });
@@ -1270,3 +1270,4 @@ export const Finance = () => {
     </div>
   );
 };
+

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { projectService } from '../services/projectService';
 import { clientService } from '../services/clientService';
 import { userService } from '../services/userService';
@@ -693,7 +693,7 @@ export const Projects = () => {
 
                       const stagesMap = {};
                       projTasks.forEach(t => {
-                        const stg = t.stage || t.phase || 'Stage 1 — Scene Prep';
+                        const stg = t.stage || t.phase || 'Stage 1 - Scene Prep';
                         if (!stagesMap[stg]) stagesMap[stg] = [];
                         stagesMap[stg].push(t);
                       });
@@ -928,7 +928,7 @@ export const Projects = () => {
                     <th style={{ padding: '1rem 1.25rem', textAlign: 'left' }}>Project Name</th>
                     <th style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>Client & PM</th>
                     <th style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>Progress</th>
-                    <th style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>Budget (₹)</th>
+                    <th style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>BUDGET (₹)</th>
                     <th style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>Status</th>
                     <th style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>Actions</th>
                   </tr>
@@ -1374,7 +1374,7 @@ export const Projects = () => {
             {PROJECT_STATUSES.map(st => <option key={st} value={st}>{st}</option>)}
           </FormField>
           <FormField
-            label="Budget (₹ INR)"
+            label="BUDGET (₹)"
             name="budget"
             type="number"
             placeholder="e.g. 150000"
@@ -1681,3 +1681,4 @@ export const Projects = () => {
     </div>
   );
 };
+

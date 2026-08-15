@@ -68,7 +68,7 @@ export const Hrm = () => {
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
 
   // Forms
-  const [empForm, setEmpForm] = useState({ name: '', email: '', phone: '', designation: '', role: 'Artist', monthlySalary: '' });
+              <FormField label={"Monthly Salary (\u20B9)"} name="monthlySalary" type="number" value={empForm.monthlySalary} onChange={e => setEmpForm({ ...empForm, monthlySalary: e.target.value })} placeholder="75000" />
   const [leaveForm, setLeaveForm] = useState({ employeeId: '', leaveType: 'Casual Leave', startDate: '', endDate: '', reason: '' });
   const [holidayForm, setHolidayForm] = useState({ holidayName: '', date: '', type: 'Festival' });
   const [reviewForm, setReviewForm] = useState({ employeeId: '', reviewPeriod: 'Q3 2026', qualityScore: 9, timelinessScore: 8, teamworkScore: 9, feedback: '' });
@@ -194,7 +194,7 @@ export const Hrm = () => {
       setEmployees(prev => [newEmp, ...prev]);
       setIsEmployeeModalOpen(false);
       setToast({ message: `Employee ${newEmp.name} onboarded!`, type: 'success' });
-      setEmpForm({ name: '', email: '', phone: '', designation: '', role: 'Artist', monthlySalary: '' });
+              <FormField label={"Monthly Salary (\u20B9)"} name="monthlySalary" type="number" value={empForm.monthlySalary} onChange={e => setEmpForm({ ...empForm, monthlySalary: e.target.value })} placeholder="75000" />
       setEmpPhoneError('');
     } catch (err) {
       setToast({ message: err.message || 'Failed to onboard employee', type: 'error' });
@@ -882,7 +882,7 @@ export const Hrm = () => {
                 <option value="Human Resource">Human Resource</option>
                 <option value="Business Development Manager">Business Development Manager</option>
               </FormField>
-              <FormField label="Monthly Salary (â‚¹)" name="monthlySalary" type="number" value={empForm.monthlySalary} onChange={e => setEmpForm({ ...empForm, monthlySalary: e.target.value })} placeholder="75000" />
+              <FormField label={"Monthly Salary (\u20B9)"} name="monthlySalary" type="number" value={empForm.monthlySalary} onChange={e => setEmpForm({ ...empForm, monthlySalary: e.target.value })} placeholder="75000" />
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1rem' }}>
@@ -899,7 +899,7 @@ export const Hrm = () => {
           <form onSubmit={handleApplyLeave}>
             {isDirectorOrHR ? (
               <FormField label="Employee" name="employeeId" type="select" value={leaveForm.employeeId || currentUserId} onChange={e => setLeaveForm({ ...leaveForm, employeeId: e.target.value })} required>
-                <option value={currentUserId}>Self â€” {currentUserName} ({userRoleName})</option>
+                <option value={currentUserId}>Self - {currentUserName} ({userRoleName})</option>
                 {scopedEmployees.map(emp => (
                   <option key={emp._id} value={emp._id}>{emp.name} ({emp.employeeCode || 'EMP'})</option>
                 ))}
@@ -1023,6 +1023,8 @@ export const Hrm = () => {
     </div>
   );
 };
+
+
 
 
 
