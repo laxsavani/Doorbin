@@ -15,13 +15,9 @@ import {
   Search,
   AlertCircle,
   CheckCircle2,
-  XCircle,
-  ExternalLink,
   Edit2,
-  Save,
   Plus,
-  Loader2,
-  RefreshCw
+  Loader2
 } from 'lucide-react';
 
 export const MilestoneTrackerTab = ({ setToast }) => {
@@ -32,6 +28,9 @@ export const MilestoneTrackerTab = ({ setToast }) => {
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const pageSize = 10;
+
+  // View Mode: 'clean' (Spreadsheet Grid + Modal Edit) | 'edit' (Inline Input Grid)
+  const [tableMode, setTableMode] = useState('clean');
 
   // Filters
   const [search, setSearch] = useState('');
@@ -59,9 +58,6 @@ export const MilestoneTrackerTab = ({ setToast }) => {
 
   // Export State
   const [exportingFormat, setExportingFormat] = useState(null);
-
-  // Cell Edit Tracking
-  const [savingCellId, setSavingCellId] = useState(null);
 
   useEffect(() => {
     loadTrackers();
@@ -186,7 +182,7 @@ export const MilestoneTrackerTab = ({ setToast }) => {
     }
   };
 
-  // Single cell inline update handler for table
+  // Single cell inline update handler
   const handleMilestoneCellChange = async (projectId, mNum, field, value) => {
     const trackerIdx = trackers.findIndex(t => t.project?._id === projectId || t.project === projectId);
     if (trackerIdx < 0) return;
@@ -210,7 +206,6 @@ export const MilestoneTrackerTab = ({ setToast }) => {
       setTrackers(updatedTrackers);
     }
 
-    setSavingCellId(`${projectId}-${mNum}-${field}`);
     try {
       const payload = {
         amount: targetRow.milestones[mIdx]?.amount,
@@ -230,8 +225,6 @@ export const MilestoneTrackerTab = ({ setToast }) => {
     } catch (err) {
       if (setToast) setToast({ message: err.message || 'Failed to save cell update', type: 'error' });
       loadTrackers();
-    } finally {
-      setSavingCellId(null);
     }
   };
 
@@ -275,7 +268,7 @@ export const MilestoneTrackerTab = ({ setToast }) => {
   const handleExport = async (format) => {
     setExportingFormat(format);
     try {
-      if (setToast) setToast({ message: `Generating ${format.toUpperCase()} export matching spreadsheet layout...`, type: 'info' });
+      if (setToast) setToast({ message: `Generating ${format.toUpperCase()} export...`, type: 'info' });
       const response = await milestoneTrackerService.exportTrackers({
         format,
         projectStatus: statusFilter
@@ -318,36 +311,80 @@ export const MilestoneTrackerTab = ({ setToast }) => {
     return <Loader message="Loading Milestone Payment Tracker..." />;
   }
 
+  // DARKER HEADER BORDER STYLING (As specifically requested for container & header cells)
+  const mainThStyle = {
+    backgroundColor: '#F4EFEA',
+    color: '#1F1F1F',
+    fontWeight: '700',
+    fontSize: '0.75rem',
+    letterSpacing: '0.04em',
+    padding: '0.7rem 0.5rem',
+    border: '1.5px solid #8b8070', // Darker, crisp header border
+    textAlign: 'center',
+    verticalAlign: 'middle'
+  };
+
+  const groupThStyle = {
+    backgroundColor: '#EBE4D8',
+    color: '#1F1F1F',
+    fontWeight: '700',
+    fontSize: '0.75rem',
+    letterSpacing: '0.04em',
+    padding: '0.7rem 0.5rem',
+    border: '1.5px solid #8b8070', // Darker, crisp header border
+    textAlign: 'center',
+    verticalAlign: 'middle'
+  };
+
+  const subThStyle = {
+    backgroundColor: '#F4EFEA',
+    color: '#3D352E',
+    fontWeight: '700',
+    fontSize: '0.71rem',
+    padding: '0.45rem 0.35rem',
+    border: '1.5px solid #8b8070', // Darker, crisp subheader border
+    textAlign: 'center',
+    verticalAlign: 'middle'
+  };
+
+  // Standard Excel Cell Grid Style for Data Rows Below
+  const tdStyle = {
+    border: '1px solid #dcd3c8',
+    padding: '0.5rem 0.5rem',
+    verticalAlign: 'middle',
+    fontSize: '0.78rem'
+  };
+
   return (
-    <div className="smooth-fade-in">
-      {/* TOOLBAR: SEARCH, FILTERS, ADD FORM, UPLOAD & EXPORTS */}
+    <div className="smooth-fade-in" style={{ fontFamily: 'Poppins, system-ui, sans-serif' }}>
+      {/* TOOLBAR */}
       <div style={{
         display: 'flex',
         justify: 'space-between',
         alignItems: 'center',
         flexWrap: 'wrap',
-        gap: '0.75rem',
-        marginBottom: '1.25rem',
-        padding: '1rem',
+        gap: '0.85rem',
+        marginBottom: '1rem',
+        padding: '0.85rem 1.15rem',
         backgroundColor: '#ffffff',
-        border: '1px solid #e9e5dc',
-        borderRadius: '10px'
+        border: '1.5px solid #8b8070', // Darker toolbar border
+        borderRadius: '8px'
       }}>
-        <form onSubmit={handleSearchSubmit} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+        <form onSubmit={handleSearchSubmit} style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
           <div style={{ position: 'relative' }}>
-            <Search size={16} style={{ position: 'absolute', left: '0.65rem', top: '50%', transform: 'translateY(-50%)', color: '#8c8882' }} />
+            <Search size={15} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: '#78726a' }} />
             <input
               type="text"
-              placeholder="Search project name..."
+              placeholder="Search project..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               style={{
-                padding: '0.45rem 0.65rem 0.45rem 2.2rem',
-                border: '1px solid #dcd7ce',
+                padding: '0.45rem 0.75rem 0.45rem 2.2rem',
+                border: '1px solid #dcd3c8',
                 borderRadius: '6px',
-                fontSize: '0.825rem',
+                fontSize: '0.815rem',
                 color: '#1F1F1F',
-                width: '210px'
+                width: '200px'
               }}
             />
           </div>
@@ -356,20 +393,20 @@ export const MilestoneTrackerTab = ({ setToast }) => {
             value={statusFilter}
             onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
             style={{
-              padding: '0.45rem 0.65rem',
-              border: '1px solid #dcd7ce',
+              padding: '0.45rem 0.75rem',
+              border: '1px solid #dcd3c8',
               borderRadius: '6px',
-              fontSize: '0.825rem',
+              fontSize: '0.815rem',
               color: '#1F1F1F',
-              backgroundColor: '#ffffff'
+              backgroundColor: '#ffffff',
+              cursor: 'pointer'
             }}
           >
-            <option value="all">All Project Statuses</option>
+            <option value="all">All Statuses</option>
             <option value="In Progress">In Progress</option>
             <option value="Not Started">Not Started</option>
             <option value="On Hold">On Hold</option>
             <option value="Completed">Completed</option>
-            <option value="Cancelled">Cancelled</option>
           </select>
 
           <button type="submit" className="btn btn-secondary" style={{ padding: '0.45rem 0.75rem', fontSize: '0.8rem' }}>
@@ -377,21 +414,55 @@ export const MilestoneTrackerTab = ({ setToast }) => {
           </button>
         </form>
 
-        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: '0.65rem', alignItems: 'center', flexWrap: 'wrap' }}>
+          {/* MODE TOGGLE */}
+          <div style={{ display: 'flex', backgroundColor: '#f4efe8', padding: '0.2rem', borderRadius: '6px', border: '1px solid #dcd3c8' }}>
+            <button
+              onClick={() => setTableMode('clean')}
+              style={{
+                padding: '0.35rem 0.75rem',
+                border: 'none',
+                borderRadius: '5px',
+                fontSize: '0.75rem',
+                fontWeight: tableMode === 'clean' ? '700' : '500',
+                backgroundColor: tableMode === 'clean' ? '#ffffff' : 'transparent',
+                color: tableMode === 'clean' ? '#1F1F1F' : '#78726a',
+                cursor: 'pointer'
+              }}
+            >
+              📊 Spreadsheet View
+            </button>
+            <button
+              onClick={() => setTableMode('edit')}
+              style={{
+                padding: '0.35rem 0.75rem',
+                border: 'none',
+                borderRadius: '5px',
+                fontSize: '0.75rem',
+                fontWeight: tableMode === 'edit' ? '700' : '500',
+                backgroundColor: tableMode === 'edit' ? '#ffffff' : 'transparent',
+                color: tableMode === 'edit' ? '#1F1F1F' : '#78726a',
+                cursor: 'pointer'
+              }}
+            >
+              ⚡ Quick Edit Mode
+            </button>
+          </div>
+
           <button
             onClick={() => handleOpenTrackerModal(null)}
             className="btn btn-primary"
-            style={{ fontSize: '0.78rem', padding: '0.45rem 0.85rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+            style={{ fontSize: '0.78rem', padding: '0.45rem 0.85rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
           >
-            <Plus size={14} /> Add / Configure Tracker
+            <Plus size={14} /> Add Tracker
           </button>
 
           <button
             onClick={() => setIsUploadModalOpen(true)}
             className="btn btn-secondary"
-            style={{ fontSize: '0.78rem', padding: '0.45rem 0.85rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+            style={{ fontSize: '0.78rem', padding: '0.45rem 0.75rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
           >
-            <Upload size={14} /> Bulk Upload Sheet
+            <Upload size={14} /> Upload Sheet
           </button>
 
           <button
@@ -400,7 +471,7 @@ export const MilestoneTrackerTab = ({ setToast }) => {
             className="btn btn-secondary"
             style={{ fontSize: '0.78rem', padding: '0.45rem 0.75rem', backgroundColor: '#f0fdf4', color: '#16a34a', borderColor: '#bbf7d0', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
           >
-            <FileSpreadsheet size={14} /> {exportingFormat === 'excel' ? 'Exporting...' : 'Excel Export'}
+            <FileSpreadsheet size={14} /> {exportingFormat === 'excel' ? 'Exporting...' : 'Excel'}
           </button>
 
           <button
@@ -409,52 +480,45 @@ export const MilestoneTrackerTab = ({ setToast }) => {
             className="btn btn-secondary"
             style={{ fontSize: '0.78rem', padding: '0.45rem 0.75rem', backgroundColor: '#fef2f2', color: '#dc2626', borderColor: '#fecaca', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
           >
-            <FileText size={14} /> {exportingFormat === 'pdf' ? 'Exporting...' : 'PDF Report'}
-          </button>
-
-          <button
-            onClick={() => handleExport('csv')}
-            disabled={exportingFormat === 'csv'}
-            className="btn btn-secondary"
-            style={{ fontSize: '0.78rem', padding: '0.45rem 0.75rem', backgroundColor: '#eff6ff', color: '#2563eb', borderColor: '#bfdbfe', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
-          >
-            <Download size={14} /> {exportingFormat === 'csv' ? 'Exporting...' : 'CSV Export'}
+            <FileText size={14} /> {exportingFormat === 'pdf' ? 'Exporting...' : 'PDF'}
           </button>
         </div>
       </div>
 
-      {/* SPREADSHEET TABLE VIEW */}
-      <div className="table-responsive" style={{ border: '1px solid #cbd5e1', borderRadius: '8px', overflowX: 'auto', backgroundColor: '#ffffff' }}>
+      {/* EXCEL GRID SPREADSHEET TABLE WITH DARKER CONTAINER & HEADER BORDERS */}
+      <div className="table-responsive" style={{ border: '2px solid #78726a', borderRadius: '8px', overflowX: 'auto', backgroundColor: '#ffffff', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
         <table className="table" style={{ fontSize: '0.78rem', borderCollapse: 'collapse', width: '100%', minWidth: '1650px' }}>
           <thead>
-            <tr style={{ backgroundColor: '#1e293b', color: '#ffffff', textAlign: 'center', fontSize: '0.75rem', letterSpacing: '0.03em' }}>
-              <th rowSpan={2} style={{ width: '45px', padding: '0.65rem 0.4rem', borderRight: '1px solid #334155' }}>SR. NO.</th>
-              <th rowSpan={2} style={{ width: '170px', padding: '0.65rem 0.5rem', borderRight: '1px solid #334155', textAlign: 'left' }}>PROJECT NAME</th>
-              <th rowSpan={2} style={{ width: '140px', padding: '0.65rem 0.5rem', borderRight: '1px solid #334155', textAlign: 'left' }}>CLIENT NAME</th>
-              <th rowSpan={2} style={{ width: '130px', padding: '0.65rem 0.5rem', borderRight: '1px solid #334155', textAlign: 'left' }}>ARCHITECT / DESIGNER</th>
-              <th rowSpan={2} style={{ width: '105px', padding: '0.65rem 0.4rem', borderRight: '1px solid #334155' }}>PROJECT STATUS</th>
+            {/* ROW 1: MAIN HEADERS */}
+            <tr>
+              <th rowSpan={2} style={{ ...mainThStyle, width: '45px' }}>SR. NO.</th>
+              <th rowSpan={2} style={{ ...mainThStyle, width: '180px', textAlign: 'left' }}>PROJECT NAME</th>
+              <th rowSpan={2} style={{ ...mainThStyle, width: '140px', textAlign: 'left' }}>CLIENT NAME</th>
+              <th rowSpan={2} style={{ ...mainThStyle, width: '130px', textAlign: 'left' }}>ARCHITECT / DESIGNER</th>
+              <th rowSpan={2} style={{ ...mainThStyle, width: '105px' }}>PROJECT STATUS</th>
               
-              <th colSpan={4} style={{ padding: '0.45rem', borderRight: '1px solid #334155', backgroundColor: '#334155' }}>MILESTONE 1</th>
-              <th colSpan={4} style={{ padding: '0.45rem', borderRight: '1px solid #334155', backgroundColor: '#334155' }}>MILESTONE 2</th>
-              <th colSpan={4} style={{ padding: '0.45rem', borderRight: '1px solid #334155', backgroundColor: '#334155' }}>MILESTONE 3</th>
-              <th colSpan={4} style={{ padding: '0.45rem', borderRight: '1px solid #334155', backgroundColor: '#334155' }}>MILESTONE 4</th>
-              <th colSpan={4} style={{ padding: '0.45rem', borderRight: '1px solid #334155', backgroundColor: '#334155' }}>MILESTONE 5</th>
+              <th colSpan={4} style={groupThStyle}>MILESTONE 1</th>
+              <th colSpan={4} style={groupThStyle}>MILESTONE 2</th>
+              <th colSpan={4} style={groupThStyle}>MILESTONE 3</th>
+              <th colSpan={4} style={groupThStyle}>MILESTONE 4</th>
+              <th colSpan={4} style={groupThStyle}>MILESTONE 5</th>
 
-              <th rowSpan={2} style={{ width: '65px', padding: '0.65rem 0.3rem', borderRight: '1px solid #334155' }}>% CHECK</th>
-              <th rowSpan={2} style={{ width: '135px', padding: '0.65rem 0.5rem', borderRight: '1px solid #334155' }}>TOTAL PROJECT VALUE (₹)</th>
-              <th rowSpan={2} style={{ width: '115px', padding: '0.65rem 0.5rem', borderRight: '1px solid #334155' }}>TOTAL RECEIVED (₹)</th>
-              <th rowSpan={2} style={{ width: '105px', padding: '0.65rem 0.5rem', borderRight: '1px solid #334155' }}>WIP (₹)</th>
-              <th rowSpan={2} style={{ width: '115px', padding: '0.65rem 0.5rem', borderRight: '1px solid #334155', backgroundColor: '#15803d' }}>BALANCE DUE (₹)</th>
-              <th rowSpan={2} style={{ width: '130px', padding: '0.65rem 0.5rem', textAlign: 'left', borderRight: '1px solid #334155' }}>NOTES</th>
-              <th rowSpan={2} style={{ width: '65px', padding: '0.65rem 0.3rem' }}>ACTIONS</th>
+              <th rowSpan={2} style={{ ...mainThStyle, width: '65px' }}>% CHECK</th>
+              <th rowSpan={2} style={{ ...mainThStyle, width: '135px' }}>TOTAL PROJECT VALUE (₹)</th>
+              <th rowSpan={2} style={{ ...mainThStyle, width: '115px' }}>TOTAL RECEIVED (₹)</th>
+              <th rowSpan={2} style={{ ...mainThStyle, width: '105px' }}>WIP (₹)</th>
+              <th rowSpan={2} style={{ ...mainThStyle, width: '120px', backgroundColor: '#e2efda', color: '#15803d', border: '1.5px solid #8b8070' }}>BALANCE DUE (₹)</th>
+              <th rowSpan={2} style={{ ...mainThStyle, width: '120px', textAlign: 'left' }}>NOTES</th>
+              <th rowSpan={2} style={{ ...mainThStyle, width: '65px' }}>ACTIONS</th>
             </tr>
-            <tr style={{ backgroundColor: '#334155', color: '#f8fafc', textAlign: 'center', fontSize: '0.72rem' }}>
+            {/* ROW 2: SUB HEADERS */}
+            <tr>
               {[1, 2, 3, 4, 5].map(mNum => (
                 <React.Fragment key={mNum}>
-                  <th style={{ padding: '0.4rem', width: '45px', borderRight: '1px solid #475569' }}>%</th>
-                  <th style={{ padding: '0.4rem', width: '90px', borderRight: '1px solid #475569' }}>AMOUNT (₹)</th>
-                  <th style={{ padding: '0.4rem', width: '95px', borderRight: '1px solid #475569' }}>DATE RECEIVED</th>
-                  <th style={{ padding: '0.4rem', width: '80px', borderRight: '1px solid #475569' }}>STATUS</th>
+                  <th style={{ ...subThStyle, width: '40px' }}>%</th>
+                  <th style={{ ...subThStyle, width: '90px' }}>AMOUNT (₹)</th>
+                  <th style={{ ...subThStyle, width: '95px' }}>DATE RECEIVED</th>
+                  <th style={{ ...subThStyle, width: '80px' }}>STATUS</th>
                 </React.Fragment>
               ))}
             </tr>
@@ -462,39 +526,53 @@ export const MilestoneTrackerTab = ({ setToast }) => {
           <tbody>
             {trackers.length === 0 ? (
               <tr>
-                <td colSpan={32} style={{ textAlign: 'center', padding: '3rem 1.5rem', color: '#64748b', fontSize: '0.85rem' }}>
+                <td colSpan={32} style={{ ...tdStyle, textAlign: 'center', padding: '3.5rem 1.5rem', color: '#78726a', fontSize: '0.85rem' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem' }}>
-                    <FileSpreadsheet size={32} color="#94a3b8" />
-                    <span>No milestone payment trackers found. Click <strong>"Add / Configure Tracker"</strong> or bulk upload an Excel sheet to populate data.</span>
+                    <FileSpreadsheet size={32} color="#b68d40" />
+                    <span style={{ fontWeight: '500' }}>No milestone payment trackers found. Click <strong>"Add Tracker"</strong> or upload an Excel file to get started.</span>
                   </div>
                 </td>
               </tr>
             ) : (
-              trackers.map((row) => {
+              trackers.map((row, idx) => {
                 const projId = row.project?._id || row.project;
                 const projBudget = row.totalProjectValue;
+                const isEven = idx % 2 === 0;
 
                 return (
-                  <tr key={projId} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                    <td style={{ textAlign: 'center', fontWeight: '600', color: '#64748b' }}>{row.srNo}</td>
-                    <td style={{ fontWeight: '700', color: '#2563eb' }}>
+                  <tr key={projId} style={{ backgroundColor: isEven ? '#ffffff' : '#faf8f5' }}>
+                    {/* Sr. No. */}
+                    <td style={{ ...tdStyle, textAlign: 'center', fontWeight: '700', color: '#1F1F1F' }}>
+                      {row.srNo}
+                    </td>
+                    
+                    {/* Project Name (Dark Navy Blue Link) */}
+                    <td style={{ ...tdStyle, fontWeight: '700', color: '#1e40af' }}>
                       {row.project?.projectName || 'Project'}
                     </td>
-                    <td style={{ color: '#2563eb', fontWeight: '500' }}>{row.clientName}</td>
                     
-                    {/* Architect / Designer */}
-                    <td>
-                      <input
-                        type="text"
-                        defaultValue={row.architectDesigner || ''}
-                        onBlur={(e) => handleMetaDataChange(projId, 'architectDesigner', e.target.value)}
-                        placeholder="e.g. R. Shah"
-                        style={{ width: '100%', padding: '0.2rem 0.35rem', border: '1px solid transparent', borderRadius: '4px', fontSize: '0.75rem', backgroundColor: 'transparent', color: '#7e22ce' }}
-                      />
+                    {/* Client Name (Dark Navy Blue Link) */}
+                    <td style={{ ...tdStyle, color: '#1e40af', fontWeight: '600' }}>
+                      {row.clientName}
+                    </td>
+                    
+                    {/* Architect / Designer (Purple Text) */}
+                    <td style={{ ...tdStyle, color: '#6b21a8' }}>
+                      {tableMode === 'edit' ? (
+                        <input
+                          type="text"
+                          defaultValue={row.architectDesigner || ''}
+                          onBlur={(e) => handleMetaDataChange(projId, 'architectDesigner', e.target.value)}
+                          placeholder="e.g. R. Shah"
+                          style={{ width: '100%', padding: '0.2rem 0.35rem', border: '1px solid #dcd3c8', borderRadius: '4px', fontSize: '0.75rem', color: '#6b21a8' }}
+                        />
+                      ) : (
+                        <span style={{ fontWeight: '600' }}>{row.architectDesigner || '-'}</span>
+                      )}
                     </td>
 
                     {/* Project Status Badge */}
-                    <td style={{ textAlign: 'center' }}>
+                    <td style={{ ...tdStyle, textAlign: 'center' }}>
                       <span className={`badge ${row.project?.status === 'Completed' ? 'badge-success' : (row.project?.status === 'In Progress' ? 'badge-primary' : 'badge-secondary')}`} style={{ fontSize: '0.7rem' }}>
                         {row.project?.status || 'In Progress'}
                       </span>
@@ -504,79 +582,113 @@ export const MilestoneTrackerTab = ({ setToast }) => {
                     {[1, 2, 3, 4, 5].map(mNum => {
                       const m = row.milestones?.find(item => item.milestoneNumber === mNum) || { amount: null, dateReceived: null, status: 'Due', percentFormatted: '' };
                       const dateValStr = m.dateReceived ? new Date(m.dateReceived).toISOString().split('T')[0] : '';
+                      const formattedDateDisplay = m.dateReceived ? formatDate(m.dateReceived) : '-';
 
-                      // Status Badge Fills matching sheet screenshot
+                      // Status Badge Fills matching Client Sheet
+                      // Received = Soft Green fill #E2EFDA, font #15803d
+                      // WIP = Soft Khaki fill #FFF2CC, font #806000
+                      // Due = Soft Pink fill #FCE4D6, font #C65911
                       const statusBg = m.status === 'Received' ? '#e2efda' : (m.status === 'WIP' ? '#fff2cc' : '#fce4d6');
-                      const statusColor = m.status === 'Received' ? '#375623' : (m.status === 'WIP' ? '#806000' : '#c65911');
+                      const statusColor = m.status === 'Received' ? '#15803d' : (m.status === 'WIP' ? '#806000' : '#c65911');
 
                       return (
                         <React.Fragment key={mNum}>
-                          {/* % Derived Column */}
-                          <td style={{ textAlign: 'center', color: '#64748b', fontWeight: '600', backgroundColor: '#faf9f6' }}>
+                          {/* % Column */}
+                          <td style={{ ...tdStyle, textAlign: 'center', color: '#1F1F1F', fontWeight: '700', backgroundColor: '#faf8f5' }}>
                             {m.percentFormatted || '-'}
                           </td>
 
-                          {/* Amount (₹) Input */}
-                          <td style={{ padding: '0.2rem' }}>
-                            <input
-                              type="number"
-                              defaultValue={m.amount != null ? m.amount : ''}
-                              onBlur={(e) => handleMilestoneCellChange(projId, mNum, 'amount', e.target.value)}
-                              placeholder="₹"
-                              style={{ width: '100%', padding: '0.2rem 0.3rem', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '0.75rem', textAlign: 'right', fontWeight: '700', color: '#2563eb' }}
-                            />
+                          {/* Amount Column (Dark Navy Blue Text) */}
+                          <td style={{ ...tdStyle, textAlign: 'right' }}>
+                            {tableMode === 'edit' ? (
+                              <input
+                                type="number"
+                                defaultValue={m.amount != null ? m.amount : ''}
+                                onBlur={(e) => handleMilestoneCellChange(projId, mNum, 'amount', e.target.value)}
+                                placeholder="₹"
+                                style={{ width: '100%', padding: '0.2rem 0.3rem', border: '1px solid #dcd3c8', borderRadius: '4px', fontSize: '0.75rem', textAlign: 'right', fontWeight: '700', color: '#1e40af' }}
+                              />
+                            ) : (
+                              <span style={{ fontWeight: '700', color: m.amount != null ? '#1e40af' : '#94a3b8' }}>
+                                {m.amount != null ? `₹${Number(m.amount).toLocaleString('en-IN')}` : '-'}
+                              </span>
+                            )}
                           </td>
 
-                          {/* Date Received Input */}
-                          <td style={{ padding: '0.2rem' }}>
-                            <input
-                              type="date"
-                              defaultValue={dateValStr}
-                              onChange={(e) => handleMilestoneCellChange(projId, mNum, 'dateReceived', e.target.value)}
-                              style={{ width: '100%', padding: '0.15rem 0.2rem', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '0.72rem', color: '#7e22ce' }}
-                            />
+                          {/* Date Received Column (Purple Text) */}
+                          <td style={{ ...tdStyle, textAlign: 'center' }}>
+                            {tableMode === 'edit' ? (
+                              <input
+                                type="date"
+                                defaultValue={dateValStr}
+                                onChange={(e) => handleMilestoneCellChange(projId, mNum, 'dateReceived', e.target.value)}
+                                style={{ width: '100%', padding: '0.15rem 0.2rem', border: '1px solid #dcd3c8', borderRadius: '4px', fontSize: '0.72rem', color: '#6b21a8' }}
+                              />
+                            ) : (
+                              <span style={{ color: m.dateReceived ? '#6b21a8' : '#94a3b8', fontWeight: '600', fontSize: '0.75rem' }}>
+                                {formattedDateDisplay}
+                              </span>
+                            )}
                           </td>
 
-                          {/* Status Dropdown */}
-                          <td style={{ padding: '0.2rem', textAlign: 'center' }}>
-                            <select
-                              value={m.status || 'Due'}
-                              onChange={(e) => handleMilestoneCellChange(projId, mNum, 'status', e.target.value)}
-                              style={{
-                                width: '100%',
-                                padding: '0.2rem 0.2rem',
-                                border: '1px solid transparent',
-                                borderRadius: '4px',
-                                fontSize: '0.72rem',
-                                fontWeight: '800',
-                                backgroundColor: statusBg,
-                                color: statusColor,
-                                cursor: 'pointer'
-                              }}
-                            >
-                              <option value="Due">Due</option>
-                              <option value="WIP">WIP</option>
-                              <option value="Received">Received</option>
-                            </select>
+                          {/* Status Column (Solid Soft Badge Fill) */}
+                          <td style={{ ...tdStyle, textAlign: 'center', padding: '0.3rem' }}>
+                            {tableMode === 'edit' ? (
+                              <select
+                                value={m.status || 'Due'}
+                                onChange={(e) => handleMilestoneCellChange(projId, mNum, 'status', e.target.value)}
+                                style={{
+                                  width: '100%',
+                                  padding: '0.2rem 0.2rem',
+                                  border: '1px solid #dcd3c8',
+                                  borderRadius: '4px',
+                                  fontSize: '0.72rem',
+                                  fontWeight: '800',
+                                  backgroundColor: statusBg,
+                                  color: statusColor,
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                <option value="Due">Due</option>
+                                <option value="WIP">WIP</option>
+                                <option value="Received">Received</option>
+                              </select>
+                            ) : (
+                              <span
+                                style={{
+                                  display: 'inline-block',
+                                  width: '100%',
+                                  padding: '0.25rem 0.4rem',
+                                  borderRadius: '4px',
+                                  fontSize: '0.72rem',
+                                  fontWeight: '800',
+                                  backgroundColor: statusBg,
+                                  color: statusColor,
+                                  textAlign: 'center'
+                                }}
+                              >
+                                {m.status || 'Due'}
+                              </span>
+                            )}
                           </td>
                         </React.Fragment>
                       );
                     })}
 
                     {/* % Check Column */}
-                    <td style={{ textAlign: 'center', fontWeight: '700', color: row.percentCheckValid ? '#15803d' : '#dc2626', backgroundColor: '#faf9f6' }}>
+                    <td style={{ ...tdStyle, textAlign: 'center', fontWeight: '800', color: row.percentCheckValid ? '#15803d' : '#dc2626', backgroundColor: '#faf8f5' }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.2rem' }}>
                         <span>{row.percentCheckFormatted}</span>
                         {!row.percentCheckValid && (
                           <span title={`Milestones total ${row.percentCheckFormatted} - check amounts`} style={{ color: '#dc2626', cursor: 'help' }}>
-                            <AlertCircle size={12} />
+                            <AlertCircle size={13} />
                           </span>
                         )}
                       </div>
                     </td>
 
-                    {/* Total Project Value */}
-                    <td style={{ textAlign: 'right', fontWeight: '700', color: '#2563eb', backgroundColor: '#f8fafc' }}>
+                    {/* Total Project Value (Dark Navy Blue Text) */}
+                    <td style={{ ...tdStyle, textAlign: 'right', fontWeight: '800', color: '#1e40af', backgroundColor: '#ffffff' }}>
                       {projBudget != null ? (
                         <span>₹{Number(projBudget).toLocaleString('en-IN')}</span>
                       ) : (
@@ -584,37 +696,41 @@ export const MilestoneTrackerTab = ({ setToast }) => {
                       )}
                     </td>
 
-                    {/* Total Received (₹) */}
-                    <td style={{ textAlign: 'right', fontWeight: '700', color: '#1F1F1F', backgroundColor: '#ffffff' }}>
+                    {/* Total Received (Dark Charcoal Text) */}
+                    <td style={{ ...tdStyle, textAlign: 'right', fontWeight: '800', color: '#1F1F1F', backgroundColor: '#ffffff' }}>
                       ₹{Number(row.totalReceived || 0).toLocaleString('en-IN')}
                     </td>
 
-                    {/* WIP (₹) */}
-                    <td style={{ textAlign: 'right', fontWeight: '700', color: '#1F1F1F', backgroundColor: '#ffffff' }}>
+                    {/* WIP (Dark Charcoal Text) */}
+                    <td style={{ ...tdStyle, textAlign: 'right', fontWeight: '800', color: '#1F1F1F', backgroundColor: '#ffffff' }}>
                       ₹{Number(row.wip || 0).toLocaleString('en-IN')}
                     </td>
 
-                    {/* Balance Due (₹) - Highlighted Column matching Excel sheet */}
-                    <td style={{ textAlign: 'right', fontWeight: '800', color: '#c65911', backgroundColor: '#e2efda' }}>
+                    {/* Balance Due (Soft Green Fill #E2EFDA, Bold Red Text #C65911) */}
+                    <td style={{ ...tdStyle, textAlign: 'right', fontWeight: '800', color: '#c65911', backgroundColor: '#e2efda' }}>
                       ₹{Number(row.balanceDue || 0).toLocaleString('en-IN')}
                     </td>
 
-                    {/* Notes */}
-                    <td>
-                      <input
-                        type="text"
-                        defaultValue={row.notes || ''}
-                        onBlur={(e) => handleMetaDataChange(projId, 'notes', e.target.value)}
-                        placeholder="Notes..."
-                        style={{ width: '100%', padding: '0.2rem 0.35rem', border: '1px solid transparent', borderRadius: '4px', fontSize: '0.75rem', color: '#2563eb' }}
-                      />
+                    {/* Notes (Blue Text) */}
+                    <td style={{ ...tdStyle, color: '#1e40af' }}>
+                      {tableMode === 'edit' ? (
+                        <input
+                          type="text"
+                          defaultValue={row.notes || ''}
+                          onBlur={(e) => handleMetaDataChange(projId, 'notes', e.target.value)}
+                          placeholder="Notes..."
+                          style={{ width: '100%', padding: '0.2rem 0.35rem', border: '1px solid #dcd3c8', borderRadius: '4px', fontSize: '0.75rem', color: '#1e40af' }}
+                        />
+                      ) : (
+                        <span style={{ fontWeight: '500' }}>{row.notes || '-'}</span>
+                      )}
                     </td>
 
                     {/* Actions */}
-                    <td style={{ textAlign: 'center' }}>
+                    <td style={{ ...tdStyle, textAlign: 'center' }}>
                       <button
                         className="btn btn-secondary"
-                        style={{ padding: '0.2rem 0.4rem', fontSize: '0.72rem' }}
+                        style={{ padding: '0.25rem 0.5rem', fontSize: '0.72rem', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
                         onClick={() => handleOpenTrackerModal(row)}
                         title="Edit Full Tracker Form"
                       >
@@ -646,13 +762,13 @@ export const MilestoneTrackerTab = ({ setToast }) => {
           <form onSubmit={handleSaveTrackerModal}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
               <div>
-                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#8c8882', marginBottom: '0.25rem' }}>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#3D352E', marginBottom: '0.3rem' }}>
                   SELECT PROJECT
                 </label>
                 <select
                   value={selectedProjectId}
                   onChange={(e) => setSelectedProjectId(e.target.value)}
-                  style={{ width: '100%', padding: '0.45rem 0.65rem', border: '1px solid #dcd7ce', borderRadius: '6px', fontSize: '0.85rem' }}
+                  style={{ width: '100%', padding: '0.5rem 0.75rem', border: '1px solid #dcd3c8', borderRadius: '6px', fontSize: '0.85rem', color: '#1F1F1F' }}
                   required
                 >
                   <option value="">-- Select Project --</option>
@@ -665,7 +781,7 @@ export const MilestoneTrackerTab = ({ setToast }) => {
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#8c8882', marginBottom: '0.25rem' }}>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#3D352E', marginBottom: '0.3rem' }}>
                   ARCHITECT / DESIGNER
                 </label>
                 <input
@@ -673,31 +789,31 @@ export const MilestoneTrackerTab = ({ setToast }) => {
                   placeholder="e.g. R. Shah"
                   value={architectDesigner}
                   onChange={(e) => setArchitectDesigner(e.target.value)}
-                  style={{ width: '100%', padding: '0.45rem 0.65rem', border: '1px solid #dcd7ce', borderRadius: '6px', fontSize: '0.85rem' }}
+                  style={{ width: '100%', padding: '0.5rem 0.75rem', border: '1px solid #dcd3c8', borderRadius: '6px', fontSize: '0.85rem', color: '#1F1F1F' }}
                 />
               </div>
             </div>
 
             {/* LIVE COMPUTED SUMMARY CARD INSIDE MODAL */}
-            <div style={{ marginBottom: '1.25rem', padding: '0.75rem 1rem', backgroundColor: '#faf9f6', borderRadius: '8px', border: '1px solid #eeeae3', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', fontSize: '0.8rem' }}>
+            <div style={{ marginBottom: '1.25rem', padding: '0.85rem 1.15rem', backgroundColor: '#faf8f5', borderRadius: '8px', border: '1px solid #dcd3c8', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.85rem', fontSize: '0.825rem' }}>
               <div>
-                <span style={{ color: '#8c8882' }}>Project Budget: </span>
-                <strong style={{ color: '#1F1F1F' }}>₹{selectedProjBudget.toLocaleString('en-IN')}</strong>
+                <span style={{ color: '#78726a', fontWeight: '500' }}>Project Budget: </span>
+                <strong style={{ color: '#1e40af' }}>₹{selectedProjBudget.toLocaleString('en-IN')}</strong>
               </div>
               <div>
-                <span style={{ color: '#8c8882' }}>Received: </span>
-                <strong style={{ color: '#166534' }}>₹{modalTotalReceived.toLocaleString('en-IN')}</strong>
+                <span style={{ color: '#78726a', fontWeight: '500' }}>Received: </span>
+                <strong style={{ color: '#15803d' }}>₹{modalTotalReceived.toLocaleString('en-IN')}</strong>
               </div>
               <div>
-                <span style={{ color: '#8c8882' }}>WIP: </span>
-                <strong style={{ color: '#854d0e' }}>₹{modalWip.toLocaleString('en-IN')}</strong>
+                <span style={{ color: '#78726a', fontWeight: '500' }}>WIP: </span>
+                <strong style={{ color: '#806000' }}>₹{modalWip.toLocaleString('en-IN')}</strong>
               </div>
               <div>
-                <span style={{ color: '#8c8882' }}>Balance Due: </span>
+                <span style={{ color: '#78726a', fontWeight: '500' }}>Balance Due: </span>
                 <strong style={{ color: '#c65911' }}>₹{modalBalanceDue.toLocaleString('en-IN')}</strong>
               </div>
               <div>
-                <span style={{ color: '#8c8882' }}>% Check: </span>
+                <span style={{ color: '#78726a', fontWeight: '500' }}>% Check: </span>
                 <strong style={{ color: modalPctCheck === 100 ? '#15803d' : '#dc2626' }}>{modalPctCheck}%</strong>
               </div>
             </div>
@@ -709,9 +825,9 @@ export const MilestoneTrackerTab = ({ setToast }) => {
                 const mPct = selectedProjBudget > 0 && mForm.amount ? Math.round((Number(mForm.amount) / selectedProjBudget) * 100) : 0;
 
                 return (
-                  <div key={mNum} style={{ padding: '0.65rem 0.85rem', backgroundColor: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '6px', display: 'grid', gridTemplateColumns: '1.2fr 2fr 2fr 1.8fr', gap: '0.75rem', alignItems: 'center' }}>
-                    <div style={{ fontWeight: 700, fontSize: '0.8rem', color: '#475569' }}>
-                      Milestone {mNum} {mPct > 0 && <span style={{ fontSize: '0.72rem', color: '#15803d', fontWeight: 600 }}>({mPct}%)</span>}
+                  <div key={mNum} style={{ padding: '0.75rem 0.95rem', backgroundColor: '#ffffff', border: '1px solid #dcd3c8', borderRadius: '6px', display: 'grid', gridTemplateColumns: '1.3fr 2fr 2fr 1.8fr', gap: '0.85rem', alignItems: 'center' }}>
+                    <div style={{ fontWeight: 700, fontSize: '0.815rem', color: '#1F1F1F' }}>
+                      Milestone {mNum} {mPct > 0 && <span style={{ fontSize: '0.73rem', color: '#15803d', fontWeight: 600 }}>({mPct}%)</span>}
                     </div>
 
                     <div>
@@ -720,7 +836,7 @@ export const MilestoneTrackerTab = ({ setToast }) => {
                         placeholder="Amount (₹)"
                         value={mForm.amount}
                         onChange={(e) => handleMilestoneFormChange(mNum, 'amount', e.target.value)}
-                        style={{ width: '100%', padding: '0.35rem 0.5rem', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 600 }}
+                        style={{ width: '100%', padding: '0.4rem 0.6rem', border: '1px solid #dcd3c8', borderRadius: '5px', fontSize: '0.815rem', fontWeight: 600, color: '#1e40af' }}
                       />
                     </div>
 
@@ -729,7 +845,7 @@ export const MilestoneTrackerTab = ({ setToast }) => {
                         type="date"
                         value={mForm.dateReceived}
                         onChange={(e) => handleMilestoneFormChange(mNum, 'dateReceived', e.target.value)}
-                        style={{ width: '100%', padding: '0.35rem 0.5rem', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '0.78rem' }}
+                        style={{ width: '100%', padding: '0.4rem 0.6rem', border: '1px solid #dcd3c8', borderRadius: '5px', fontSize: '0.8rem', color: '#6b21a8' }}
                       />
                     </div>
 
@@ -737,7 +853,7 @@ export const MilestoneTrackerTab = ({ setToast }) => {
                       <select
                         value={mForm.status}
                         onChange={(e) => handleMilestoneFormChange(mNum, 'status', e.target.value)}
-                        style={{ width: '100%', padding: '0.35rem 0.5rem', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '0.78rem', fontWeight: 700 }}
+                        style={{ width: '100%', padding: '0.4rem 0.6rem', border: '1px solid #dcd3c8', borderRadius: '5px', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer' }}
                       >
                         <option value="Due">Due</option>
                         <option value="WIP">WIP</option>
@@ -750,15 +866,15 @@ export const MilestoneTrackerTab = ({ setToast }) => {
             </div>
 
             <div>
-              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#8c8882', marginBottom: '0.25rem' }}>
+              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#3D352E', marginBottom: '0.3rem' }}>
                 TRACKER NOTES
               </label>
               <input
                 type="text"
-                placeholder="e.g. Sample notes..."
+                placeholder="e.g. Payment details or notes..."
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                style={{ width: '100%', padding: '0.45rem 0.65rem', border: '1px solid #dcd7ce', borderRadius: '6px', fontSize: '0.85rem' }}
+                style={{ width: '100%', padding: '0.5rem 0.75rem', border: '1px solid #dcd3c8', borderRadius: '6px', fontSize: '0.85rem' }}
               />
             </div>
 
@@ -782,34 +898,34 @@ export const MilestoneTrackerTab = ({ setToast }) => {
           onClose={() => { setIsUploadModalOpen(false); setUploadSummary(null); setUploadFile(null); }}
         >
           <form onSubmit={handleBulkUploadSubmit}>
-            <div style={{ marginBottom: '1.25rem', padding: '1rem', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px dashed #cbd5e1' }}>
-              <label style={{ display: 'block', fontSize: '0.825rem', fontWeight: '700', color: '#334155', marginBottom: '0.4rem' }}>
+            <div style={{ marginBottom: '1.25rem', padding: '1.15rem', backgroundColor: '#faf8f5', borderRadius: '8px', border: '1px dashed #dcd3c8' }}>
+              <label style={{ display: 'block', fontSize: '0.835rem', fontWeight: '700', color: '#1F1F1F', marginBottom: '0.45rem' }}>
                 Select Client's Excel (.xlsx) or CSV File
               </label>
               <input
                 type="file"
                 accept=".xlsx,.csv"
                 onChange={(e) => setUploadFile(e.target.files[0] || null)}
-                style={{ fontSize: '0.825rem', color: '#1e293b' }}
+                style={{ fontSize: '0.825rem', color: '#1F1F1F' }}
                 required
               />
-              <p style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.4rem', marginBottom: 0 }}>
+              <p style={{ fontSize: '0.75rem', color: '#78726a', marginTop: '0.45rem', marginBottom: 0 }}>
                 File must follow the 5-milestone payment sheet structure. Rows are matched automatically to existing Projects by Project Name & Client Name.
               </p>
             </div>
 
             {uploadSummary && (
-              <div style={{ marginBottom: '1.25rem', padding: '1rem', backgroundColor: '#ffffff', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                <h4 style={{ margin: '0 0 0.5rem 0', fontSize: '0.9rem', color: '#1e293b' }}>Bulk Upload Summary Result</h4>
+              <div style={{ marginBottom: '1.25rem', padding: '1rem', backgroundColor: '#ffffff', borderRadius: '8px', border: '1px solid #dcd3c8' }}>
+                <h4 style={{ margin: '0 0 0.5rem 0', fontSize: '0.9rem', color: '#1F1F1F' }}>Bulk Upload Summary Result</h4>
                 <div style={{ display: 'flex', gap: '1rem', marginBottom: '0.75rem', fontSize: '0.8rem' }}>
-                  <span style={{ color: '#166534', fontWeight: 700 }}>Updated: {uploadSummary.successCount}</span>
+                  <span style={{ color: '#15803d', fontWeight: 700 }}>Updated: {uploadSummary.successCount}</span>
                   <span style={{ color: '#dc2626', fontWeight: 700 }}>Errors: {uploadSummary.errorCount}</span>
-                  <span style={{ color: '#64748b' }}>Skipped: {uploadSummary.skippedCount}</span>
+                  <span style={{ color: '#78726a' }}>Skipped: {uploadSummary.skippedCount}</span>
                 </div>
 
-                <div style={{ maxHeight: '200px', overflowY: 'auto', fontSize: '0.75rem', border: '1px solid #f1f5f9', borderRadius: '6px', padding: '0.5rem' }}>
+                <div style={{ maxHeight: '200px', overflowY: 'auto', fontSize: '0.75rem', border: '1px solid #f4efe8', borderRadius: '6px', padding: '0.5rem' }}>
                   {uploadSummary.results?.map((res, idx) => (
-                    <div key={idx} style={{ padding: '0.35rem 0', borderBottom: '1px solid #f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div key={idx} style={{ padding: '0.35rem 0', borderBottom: '1px solid #f4efe8', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <div>
                         <strong>Row {res.row}:</strong> {res.projectName || 'Empty Row'}
                         {res.mismatchWarning && (

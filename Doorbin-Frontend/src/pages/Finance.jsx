@@ -598,6 +598,7 @@ export const Finance = () => {
           value={activeTab}
           onChange={(e) => setActiveTab(e.target.value)}
         >
+          <option value="milestones">Milestone Payment Tracker</option>
           <option value="quotations">Quotations ({filteredQuotations.length})</option>
           <option value="invoices">Invoices ({filteredInvoices.length})</option>
           <option value="payments">Payments ({filteredPayments.length})</option>
@@ -605,7 +606,8 @@ export const Finance = () => {
         </select>
 
         {/* Date Filter & Dual View Toggle */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+        {activeTab !== 'milestones' && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', backgroundColor: '#ffffff', border: '1px solid #dcd8cf', borderRadius: '10px', padding: '0.35rem 0.75rem' }}>
             <Calendar size={14} style={{ color: 'var(--color-primary)' }} />
             <select
@@ -678,7 +680,8 @@ export const Finance = () => {
             </button>
           </div>
         </div>
-      </div>
+      )}
+    </div>
 
       {/* TAB CONTENT 0: MILESTONE PAYMENT TRACKER */}
       {activeTab === 'milestones' && <MilestoneTrackerTab setToast={setToast} />}
