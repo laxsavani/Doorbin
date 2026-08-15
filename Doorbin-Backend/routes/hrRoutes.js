@@ -17,7 +17,6 @@ const {
   getLeaves,
   approveLeave,
   updateLeave,
-  updateLeave,
   createHoliday,
   getHolidays,
   deleteHoliday,
