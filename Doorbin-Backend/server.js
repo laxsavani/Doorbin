@@ -51,6 +51,18 @@ app.use(cors());
 app.use(compression());
 app.use(express.json());
 
+// Performance Timing Middleware (TTFB & Route Latency Audit)
+app.use((req, res, next) => {
+  const start = performance.now();
+  res.on('finish', () => {
+    const duration = (performance.now() - start).toFixed(2);
+    if (process.env.NODE_ENV !== 'test') {
+      console.log(`[PERF] ${req.method} ${req.originalUrl} ${res.statusCode} - ${duration}ms`);
+    }
+  });
+  next();
+});
+
 // Serve Swagger UI documentation at /api-docs
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 

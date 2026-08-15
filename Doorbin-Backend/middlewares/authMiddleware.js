@@ -10,7 +10,8 @@ const protect = async (req, res, next) => {
       
       const user = await User.findById(decoded.id)
         .select('-password')
-        .populate('role department');
+        .populate('role department')
+        .lean();
 
       if (!user) {
         return res.status(401).json({ message: 'Not authorized, user not found' });
