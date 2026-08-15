@@ -69,3 +69,24 @@ router.route('/')
   .head(handleHealthCheck);
 
 module.exports = router;
+
+// Diagnostic speed endpoints for performance investigation
+router.get('/health', (req, res) => {
+  res.status(200).json({ success: true, timestamp: Date.now() });
+});
+
+router.get('/test-speed', (req, res) => {
+  res.status(200).json({ success: true, message: "API speed test" });
+});
+
+router.get('/db-speed', async (req, res) => {
+  try {
+    const start = process.hrtime.bigint();
+    await mongoose.connection.db.command({ ping: 1 });
+    const end = process.hrtime.bigint();
+    const mongoPingMs = Number(end - start) / 1_000_000;
+    res.status(200).json({ success: true, mongoPingMs: Number(mongoPingMs.toFixed(2)) });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});

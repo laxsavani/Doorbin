@@ -51,13 +51,20 @@ app.use(cors());
 app.use(compression());
 app.use(express.json());
 
-// Performance Timing Middleware (TTFB & Route Latency Audit)
+// Enhanced Performance Timing Middleware (TTFB & Sub-routine Breakdown)
 app.use((req, res, next) => {
-  const start = performance.now();
+  const start = process.hrtime.bigint();
+  req._startTime = start;
+
   res.on('finish', () => {
-    const duration = (performance.now() - start).toFixed(2);
+    const end = process.hrtime.bigint();
+    const totalMs = (Number(end - start) / 1_000_000).toFixed(2);
+    const authMs = req.authMs ? req.authMs.toFixed(2) : '0.00';
+    const dbMs = req.dbMs ? req.dbMs.toFixed(2) : '0.00';
+    const controllerMs = req.controllerMs ? req.controllerMs.toFixed(2) : (totalMs - authMs - dbMs).toFixed(2);
+
     if (process.env.NODE_ENV !== 'test') {
-      console.log(`[PERF] ${req.method} ${req.originalUrl} ${res.statusCode} - ${duration}ms`);
+      console.log(`[PERF] ${req.method} ${req.originalUrl} -> ${res.statusCode} | Total: ${totalMs}ms (Auth: ${authMs}ms, DB: ${dbMs}ms, Ctrl: ${controllerMs}ms)`);
     }
   });
   next();

@@ -2,6 +2,7 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 
 const protect = async (req, res, next) => {
+  const authStart = process.hrtime.bigint();
   let token;
   if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
     try {
@@ -22,6 +23,7 @@ const protect = async (req, res, next) => {
       }
 
       req.user = user;
+      req.authMs = Number(process.hrtime.bigint() - authStart) / 1_000_000;
       next();
     } catch (error) {
       return res.status(401).json({ message: 'Not authorized, token failed' });
