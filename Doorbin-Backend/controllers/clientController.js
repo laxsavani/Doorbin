@@ -91,13 +91,15 @@ const getClients = async (req, res) => {
     const limitNum = parseInt(limit, 10) || 20;
     const skip = (pageNum - 1) * limitNum;
 
-    const clients = await Client.find(query)
-      .populate('createdBy', 'name email')
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limitNum);
-
-    const total = await Client.countDocuments(query);
+    const [total, clients] = await Promise.all([
+      Client.countDocuments(query),
+      Client.find(query)
+        .populate('createdBy', 'name email')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limitNum)
+        .lean()
+    ]);
 
     return res.json({
       clients,
@@ -455,9 +457,11 @@ const getClientStatement = async (req, res) => {
     const Invoice = mongoose.models.Invoice;
     const Payment = mongoose.models.Payment;
 
-    const quotations = Quotation ? await Quotation.find({ client: client._id }).sort({ date: -1 }) : [];
-    const invoices = Invoice ? await Invoice.find({ client: client._id }).sort({ issueDate: -1 }) : [];
-    const payments = Payment ? await Payment.find({ client: client._id }).sort({ paymentDate: -1 }) : [];
+    const [quotations, invoices, payments] = await Promise.all([
+      Quotation ? Quotation.find({ client: client._id }).sort({ date: -1 }).lean() : Promise.resolve([]),
+      Invoice ? Invoice.find({ client: client._id }).sort({ issueDate: -1 }).lean() : Promise.resolve([]),
+      Payment ? Payment.find({ client: client._id }).sort({ paymentDate: -1 }).lean() : Promise.resolve([])
+    ]);
 
     const totalQuoted = quotations.reduce((sum, q) => sum + (q.amount || 0), 0);
     const totalInvoiced = invoices.reduce((sum, i) => sum + (i.totalAmount || 0), 0);

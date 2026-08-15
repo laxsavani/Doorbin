@@ -1,9 +1,13 @@
-﻿const mongoose = require('mongoose');
+const mongoose = require('mongoose');
 const ExcelJS = require('exceljs');
 const PDFDocument = require('pdfkit');
 const ProjectMilestonePayment = require('../models/ProjectMilestonePayment');
 const Project = require('../models/Project');
 const Client = require('../models/Client');
+const Invoice = require('../models/Invoice');
+const Payment = require('../models/Payment');
+const FinanceSettings = require('../models/FinanceSettings');
+const FinanceCounter = require('../models/FinanceCounter');
 const logActivity = require('../utils/activityLogger');
 const { computeMilestoneRollup } = require('../utils/milestoneCalc');
 
@@ -17,6 +21,127 @@ const formatDDMMMYY = (dateVal) => {
   const month = months[d.getMonth()];
   const year = String(d.getFullYear()).slice(-2);
   return `${day}-${month}-${year}`;
+};
+
+// Helper to generate official Invoice Number
+const generateInvoiceDocNumber = async () => {
+  const d = new Date();
+  const month = d.getMonth();
+  const year = d.getFullYear();
+  let startYear = year;
+  if (month < 3) startYear = year - 1;
+  const fy = `${startYear}-${String(startYear + 1).slice(-2)}`;
+
+  const counter = await FinanceCounter.findOneAndUpdate(
+    { fy, type: 'Invoice' },
+    { $inc: { seq: 1 } },
+    { upsert: true, new: true }
+  );
+
+  let settings = await FinanceSettings.findOne({});
+  const fmt = settings?.invoiceNumberFormat || 'DV/INV/{FY}/{SEQ}';
+  const seqPadded = String(counter.seq).padStart(4, '0');
+  return fmt.replace('{FY}', fy).replace('{SEQ}', seqPadded);
+};
+
+// Helper: Process milestone status transitions (WIP -> Auto-Invoice, Received -> Auto-Payment Receipt)
+const syncMilestoneFinanceDocuments = async (proj, milestoneItem, userId) => {
+  if (!milestoneItem || !proj) return milestoneItem;
+
+  const mNum = milestoneItem.milestoneNumber;
+  const amt = milestoneItem.amount != null ? Number(milestoneItem.amount) : 0;
+  const st = milestoneItem.status || 'Due';
+
+  let linkedInvoice = null;
+
+  // 1. Check or fetch existing Invoice for this Project & Milestone
+  if (milestoneItem.invoice) {
+    linkedInvoice = await Invoice.findById(milestoneItem.invoice);
+  }
+  if (!linkedInvoice) {
+    linkedInvoice = await Invoice.findOne({
+      project: proj._id,
+      notes: { $regex: `Milestone ${mNum}` }
+    });
+  }
+
+  // 2. If status is 'WIP' or 'Received', AUTO-GENERATE INVOICE if not exists
+  if ((st === 'WIP' || st === 'Received') && !linkedInvoice) {
+    const invNum = await generateInvoiceDocNumber();
+    const issueD = new Date();
+    const dueD = new Date(issueD.getTime() + 15 * 86400000);
+
+    linkedInvoice = await Invoice.create({
+      client: proj.client?._id || proj.client,
+      project: proj._id,
+      invoiceNumber: invNum,
+      amount: amt,
+      gstRate: 0,
+      gst: 0,
+      totalAmount: amt,
+      issueDate: issueD,
+      dueDate: dueD,
+      status: st === 'Received' ? 'Paid' : 'Pending',
+      notes: `Auto-generated Invoice for Milestone ${mNum} (${proj.projectName})`,
+      createdBy: userId
+    });
+
+    milestoneItem.invoice = linkedInvoice._id;
+
+    await logActivity({
+      req: null,
+      userId,
+      action: 'INVOICE_AUTO_GENERATED_FROM_MILESTONE',
+      targetType: 'Invoice',
+      targetId: linkedInvoice._id,
+      metadata: { invoiceNumber: invNum, milestoneNumber: mNum, projectName: proj.projectName }
+    });
+  }
+
+  // 3. If status is 'Received', AUTO-GENERATE PAYMENT RECEIPT if not exists
+  if (st === 'Received' && linkedInvoice) {
+    let linkedPayment = null;
+    if (milestoneItem.payment) {
+      linkedPayment = await Payment.findById(milestoneItem.payment);
+    }
+    if (!linkedPayment) {
+      linkedPayment = await Payment.findOne({ invoice: linkedInvoice._id });
+    }
+
+    if (!linkedPayment) {
+      const payAmount = linkedInvoice.totalAmount || amt;
+      const payDate = milestoneItem.dateReceived ? new Date(milestoneItem.dateReceived) : new Date();
+
+      linkedPayment = await Payment.create({
+        invoice: linkedInvoice._id,
+        client: proj.client?._id || proj.client,
+        amountPaid: payAmount,
+        paymentDate: payDate,
+        paymentMode: 'Bank Transfer',
+        referenceNumber: `REC-M${mNum}-${Date.now().toString().slice(-6)}`,
+        notes: `Auto-generated Payment Receipt for Milestone ${mNum} (${proj.projectName})`,
+        receivedBy: userId,
+        createdBy: userId
+      });
+
+      milestoneItem.payment = linkedPayment._id;
+
+      // Update Invoice status to Paid
+      linkedInvoice.status = 'Paid';
+      await linkedInvoice.save();
+
+      await logActivity({
+        req: null,
+        userId,
+        action: 'PAYMENT_RECEIPT_AUTO_GENERATED_FROM_MILESTONE',
+        targetType: 'Payment',
+        targetId: linkedPayment._id,
+        metadata: { paymentId: linkedPayment._id, invoiceNumber: linkedInvoice.invoiceNumber, milestoneNumber: mNum }
+      });
+    }
+  }
+
+  return milestoneItem;
 };
 
 // @desc    Get all milestone payment trackers (paginated & computed)
@@ -40,10 +165,11 @@ const getTrackers = async (req, res) => {
     const projects = await Project.find(projectQuery)
       .populate('client', 'clientName companyName')
       .populate('productionManager', 'name')
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .lean();
 
     const projectIds = projects.map(p => p._id);
-    const existingTrackers = await ProjectMilestonePayment.find({ project: { $in: projectIds } });
+    const existingTrackers = await ProjectMilestonePayment.find({ project: { $in: projectIds } }).lean();
     const trackerMap = new Map(existingTrackers.map(t => [t.project.toString(), t]));
 
     const allRollups = projects.map((proj, idx) => {
@@ -167,16 +293,21 @@ const createTracker = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Milestone payment tracker already exists for this project. Use PUT to update.' });
     }
 
-    const processedMilestones = milestones.map(m => {
+    const processedMilestones = [];
+    for (const m of milestones) {
       let st = m.status || 'Due';
       if (m.dateReceived && !m.status) st = 'Received';
-      return {
-        milestoneNumber: m.milestoneNumber,
-        amount: m.amount != null ? Number(m.amount) : null,
+
+      const item = {
+        milestoneNumber: Number(m.milestoneNumber),
+        amount: m.amount != null && m.amount !== '' ? Number(m.amount) : null,
         dateReceived: m.dateReceived ? new Date(m.dateReceived) : null,
         status: st
       };
-    });
+
+      const syncedItem = await syncMilestoneFinanceDocuments(proj, item, req.user._id);
+      processedMilestones.push(syncedItem);
+    }
 
     const newDoc = await ProjectMilestonePayment.create({
       project: projectId,
@@ -227,16 +358,28 @@ const updateTracker = async (req, res) => {
 
     let trackerDoc = await ProjectMilestonePayment.findOne({ project: projectId });
 
-    const processedMilestones = Array.isArray(milestones) ? milestones.map(m => {
-      let st = m.status || 'Due';
-      if (m.dateReceived && !m.status) st = 'Received';
-      return {
-        milestoneNumber: Number(m.milestoneNumber),
-        amount: m.amount != null && m.amount !== '' ? Number(m.amount) : null,
-        dateReceived: m.dateReceived ? new Date(m.dateReceived) : null,
-        status: st
-      };
-    }) : undefined;
+    let processedMilestones = undefined;
+    if (Array.isArray(milestones)) {
+      processedMilestones = [];
+      for (const m of milestones) {
+        let st = m.status || 'Due';
+        if (m.dateReceived && !m.status) st = 'Received';
+
+        const existingItem = trackerDoc?.milestones?.find(item => item.milestoneNumber === Number(m.milestoneNumber));
+
+        const item = {
+          milestoneNumber: Number(m.milestoneNumber),
+          amount: m.amount != null && m.amount !== '' ? Number(m.amount) : null,
+          dateReceived: m.dateReceived ? new Date(m.dateReceived) : null,
+          status: st,
+          invoice: existingItem?.invoice || null,
+          payment: existingItem?.payment || null
+        };
+
+        const syncedItem = await syncMilestoneFinanceDocuments(proj, item, req.user._id);
+        processedMilestones.push(syncedItem);
+      }
+    }
 
     if (!trackerDoc) {
       trackerDoc = await ProjectMilestonePayment.create({
@@ -314,17 +457,21 @@ const updateSingleMilestone = async (req, res) => {
       newStatus = 'Received';
     }
 
-    const newMilestoneData = {
+    let milestoneItem = {
       milestoneNumber: mNum,
       amount: amount !== undefined ? (amount != null && amount !== '' ? Number(amount) : null) : (existingIdx >= 0 ? trackerDoc.milestones[existingIdx].amount : null),
       dateReceived: dateReceived !== undefined ? (dateReceived ? new Date(dateReceived) : null) : (existingIdx >= 0 ? trackerDoc.milestones[existingIdx].dateReceived : null),
-      status: newStatus || (existingIdx >= 0 ? trackerDoc.milestones[existingIdx].status : 'Due')
+      status: newStatus || (existingIdx >= 0 ? trackerDoc.milestones[existingIdx].status : 'Due'),
+      invoice: existingIdx >= 0 ? trackerDoc.milestones[existingIdx].invoice : null,
+      payment: existingIdx >= 0 ? trackerDoc.milestones[existingIdx].payment : null
     };
 
+    milestoneItem = await syncMilestoneFinanceDocuments(proj, milestoneItem, req.user._id);
+
     if (existingIdx >= 0) {
-      trackerDoc.milestones[existingIdx] = newMilestoneData;
+      trackerDoc.milestones[existingIdx] = milestoneItem;
     } else {
-      trackerDoc.milestones.push(newMilestoneData);
+      trackerDoc.milestones.push(milestoneItem);
     }
 
     trackerDoc.updatedBy = req.user._id;
@@ -399,11 +546,10 @@ const bulkUploadTrackers = async (req, res) => {
     let errorCount = 0;
     let skippedCount = 0;
 
-    // Load all projects with clients for matching
     const allProjects = await Project.find().populate('client', 'clientName companyName');
 
     worksheet.eachRow((row, rowNumber) => {
-      if (rowNumber <= 2) return; // Skip merged header rows 1 & 2
+      if (rowNumber <= 2) return;
 
       const rowValues = row.values;
       const projNameRaw = rowValues[2] ? String(rowValues[2]).trim() : '';
@@ -415,7 +561,6 @@ const bulkUploadTrackers = async (req, res) => {
         return;
       }
 
-      // Matching logic: Project Name (case-insensitive) & Client Name (if provided)
       const matchedProjects = allProjects.filter(p => {
         const nameMatch = p.projectName.toLowerCase() === projNameRaw.toLowerCase();
         if (!nameMatch) return false;
@@ -442,12 +587,6 @@ const bulkUploadTrackers = async (req, res) => {
       const targetProject = matchedProjects[0];
       const archDesigner = rowValues[4] ? String(rowValues[4]).trim() : '';
 
-      // Parse 5 Milestones from column indices
-      // Milestone 1: % (col 6), Amount (col 7), Date (col 8), Status (col 9)
-      // Milestone 2: % (col 10), Amount (col 11), Date (col 12), Status (col 13)
-      // Milestone 3: % (col 14), Amount (col 15), Date (col 16), Status (col 17)
-      // Milestone 4: % (col 18), Amount (col 19), Date (col 20), Status (col 21)
-      // Milestone 5: % (col 22), Amount (col 23), Date (col 24), Status (col 25)
       const parsedMilestones = [];
       for (let mIdx = 0; mIdx < 5; mIdx++) {
         const baseCol = 6 + (mIdx * 4);
@@ -479,8 +618,7 @@ const bulkUploadTrackers = async (req, res) => {
         });
       }
 
-      // Check Total Project Value mismatch
-      const uploadedValueVal = rowValues[27]; // Total Project Value (col 27)
+      const uploadedValueVal = rowValues[27];
       let mismatchWarning = null;
       if (uploadedValueVal != null && uploadedValueVal !== '') {
         const cleanVal = String(uploadedValueVal).replace(/[^0-9.]/g, '');
@@ -501,19 +639,26 @@ const bulkUploadTrackers = async (req, res) => {
         projectId: targetProject._id,
         parsedMilestones,
         notesVal,
-        archDesigner
+        archDesigner,
+        targetProject
       });
     });
 
-    // Execute database updates for valid rows
+    // Execute database updates for valid rows & sync finance documents
     for (const r of results) {
       if (r.status === 'success' && r.projectId) {
+        const syncedMilestones = [];
+        for (const mItem of r.parsedMilestones) {
+          const synced = await syncMilestoneFinanceDocuments(r.targetProject, mItem, req.user._id);
+          syncedMilestones.push(synced);
+        }
+
         await ProjectMilestonePayment.findOneAndUpdate(
           { project: r.projectId },
           {
             project: r.projectId,
             architectDesigner: r.archDesigner,
-            milestones: r.parsedMilestones,
+            milestones: syncedMilestones,
             notes: r.notesVal,
             updatedBy: req.user._id
           },
@@ -584,7 +729,6 @@ const exportTrackers = async (req, res) => {
       const workbook = new ExcelJS.Workbook();
       const ws = workbook.addWorksheet('Milestone Payment Tracker');
 
-      // Row 1: Group Headers
       ws.getRow(1).values = [
         '', '', '', '', '',
         'Milestone 1', '', '', '',
@@ -595,14 +739,12 @@ const exportTrackers = async (req, res) => {
         '', '', '', '', '', ''
       ];
 
-      // Merge Milestone Headers
       ws.mergeCells('F1:I1');
       ws.mergeCells('J1:M1');
       ws.mergeCells('N1:Q1');
       ws.mergeCells('R1:U1');
       ws.mergeCells('V1:Y1');
 
-      // Row 2: Sub Headers
       ws.getRow(2).values = [
         'Sr. No.', 'Project Name', 'Client Name', 'Architect / Designer', 'Project Status',
         '%', 'Amount (₹)', 'Date Received', 'Status',
@@ -613,7 +755,6 @@ const exportTrackers = async (req, res) => {
         '% Check', 'Total Project Value (₹)', 'Total Received (₹)', 'WIP (₹)', 'Balance Due (₹)', 'Notes'
       ];
 
-      // Style Header Rows
       [1, 2].forEach(rNo => {
         const row = ws.getRow(rNo);
         row.font = { bold: true, color: { argb: 'FFFFFF' }, size: 10 };
@@ -623,10 +764,8 @@ const exportTrackers = async (req, res) => {
         });
       });
 
-      // Freeze headers
       ws.views = [{ state: 'frozen', xSplit: 3, ySplit: 2 }];
 
-      // Populate Data Rows
       rollups.forEach(r => {
         const rowData = [
           r.srNo,
@@ -634,32 +773,26 @@ const exportTrackers = async (req, res) => {
           r.clientName,
           r.architectDesigner,
           r.projectStatus,
-          // M1
           r.milestones[0]?.percent != null ? r.milestones[0].percent : '',
           r.milestones[0]?.amount != null ? r.milestones[0].amount : '',
           formatDDMMMYY(r.milestones[0]?.dateReceived),
           r.milestones[0]?.status || 'Due',
-          // M2
           r.milestones[1]?.percent != null ? r.milestones[1].percent : '',
           r.milestones[1]?.amount != null ? r.milestones[1].amount : '',
           formatDDMMMYY(r.milestones[1]?.dateReceived),
           r.milestones[1]?.status || 'Due',
-          // M3
           r.milestones[2]?.percent != null ? r.milestones[2].percent : '',
           r.milestones[2]?.amount != null ? r.milestones[2].amount : '',
           formatDDMMMYY(r.milestones[2]?.dateReceived),
           r.milestones[2]?.status || 'Due',
-          // M4
           r.milestones[3]?.percent != null ? r.milestones[3].percent : '',
           r.milestones[3]?.amount != null ? r.milestones[3].amount : '',
           formatDDMMMYY(r.milestones[3]?.dateReceived),
           r.milestones[3]?.status || 'Due',
-          // M5
           r.milestones[4]?.percent != null ? r.milestones[4].percent : '',
           r.milestones[4]?.amount != null ? r.milestones[4].amount : '',
           formatDDMMMYY(r.milestones[4]?.dateReceived),
           r.milestones[4]?.status || 'Due',
-          // Rollups
           r.percentCheck != null ? r.percentCheck : '',
           r.totalProjectValue != null ? r.totalProjectValue : '',
           r.totalReceived,
@@ -670,8 +803,6 @@ const exportTrackers = async (req, res) => {
 
         const addedRow = ws.addRow(rowData);
 
-        // Format Cells
-        // Percentage cols: 6, 10, 14, 18, 22, 26
         [6, 10, 14, 18, 22, 26].forEach(colIdx => {
           const cell = addedRow.getCell(colIdx);
           if (typeof cell.value === 'number') {
@@ -679,7 +810,6 @@ const exportTrackers = async (req, res) => {
           }
         });
 
-        // Currency cols: 7, 11, 15, 19, 23, 27, 28, 29, 30
         [7, 11, 15, 19, 23, 27, 28, 29, 30].forEach(colIdx => {
           const cell = addedRow.getCell(colIdx);
           if (typeof cell.value === 'number') {
@@ -687,23 +817,21 @@ const exportTrackers = async (req, res) => {
           }
         });
 
-        // Status Background Fills (Cols 9, 13, 17, 21, 25)
         [9, 13, 17, 21, 25].forEach(colIdx => {
           const cell = addedRow.getCell(colIdx);
           const st = String(cell.value);
           if (st === 'Received') {
-            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'DCFCE7' } }; // Light Green
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'DCFCE7' } };
             cell.font = { color: { argb: '166534' }, bold: true };
           } else if (st === 'WIP') {
-            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FEF9C3' } }; // Light Yellow/Tan
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FEF9C3' } };
             cell.font = { color: { argb: '854D0E' }, bold: true };
           } else if (st === 'Due') {
-            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE4E6' } }; // Light Pink
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE4E6' } };
             cell.font = { color: { argb: '991B1B' }, bold: true };
           }
         });
 
-        // Highlight Balance Due Column (Col 30)
         const balCell = addedRow.getCell(30);
         balCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'F0FDF4' } };
         balCell.font = { color: { argb: '166534' }, bold: true };
@@ -779,7 +907,6 @@ const exportTrackers = async (req, res) => {
       doc.fontSize(9).fillColor('#64748B').text(`Generated on ${new Date().toLocaleDateString('en-GB')} | Executive Financial Summary`, { align: 'center' });
       doc.moveDown(1);
 
-      // Render summary table for PDF readability
       doc.fontSize(8).fillColor('#1E293B');
       const startY = doc.y;
       doc.rect(20, startY, 800, 20).fill('#475569');
@@ -831,4 +958,3 @@ module.exports = {
   bulkUploadTrackers,
   exportTrackers
 };
-

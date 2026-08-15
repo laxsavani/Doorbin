@@ -240,26 +240,31 @@ const getProjects = async (req, res) => {
     const limitNum = parseInt(limit, 10) || 20;
     const skip = (pageNum - 1) * limitNum;
 
-    const projects = await Project.find(query)
-      .populate('client', 'companyName clientName')
-      .populate('productionManager', 'name email department')
-      .populate('assignedTeam', 'name email')
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limitNum);
-
-    // On-read delay status recalculation
     const now = new Date();
-    for (const p of projects) {
-      if (p.status !== 'On Hold' && p.status !== 'Completed') {
-        if (now > p.endDate && p.progressPercentage < 100 && p.status !== 'Delayed') {
-          p.status = 'Delayed';
-          await p.save();
-        }
-      }
-    }
 
-    const total = await Project.countDocuments(query);
+    const [total, projects] = await Promise.all([
+      Project.countDocuments(query),
+      Project.find(query)
+        .populate('client', 'companyName clientName')
+        .populate('productionManager', 'name email department')
+        .populate('assignedTeam', 'name email')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limitNum)
+        .lean()
+    ]);
+
+    // Batch update delayed projects in background without blocking API response
+    const delayedIds = projects
+      .filter(p => p.status !== 'On Hold' && p.status !== 'Completed' && p.status !== 'Delayed' && p.endDate && now > new Date(p.endDate) && (p.progressPercentage || 0) < 100)
+      .map(p => p._id);
+
+    if (delayedIds.length > 0) {
+      Project.updateMany({ _id: { $in: delayedIds } }, { status: 'Delayed' }).catch(err => console.warn('Notice updating delayed projects:', err.message));
+      projects.forEach(p => {
+        if (delayedIds.includes(p._id)) p.status = 'Delayed';
+      });
+    }
 
     return res.json({
       projects,

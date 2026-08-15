@@ -268,7 +268,7 @@ const getTasks = async (req, res) => {
             { productionManager: req.user._id },
             { assignedTeam: req.user._id }
           ]
-        }).select('_id');
+        }).select('_id').lean();
         const managedProjectIds = managedProjects.map(p => p._id);
 
         query.$or = [
@@ -291,16 +291,18 @@ const getTasks = async (req, res) => {
     const limitNum = parseInt(limit, 10) || 20;
     const skip = (pageNum - 1) * limitNum;
 
-    const tasks = await Task.find(query)
-      .populate('project', 'projectName projectCategory')
-      .populate('stage', 'stageName')
-      .populate('assignee', 'name email')
-      .populate('reviewer', 'name email')
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limitNum);
-
-    const total = await Task.countDocuments(query);
+    const [total, tasks] = await Promise.all([
+      Task.countDocuments(query),
+      Task.find(query)
+        .populate('project', 'projectName projectCategory')
+        .populate('stage', 'stageName')
+        .populate('assignee', 'name email')
+        .populate('reviewer', 'name email')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limitNum)
+        .lean()
+    ]);
 
     return res.json({
       tasks,

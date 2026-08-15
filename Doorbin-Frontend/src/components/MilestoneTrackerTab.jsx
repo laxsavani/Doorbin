@@ -319,7 +319,7 @@ export const MilestoneTrackerTab = ({ setToast }) => {
     fontSize: '0.75rem',
     letterSpacing: '0.04em',
     padding: '0.7rem 0.5rem',
-    border: '1.5px solid #8b8070', // Darker, crisp header border
+    border: '1px solid #b8ae9c', // Darker, crisp header border
     textAlign: 'center',
     verticalAlign: 'middle'
   };
@@ -331,7 +331,7 @@ export const MilestoneTrackerTab = ({ setToast }) => {
     fontSize: '0.75rem',
     letterSpacing: '0.04em',
     padding: '0.7rem 0.5rem',
-    border: '1.5px solid #8b8070', // Darker, crisp header border
+    border: '1px solid #b8ae9c', // Darker, crisp header border
     textAlign: 'center',
     verticalAlign: 'middle'
   };
@@ -342,7 +342,7 @@ export const MilestoneTrackerTab = ({ setToast }) => {
     fontWeight: '700',
     fontSize: '0.71rem',
     padding: '0.45rem 0.35rem',
-    border: '1.5px solid #8b8070', // Darker, crisp subheader border
+    border: '1px solid #b8ae9c', // Darker, crisp subheader border
     textAlign: 'center',
     verticalAlign: 'middle'
   };
@@ -367,7 +367,7 @@ export const MilestoneTrackerTab = ({ setToast }) => {
         marginBottom: '1rem',
         padding: '0.85rem 1.15rem',
         backgroundColor: '#ffffff',
-        border: '1.5px solid #8b8070', // Darker toolbar border
+        border: '1px solid #b8ae9c', // Darker toolbar border
         borderRadius: '8px'
       }}>
         <form onSubmit={handleSearchSubmit} style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
@@ -486,7 +486,7 @@ export const MilestoneTrackerTab = ({ setToast }) => {
       </div>
 
       {/* EXCEL GRID SPREADSHEET TABLE WITH DARKER CONTAINER & HEADER BORDERS */}
-      <div className="table-responsive" style={{ border: '2px solid #78726a', borderRadius: '8px', overflowX: 'auto', backgroundColor: '#ffffff', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+      <div className="table-responsive" style={{ border: '1px solid #b8ae9c', borderRadius: '8px', overflowX: 'auto', backgroundColor: '#ffffff', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
         <table className="table" style={{ fontSize: '0.78rem', borderCollapse: 'collapse', width: '100%', minWidth: '1650px' }}>
           <thead>
             {/* ROW 1: MAIN HEADERS */}
@@ -507,7 +507,7 @@ export const MilestoneTrackerTab = ({ setToast }) => {
               <th rowSpan={2} style={{ ...mainThStyle, width: '135px' }}>TOTAL PROJECT VALUE (₹)</th>
               <th rowSpan={2} style={{ ...mainThStyle, width: '115px' }}>TOTAL RECEIVED (₹)</th>
               <th rowSpan={2} style={{ ...mainThStyle, width: '105px' }}>WIP (₹)</th>
-              <th rowSpan={2} style={{ ...mainThStyle, width: '120px', backgroundColor: '#e2efda', color: '#15803d', border: '1.5px solid #8b8070' }}>BALANCE DUE (₹)</th>
+              <th rowSpan={2} style={{ ...mainThStyle, width: '120px', backgroundColor: '#e2efda', color: '#15803d', border: '1px solid #b8ae9c' }}>BALANCE DUE (₹)</th>
               <th rowSpan={2} style={{ ...mainThStyle, width: '120px', textAlign: 'left' }}>NOTES</th>
               <th rowSpan={2} style={{ ...mainThStyle, width: '65px' }}>ACTIONS</th>
             </tr>

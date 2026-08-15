@@ -188,28 +188,31 @@ const getQuotations = async (req, res) => {
     if (project && mongoose.Types.ObjectId.isValid(project)) query.project = project;
     if (status) query.status = status;
 
-    const pageNum = parseInt(page, 10);
-    const limitNum = parseInt(limit, 10);
+    const pageNum = parseInt(page, 10) || 1;
+    const limitNum = parseInt(limit, 10) || 20;
     const skip = (pageNum - 1) * limitNum;
 
-    const total = await Quotation.countDocuments(query);
-    const quotations = await Quotation.find(query)
-      .populate('client', 'companyName clientName')
-      .populate('project', 'projectName projectCategory')
-      .populate('createdBy', 'name email')
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limitNum);
+    const [total, quotations] = await Promise.all([
+      Quotation.countDocuments(query),
+      Quotation.find(query)
+        .populate('client', 'companyName clientName')
+        .populate('project', 'projectName projectCategory')
+        .populate('createdBy', 'name email')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limitNum)
+        .lean()
+    ]);
 
     const formatted = quotations.map(q => ({
-      ...q.toObject(),
+      ...q,
       dateFormatted: formatDDMMYYYY(q.date),
       validTillFormatted: formatDDMMYYYY(q.validTill)
     }));
 
     return res.json({
       totalCount: total,
-      totalPages: Math.ceil(total / limitNum),
+      totalPages: Math.ceil(total / limitNum) || 1,
       currentPage: pageNum,
       quotations: formatted
     });
