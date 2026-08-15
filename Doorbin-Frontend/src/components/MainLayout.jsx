@@ -467,13 +467,7 @@ export const MainLayout = ({ children }) => {
           <div className="top-bar-right-controls" style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
             <ClockInOutWidget variant="topbar" />
             <NotificationBell />
-            <div style={{ position: 'relative' }}>
-              <input
-                type="text"
-                placeholder="Search tasks, projects..."
-                className="top-bar-search-input"
-              />
-            </div>
+
           </div>
         </div>
 

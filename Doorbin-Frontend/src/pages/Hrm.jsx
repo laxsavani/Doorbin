@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { hrService } from '../services/hrService';
 import { authService } from '../services/authService';
 import { FormField } from '../components/FormField';
@@ -17,6 +17,7 @@ import {
   XCircle,
   FileText,
   Trash2,
+  Edit,
   LayoutGrid,
   List
 } from 'lucide-react';
@@ -71,6 +72,32 @@ export const Hrm = () => {
   const [leaveForm, setLeaveForm] = useState({ employeeId: '', leaveType: 'Casual Leave', startDate: '', endDate: '', reason: '' });
   const [holidayForm, setHolidayForm] = useState({ holidayName: '', date: '', type: 'Festival' });
   const [reviewForm, setReviewForm] = useState({ employeeId: '', reviewPeriod: 'Q3 2026', qualityScore: 9, timelinessScore: 8, teamworkScore: 9, feedback: '' });
+  const [editingLeaveId, setEditingLeaveId] = useState(null);
+
+  const handleOpenApplyLeaveModal = () => {
+    setEditingLeaveId(null);
+    setLeaveForm({ employeeId: '', leaveType: 'Casual Leave', startDate: '', endDate: '', reason: '' });
+    setIsLeaveModalOpen(true);
+  };
+
+  const handleOpenEditLeaveModal = (leave) => {
+    if (leave.status !== 'Pending') {
+      setToast({ message: "Leave application cannot be modified once it has been " + leave.status + ". Only pending leave applications can be updated.", type: "error" });
+      return;
+    }
+    setEditingLeaveId(leave._id);
+    const startStr = leave.fromDate ? new Date(leave.fromDate).toISOString().split('T')[0] : (leave.startDate || todayStr);
+    const endStr = leave.toDate ? new Date(leave.toDate).toISOString().split('T')[0] : (leave.endDate || todayStr);
+
+    setLeaveForm({
+      employeeId: typeof leave.employee === 'object' ? (leave.employee._id || leave.employee.id) : leave.employee,
+      leaveType: leave.leaveType || 'Casual Leave',
+      startDate: startStr,
+      endDate: endStr,
+      reason: leave.reason || ''
+    });
+    setIsLeaveModalOpen(true);
+  };
 
   // Export Attendance State
   const [exportMonth, setExportMonth] = useState(new Date().toISOString().slice(0, 7)); // YYYY-MM
@@ -198,29 +225,33 @@ export const Hrm = () => {
     }
 
     try {
-      const targetEmpId = isDirectorOrHR ? (leaveForm.employeeId || currentUserId) : currentUserId;
-      const selectedEmp = employees.find(emp => emp._id === targetEmpId || emp.userId === targetEmpId) || {
-        _id: targetEmpId,
-        name: currentUserName,
-        employeeCode: 'EMP-SELF'
-      };
-
-      const newLeave = await hrService.applyLeave({
-        leaveType: leaveForm.leaveType,
-        fromDate: leaveForm.startDate,
-        toDate: leaveForm.endDate,
-        startDate: leaveForm.startDate,
-        endDate: leaveForm.endDate,
-        reason: leaveForm.reason
-      });
+      if (editingLeaveId) {
+        await hrService.updateLeave(editingLeaveId, {
+          leaveType: leaveForm.leaveType,
+          fromDate: leaveForm.startDate,
+          toDate: leaveForm.endDate,
+          reason: leaveForm.reason
+        });
+        setToast({ message: 'Leave application updated successfully!', type: 'success' });
+      } else {
+        const newLeave = await hrService.applyLeave({
+          leaveType: leaveForm.leaveType,
+          fromDate: leaveForm.startDate,
+          toDate: leaveForm.endDate,
+          startDate: leaveForm.startDate,
+          endDate: leaveForm.endDate,
+          reason: leaveForm.reason
+        });
+        setToast({ message: 'Leave application submitted successfully!', type: 'success' });
+      }
 
       const updatedLeaves = await hrService.getLeaveRequests();
-      setLeaveRequests(updatedLeaves.length > 0 ? updatedLeaves : [newLeave]);
+      setLeaveRequests(updatedLeaves);
       setIsLeaveModalOpen(false);
-      setToast({ message: 'Leave application submitted successfully!', type: 'success' });
+      setEditingLeaveId(null);
       setLeaveForm({ employeeId: '', leaveType: 'Casual Leave', startDate: '', endDate: '', reason: '' });
     } catch (err) {
-      setToast({ message: err.message || 'Failed to apply leave', type: 'error' });
+      setToast({ message: err.message || 'Failed to process leave application', type: 'error' });
     }
   };
 
@@ -393,6 +424,27 @@ export const Hrm = () => {
     return `${hStr}h ${mStr}m`;
   };
 
+  const scopedEmployees = isDirectorOrHR
+    ? employees
+    : employees.filter(e => {
+        const uId = typeof e.user === 'object' ? (e.user?._id || e.user?.id) : (e.userId || e._id);
+        return String(uId) === String(currentUserId) || String(e._id) === String(currentUserId) || String(e.email || '').toLowerCase() === String(currentUser?.email || '').toLowerCase();
+      });
+
+  const scopedLeaveRequests = isDirectorOrHR
+    ? leaveRequests
+    : leaveRequests.filter(l => {
+        const empId = typeof l.employee === 'object' ? (l.employee?._id || l.employee?.id) : l.employee;
+        return String(empId) === String(currentUserId) || !l.employee;
+      });
+
+  const scopedAttendance = isDirectorOrHR
+    ? attendanceLogs
+    : attendanceLogs.filter(a => {
+        const empId = typeof a.employee === 'object' ? (a.employee?._id || a.employee?.id) : a.employee;
+        return String(empId) === String(currentUserId) || !a.employee;
+      });
+
   const renderAttendanceTab = () => (
     <div>
       {/* Month-Wise Export & Filter Toolbar */}
@@ -431,21 +483,21 @@ export const Hrm = () => {
             className="btn btn-secondary"
             style={{ fontSize: '0.78rem', padding: '0.45rem 0.75rem', backgroundColor: '#fef2f2', color: '#dc2626', borderColor: '#fecaca' }}
           >
-            📄 PDF Report
+            <FileText size={14} /> PDF Report
           </button>
           <button
             onClick={() => handleExportAttendance('excel')}
             className="btn btn-secondary"
             style={{ fontSize: '0.78rem', padding: '0.45rem 0.75rem', backgroundColor: '#f0fdf4', color: '#16a34a', borderColor: '#bbf7d0' }}
           >
-            📊 Excel (.xlsx)
+            <FileText size={14} /> Excel (.xlsx)
           </button>
           <button
             onClick={() => handleExportAttendance('csv')}
             className="btn btn-secondary"
             style={{ fontSize: '0.78rem', padding: '0.45rem 0.75rem', backgroundColor: '#eff6ff', color: '#2563eb', borderColor: '#bfdbfe' }}
           >
-            📑 CSV Export
+            <FileText size={14} /> CSV Export
           </button>
         </div>
       </div>
@@ -463,7 +515,7 @@ export const Hrm = () => {
             </tr>
           </thead>
           <tbody>
-              {attendanceLogs.slice((attPage - 1) * pageSize, attPage * pageSize).map(att => {
+              {scopedAttendance.slice((attPage - 1) * pageSize, attPage * pageSize).map(att => {
                 const isLeaveDay = att.status === 'On Leave' || att.status === 'Leave';
                 const checkInStr = isLeaveDay ? '--' : (att.checkIn ? formatISTTimeStr(att.checkIn) : (att.activeSession?.checkInFormatted || '--'));
                 const checkOutStr = isLeaveDay ? '--' : (att.checkOut ? formatISTTimeStr(att.checkOut) : (att.activeSession?.checkOutFormatted || '--'));
@@ -503,7 +555,7 @@ export const Hrm = () => {
 
       <Pagination
         currentPage={attPage}
-        totalItems={attendanceLogs.length}
+        totalItems={scopedAttendance.length}
         pageSize={pageSize}
         onPageChange={setAttPage}
       />
@@ -530,7 +582,7 @@ export const Hrm = () => {
         </div>
 
         <div className="page-header-actions">
-          <button className="btn btn-secondary" onClick={() => setIsLeaveModalOpen(true)}>
+          <button className="btn btn-secondary" onClick={handleOpenApplyLeaveModal}>
             <Calendar size={16} /> Apply Leave
           </button>
           {isDirectorOrHR && (
@@ -647,7 +699,7 @@ export const Hrm = () => {
               </tr>
             </thead>
             <tbody>
-              {employees.map(emp => (
+              {scopedEmployees.map(emp => (
                 <tr key={emp._id}>
                   <td style={{ fontWeight: '600' }}>
                     {emp.name} <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>({emp.employeeCode})</span>
@@ -830,7 +882,7 @@ export const Hrm = () => {
                 <option value="Human Resource">Human Resource</option>
                 <option value="Business Development Manager">Business Development Manager</option>
               </FormField>
-              <FormField label="Monthly Salary (₹)" name="monthlySalary" type="number" value={empForm.monthlySalary} onChange={e => setEmpForm({ ...empForm, monthlySalary: e.target.value })} placeholder="75000" />
+              <FormField label="Monthly Salary (â‚¹)" name="monthlySalary" type="number" value={empForm.monthlySalary} onChange={e => setEmpForm({ ...empForm, monthlySalary: e.target.value })} placeholder="75000" />
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1rem' }}>
@@ -847,8 +899,8 @@ export const Hrm = () => {
           <form onSubmit={handleApplyLeave}>
             {isDirectorOrHR ? (
               <FormField label="Employee" name="employeeId" type="select" value={leaveForm.employeeId || currentUserId} onChange={e => setLeaveForm({ ...leaveForm, employeeId: e.target.value })} required>
-                <option value={currentUserId}>Self — {currentUserName} ({userRoleName})</option>
-                {employees.map(emp => (
+                <option value={currentUserId}>Self â€” {currentUserName} ({userRoleName})</option>
+                {scopedEmployees.map(emp => (
                   <option key={emp._id} value={emp._id}>{emp.name} ({emp.employeeCode || 'EMP'})</option>
                 ))}
               </FormField>
@@ -908,7 +960,7 @@ export const Hrm = () => {
           <form onSubmit={handleAddReview}>
             <FormField label="Employee" name="employeeId" type="select" value={reviewForm.employeeId} onChange={e => setReviewForm({ ...reviewForm, employeeId: e.target.value })} required>
               <option value="">-- Select Employee --</option>
-              {employees.map(emp => (
+              {scopedEmployees.map(emp => (
                 <option key={emp._id} value={emp._id}>{emp.name}</option>
               ))}
             </FormField>
@@ -971,3 +1023,9 @@ export const Hrm = () => {
     </div>
   );
 };
+
+
+
+
+
+

@@ -1,4 +1,4 @@
-const Employee = require('../models/Employee');
+﻿const Employee = require('../models/Employee');
 const Attendance = require('../models/Attendance');
 const Leave = require('../models/Leave');
 const Holiday = require('../models/Holiday');
@@ -92,6 +92,7 @@ const getEmployees = async (req, res) => {
     const skip = (pageNum - 1) * limitNum;
 
     const query = {};
+    if (!isHROrDirector(req)) query.user = req.user._id;
     if (status === 'active') query.dateOfExit = null;
     else if (status === 'exited') query.dateOfExit = { $ne: null };
 
@@ -966,7 +967,7 @@ const exportAttendance = async (req, res) => {
         date: { $gte: startDate, $lte: endDate }
       }).sort({ date: 1 });
 
-      title = `Attendance Report — ${empName} (${monthName})`;
+      title = `Attendance Report â€” ${empName} (${monthName})`;
       headers = ['Date', 'Status', 'Clock In', 'Clock Out', 'Working Hours (hrs)', 'Late Arrival', 'Remarks'];
 
       rows = records.map(att => [
@@ -999,7 +1000,7 @@ const exportAttendance = async (req, res) => {
         date: { $gte: startDate, $lte: endDate }
       });
 
-      title = `Studio Monthly Attendance Summary — ${monthName}`;
+      title = `Studio Monthly Attendance Summary â€” ${monthName}`;
       headers = ['Employee Name', 'Email', 'Role / Designation', 'Present Days', 'Absent Days', 'Half Days', 'On Leave', 'Total Hours', 'Avg Daily Hours'];
 
       const userStatsMap = {};
@@ -1068,6 +1069,72 @@ const exportAttendance = async (req, res) => {
   }
 };
 
+
+// @desc    Update Leave application (Self service, ONLY when status is Pending)
+// @route   PUT /api/hr/leave/:id
+// @access  Private (Applicant or HR)
+const updateLeave = async (req, res) => {
+  try {
+    const leave = await Leave.findById(req.params.id);
+    if (!leave) {
+      return res.status(404).json({ message: 'Leave application not found' });
+    }
+
+    const isOwner = String(leave.employee) === String(req.user._id);
+    if (!isOwner && !isHROrDirector(req)) {
+      return res.status(403).json({ message: 'Not authorized to update this leave application' });
+    }
+
+    // STRICT RULE: Only pending leaves can be updated! Once Approved or Rejected, it cannot be modified!
+    if (leave.status !== 'Pending') {
+      return res.status(400).json({
+        message: `Leave application cannot be modified once it has been ${leave.status.toLowerCase()}. Only pending leave applications can be updated.`
+      });
+    }
+
+    const { leaveType, fromDate, toDate, reason } = req.body;
+    if (leaveType) leave.leaveType = leaveType.trim();
+    if (reason !== undefined) leave.reason = String(reason).trim();
+
+    if (fromDate && toDate) {
+      const fDate = parseDateString(fromDate);
+      const tDate = parseDateString(toDate, true);
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const maxDate = new Date(today);
+      maxDate.setFullYear(today.getFullYear() + 1);
+      maxDate.setHours(23, 59, 59, 999);
+
+      if (fDate < today) {
+        return res.status(400).json({ message: 'Past dates cannot be selected for leave application.' });
+      }
+      if (fDate > maxDate || tDate > maxDate) {
+        return res.status(400).json({ message: 'Leave date cannot be further than 1 year ahead.' });
+      }
+      if (tDate < fDate) {
+        return res.status(400).json({ message: 'End date cannot be earlier than start date.' });
+      }
+
+      leave.fromDate = fDate;
+      leave.toDate = tDate;
+    }
+
+    await leave.save();
+
+    const updated = await Leave.findById(leave._id)
+      .populate('employee', 'name email department role');
+
+    return res.json({
+      ...updated.toObject(),
+      fromDateFormatted: formatDDMMYYYY(updated.fromDate),
+      toDateFormatted: formatDDMMYYYY(updated.toDate)
+    });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   createEmployee,
   getEmployees,
@@ -1084,6 +1151,8 @@ module.exports = {
   applyLeave,
   getLeaves,
   approveLeave,
+  updateLeave,
+  updateLeave,
   createHoliday,
   getHolidays,
   deleteHoliday,
@@ -1096,3 +1165,4 @@ module.exports = {
   getResourceUtilizationReport,
   getJoiningExitReport
 };
+

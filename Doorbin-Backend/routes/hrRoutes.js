@@ -1,4 +1,4 @@
-const express = require('express');
+﻿const express = require('express');
 const router = express.Router();
 const {
   createEmployee,
@@ -16,6 +16,8 @@ const {
   applyLeave,
   getLeaves,
   approveLeave,
+  updateLeave,
+  updateLeave,
   createHoliday,
   getHolidays,
   deleteHoliday,
@@ -323,6 +325,8 @@ router.route('/leaves')
  *       200:
  *         description: Leave decision recorded
  */
+router.put('/leave/:id', protect, updateLeave);
+router.put('/leaves/:id', protect, updateLeave);
 router.put('/leave/:id/approve', protect, hrAccess, approveLeave);
 router.patch('/leave/:id/approve', protect, hrAccess, approveLeave);
 router.put('/leaves/:id/approve', protect, hrAccess, approveLeave);
@@ -533,3 +537,4 @@ router.get('/reports/resource-utilization', protect, hrAccess, getResourceUtiliz
 router.get('/reports/joining-exit', protect, hrAccess, getJoiningExitReport);
 
 module.exports = router;
+

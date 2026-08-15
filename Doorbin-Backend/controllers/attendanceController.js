@@ -1,4 +1,4 @@
-const Attendance = require('../models/Attendance');
+﻿const Attendance = require('../models/Attendance');
 const User = require('../models/User');
 const Holiday = require('../models/Holiday');
 const logActivity = require('../utils/activityLogger');
@@ -44,6 +44,15 @@ const calculateAverageWorkingHours = async (employeeId) => {
 // @access  Private (Authenticated User)
 const clockIn = async (req, res) => {
   const userId = req.user._id;
+    const roleName = typeof req.user.role === 'object' ? (req.user.role?.name || '') : (req.user.role || '');
+    if (roleName.toLowerCase() === 'director') {
+      return res.json({
+        success: true,
+        isDirector: true,
+        isClockedIn: true,
+        message: 'Directors are exempt from attendance metrics and clock-in requirements.'
+      });
+    }
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -136,6 +145,15 @@ const clockIn = async (req, res) => {
 // @access  Private (Authenticated User)
 const clockOut = async (req, res) => {
   const userId = req.user._id;
+    const roleName = typeof req.user.role === 'object' ? (req.user.role?.name || '') : (req.user.role || '');
+    if (roleName.toLowerCase() === 'director') {
+      return res.json({
+        success: true,
+        isDirector: true,
+        isClockedIn: true,
+        message: 'Directors are exempt from attendance metrics and clock-in requirements.'
+      });
+    }
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -225,6 +243,15 @@ const clockOut = async (req, res) => {
 // @access  Private (Authenticated User)
 const getTodayAttendance = async (req, res) => {
   const userId = req.user._id;
+    const roleName = typeof req.user.role === 'object' ? (req.user.role?.name || '') : (req.user.role || '');
+    if (roleName.toLowerCase() === 'director') {
+      return res.json({
+        success: true,
+        isDirector: true,
+        isClockedIn: true,
+        message: 'Directors are exempt from attendance metrics and clock-in requirements.'
+      });
+    }
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -634,3 +661,4 @@ module.exports = {
   getTeamSummary,
   exportAttendance
 };
+

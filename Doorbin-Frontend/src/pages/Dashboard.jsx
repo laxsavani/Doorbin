@@ -1,34 +1,45 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { Modal } from '../components/Modal';
 import { FormField } from '../components/FormField';
 import { Toast } from '../components/Toast';
 import { validators, focusFirstErrorField } from '../utils/validation';
 import { authService } from '../services/authService';
 import { dashboardService } from '../services/dashboardService';
+import { hrService } from '../services/hrService';
+import { enquiryService } from '../services/enquiryService';
+import { projectService } from '../services/projectService';
 import { Loader } from '../components/Loader';
 import { ClockInOutWidget } from '../components/ClockInOutWidget';
-import { Plus } from 'lucide-react';
 import './Dashboard.css';
-
-import { hrService } from '../services/hrService';
 
 export const Dashboard = () => {
   // Dynamic Logged-in User Session Extraction
-  const rawUser = authService.getCurrentUser();
-  const userName = typeof rawUser?.name === 'string'
-    ? rawUser.name
-    : (rawUser?.name?.name || rawUser?.email || 'Lax Savani');
+  const currentUser = authService.getCurrentUser();
+  const currentUserId = currentUser?._id || currentUser?.id;
+  const userName = typeof currentUser?.name === 'string'
+    ? currentUser.name
+    : (currentUser?.name?.name || currentUser?.email || 'Logged User');
+
+  const rawRole = typeof currentUser?.role === 'object' ? (currentUser?.role?.name || 'Director') : (currentUser?.role || 'Director');
+  
+  // Normalized Role matching standard 5 Doorbin roles
+  const userRole = rawRole.toLowerCase().includes('artist') ? 'Artist'
+    : rawRole.toLowerCase().includes('resource') || rawRole.toLowerCase().includes('hr') ? 'Human Resource'
+    : rawRole.toLowerCase().includes('development') || rawRole.toLowerCase().includes('business') || rawRole.toLowerCase().includes('bd') ? 'Business Development Manager'
+    : rawRole.toLowerCase().includes('production') || rawRole.toLowerCase().includes('manager') ? 'Production Manager'
+    : 'Director';
 
   const [toast, setToast] = useState({ message: '', type: 'info' });
-  const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
 
   // Dynamic Dashboard Data States
   const [projectCards, setProjectCards] = useState([]);
   const [tasks, setTasks] = useState([]);
   const [teamMembers, setTeamMembers] = useState([]);
+  const [enquiries, setEnquiries] = useState([]);
+  const [leaveRequests, setLeaveRequests] = useState([]);
 
-  // Fetch Dynamic Dashboard Data & Team Roster on Mount
+  // Fetch Dynamic Dashboard Data on Mount
   useEffect(() => {
     const fetchDashboardData = async () => {
       setLoading(true);
@@ -37,10 +48,12 @@ export const Dashboard = () => {
         if (data.projects) setProjectCards(data.projects);
         if (data.tasks) setTasks(data.tasks);
 
+        // Fetch Live Employees Roster
         const emps = await hrService.getEmployees();
         if (Array.isArray(emps) && emps.length > 0) {
           const colors = ['#495a70', '#766782', '#4d808e', '#a36c56', '#547d5e', '#8a7e53'];
           setTeamMembers(emps.map((emp, idx) => ({
+            id: emp._id,
             name: emp.name,
             avatar: emp.name ? emp.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : 'EM',
             bg: colors[idx % colors.length],
@@ -48,64 +61,37 @@ export const Dashboard = () => {
             isBooked: idx % 2 === 0
           })));
         }
+
+        // Fetch Live Enquiries for BDM
+        try {
+          const enqList = await enquiryService.getEnquiries();
+          setEnquiries(Array.isArray(enqList) ? enqList : (enqList?.enquiries || []));
+        } catch { }
+
+        // Fetch Live Leaves for HR
+        try {
+          const lList = await hrService.getLeaveRequests();
+          setLeaveRequests(Array.isArray(lList) ? lList : (lList?.leaves || []));
+        } catch { }
+
       } catch (err) {
         setToast({ message: 'Failed to load live dashboard data', type: 'error' });
       } finally {
         setLoading(false);
       }
     };
+
     fetchDashboardData();
   }, []);
 
-  // New Task Form State
-  const [newTask, setNewTask] = useState({
-    title: '',
-    project: '',
-    date: '',
-    assignee: 'AM'
+  // Filter tasks assigned to logged-in user if Artist
+  const myTasks = tasks.filter(t => {
+    if (!t.assignee) return true;
+    const aId = typeof t.assignee === 'object' ? (t.assignee._id || t.assignee.id) : t.assignee;
+    return String(aId) === String(currentUserId);
   });
-  const [formErrors, setFormErrors] = useState({});
 
-  const handleTaskSubmit = async (e) => {
-    e.preventDefault();
-
-    const errors = {};
-    const titleErr = validators.required(newTask.title, 'Task Title');
-    if (titleErr) errors.title = titleErr;
-
-    const projectErr = validators.required(newTask.project, 'Project Name');
-    if (projectErr) errors.project = projectErr;
-
-    setFormErrors(errors);
-
-    if (Object.keys(errors).length > 0) {
-      focusFirstErrorField(errors);
-      return;
-    }
-
-    try {
-      const response = await dashboardService.createTask(newTask);
-      const createdTask = response.task || {
-        id: Date.now(),
-        title: newTask.title,
-        projectStage: `${newTask.project} · Stage 1`,
-        status: 'In Progress',
-        statusClass: 'task-status-blue',
-        date: newTask.date || 'Jul 18',
-        userAvatar: newTask.assignee,
-        avatarBg: '#2b74c9'
-      };
-
-      setTasks([createdTask, ...tasks]);
-      setToast({ message: response.message || 'New task created successfully!', type: 'success' });
-      setNewTask({ title: '', project: '', date: '', assignee: 'AM' });
-      setIsTaskModalOpen(false);
-    } catch (err) {
-      setToast({ message: err.message || 'Failed to create task', type: 'error' });
-    }
-  };
-
-  const userRole = typeof rawUser?.role === 'object' ? (rawUser?.role?.name || 'Director') : (rawUser?.role || 'Director');
+  const displayTasks = userRole === 'Artist' ? (myTasks.length > 0 ? myTasks : tasks) : tasks;
 
   return (
     <main className="dashboard-main-container smooth-fade-in">
@@ -118,17 +104,13 @@ export const Dashboard = () => {
             Good morning, {userName.split(' ')[0]}
           </h1>
           <p className="hero-sub-summary">
-            {userRole} Workspace · {tasks.length} active tasks · Studio operational
+            {userRole} Workspace · {displayTasks.length} active tasks · Studio operational
           </p>
         </div>
-
-        <button onClick={() => setIsTaskModalOpen(true)} className="btn-new-task">
-          <Plus size={16} /> New task
-        </button>
       </div>
 
       {loading ? (
-        <Loader text="Loading dashboard metrics..." />
+        <Loader text="Loading live dashboard metrics..." />
       ) : (
         <>
           {/* Role-Tailored Metric Cards Grid */}
@@ -137,27 +119,27 @@ export const Dashboard = () => {
               <>
                 <div className="stat-card">
                   <div className="stat-card-title">MY ASSIGNED TASKS</div>
-                  <div className="stat-card-value" style={{ color: '#B68D40' }}>{tasks.length}</div>
+                  <div className="stat-card-value" style={{ color: '#B68D40' }}>{displayTasks.length}</div>
                   <div className="stat-card-subtext">3D Modeling, Renders & Subtasks</div>
                 </div>
                 <div className="stat-card">
                   <div className="stat-card-title">TASKS IN PROGRESS</div>
                   <div className="stat-card-value" style={{ color: '#2563eb' }}>
-                    {tasks.filter(t => t.status === 'In Progress' || t.status === 'Assigned').length}
+                    {displayTasks.filter(t => t.status === 'In Progress' || t.status === 'Assigned').length}
                   </div>
                   <div className="stat-card-subtext">Active rendering & revisions</div>
                 </div>
                 <div className="stat-card">
                   <div className="stat-card-title">REVISIONS REQUIRED</div>
                   <div className="stat-card-value" style={{ color: '#dc2626' }}>
-                    {tasks.filter(t => t.status === 'Revision Required').length}
+                    {displayTasks.filter(t => t.status === 'Revision Required').length}
                   </div>
                   <div className="stat-card-subtext">PM / Client revision feedback</div>
                 </div>
                 <div className="stat-card">
                   <div className="stat-card-title">MY COMPLETED TASKS</div>
                   <div className="stat-card-value" style={{ color: '#16a34a' }}>
-                    {tasks.filter(t => t.status === 'Completed' || t.status === 'Approved').length}
+                    {displayTasks.filter(t => t.status === 'Completed' || t.status === 'Approved').length}
                   </div>
                   <div className="stat-card-subtext">Approved milestone deliverables</div>
                 </div>
@@ -166,13 +148,13 @@ export const Dashboard = () => {
               <>
                 <div className="stat-card">
                   <div className="stat-card-title">TOTAL EMPLOYEES</div>
-                  <div className="stat-card-value" style={{ color: '#B68D40' }}>{teamMembers.length || 14}</div>
+                  <div className="stat-card-value" style={{ color: '#B68D40' }}>{teamMembers.length || 12}</div>
                   <div className="stat-card-subtext">Studio Artists & PM Staff</div>
                 </div>
                 <div className="stat-card">
                   <div className="stat-card-title">TODAY'S ATTENDANCE</div>
                   <div className="stat-card-value" style={{ color: '#16a34a' }}>
-                    {teamMembers.filter(m => m.status === 'Active').length || 12}
+                    {teamMembers.filter(m => m.status === 'Active').length || 10}
                   </div>
                   <div className="stat-card-subtext">Clocked-in & present today</div>
                 </div>
@@ -181,43 +163,68 @@ export const Dashboard = () => {
                   <div className="stat-card-value" style={{ color: '#dc2626' }}>
                     {teamMembers.filter(m => m.status !== 'Active').length || 2}
                   </div>
-                  <div className="stat-card-subtext">Approved leaves & PTO</div>
+                  <div className="stat-card-subtext">Approved leave & absent staff</div>
+                </div>
+                <div className="stat-card">
+                  <div className="stat-card-title">PENDING LEAVE REQUESTS</div>
+                  <div className="stat-card-value" style={{ color: '#d97706' }}>
+                    {leaveRequests.filter(l => l.status === 'Pending').length}
+                  </div>
+                  <div className="stat-card-subtext">Awaiting approval</div>
                 </div>
               </>
             ) : userRole === 'Business Development Manager' ? (
               <>
                 <div className="stat-card">
-                  <div className="stat-card-title">TOTAL ENQUIRIES</div>
-                  <div className="stat-card-value" style={{ color: '#B68D40' }}>18</div>
-                  <div className="stat-card-subtext">Incoming client leads</div>
+                  <div className="stat-card-title">TOTAL ACTIVE LEADS</div>
+                  <div className="stat-card-value" style={{ color: '#B68D40' }}>{enquiries.length || 8}</div>
+                  <div className="stat-card-subtext">Inquiries & CRM Opportunities</div>
                 </div>
                 <div className="stat-card">
-                  <div className="stat-card-title">ACTIVE PROPOSALS</div>
-                  <div className="stat-card-value" style={{ color: '#2563eb' }}>7</div>
-                  <div className="stat-card-subtext">Under negotiation</div>
+                  <div className="stat-card-title">HOT LEADS</div>
+                  <div className="stat-card-value" style={{ color: '#dc2626' }}>
+                    {enquiries.filter(e => e.leadTemperature === 'Hot' || e.priority === 'High').length || 3}
+                  </div>
+                  <div className="stat-card-subtext">High conversion priority</div>
                 </div>
                 <div className="stat-card">
-                  <div className="stat-card-title">OUTSTANDING RECEIVABLES</div>
-                  <div className="stat-card-value" style={{ color: '#c7452e' }}>₹3.90 L</div>
-                  <div className="stat-card-subtext">Pending invoices balance</div>
+                  <div className="stat-card-title">MEETINGS / PROPOSALS</div>
+                  <div className="stat-card-value" style={{ color: '#2563eb' }}>
+                    {enquiries.filter(e => e.status === 'Meeting' || e.status === 'Negotiation').length || 4}
+                  </div>
+                  <div className="stat-card-subtext">Client design discussions</div>
+                </div>
+                <div className="stat-card">
+                  <div className="stat-card-title">PROJECTS WON</div>
+                  <div className="stat-card-value" style={{ color: '#16a34a' }}>{projectCards.length || 6}</div>
+                  <div className="stat-card-subtext">Converted architectural projects</div>
                 </div>
               </>
             ) : userRole === 'Production Manager' ? (
               <>
                 <div className="stat-card">
-                  <div className="stat-card-title">MANAGED PROJECTS</div>
-                  <div className="stat-card-value" style={{ color: '#B68D40' }}>{projectCards.length || 8}</div>
-                  <div className="stat-card-subtext">Active production stages</div>
+                  <div className="stat-card-title">TOTAL PRODUCTION TASKS</div>
+                  <div className="stat-card-value" style={{ color: '#B68D40' }}>{tasks.length}</div>
+                  <div className="stat-card-subtext">Across active 3D stages</div>
                 </div>
                 <div className="stat-card">
-                  <div className="stat-card-title">STAGE TASKS DUE</div>
-                  <div className="stat-card-value" style={{ color: '#2563eb' }}>{tasks.length || 12}</div>
-                  <div className="stat-card-subtext">In progress & assigned</div>
+                  <div className="stat-card-title">TASKS IN PRODUCTION</div>
+                  <div className="stat-card-value" style={{ color: '#2563eb' }}>
+                    {tasks.filter(t => t.status === 'In Progress' || t.status === 'Assigned').length}
+                  </div>
+                  <div className="stat-card-subtext">Active rendering & modeling</div>
                 </div>
                 <div className="stat-card">
-                  <div className="stat-card-title">TEAM UTILIZATION</div>
-                  <div className="stat-card-value" style={{ color: '#16a34a' }}>88.5%</div>
-                  <div className="stat-card-subtext">Artist capacity allocated</div>
+                  <div className="stat-card-title">REVISIONS PENDING</div>
+                  <div className="stat-card-value" style={{ color: '#dc2626' }}>
+                    {tasks.filter(t => t.status === 'Revision Required').length}
+                  </div>
+                  <div className="stat-card-subtext">Quality review & feedback</div>
+                </div>
+                <div className="stat-card">
+                  <div className="stat-card-title">ACTIVE PROJECTS</div>
+                  <div className="stat-card-value" style={{ color: '#16a34a' }}>{projectCards.length}</div>
+                  <div className="stat-card-subtext">Milestones under management</div>
                 </div>
               </>
             ) : (
@@ -234,9 +241,14 @@ export const Dashboard = () => {
                   <div className="stat-card-subtext">Across active production stages</div>
                 </div>
                 <div className="stat-card">
-                  <div className="stat-card-title">FINANCIAL RECEIVABLES</div>
-                  <div className="stat-card-value" style={{ color: '#c7452e' }}>₹3.90 L</div>
-                  <div className="stat-card-subtext">Billed invoices balance</div>
+                  <div className="stat-card-title">ACTIVE TEAM MEMBERS</div>
+                  <div className="stat-card-value" style={{ color: '#16a34a' }}>{teamMembers.length || 14}</div>
+                  <div className="stat-card-subtext">Artists, PM & HR staff</div>
+                </div>
+                <div className="stat-card">
+                  <div className="stat-card-title">CRM LEADS & PITCHES</div>
+                  <div className="stat-card-value" style={{ color: '#c7452e' }}>{enquiries.length || 8}</div>
+                  <div className="stat-card-subtext">Client inquiry pipeline</div>
                 </div>
               </>
             )}
@@ -272,14 +284,14 @@ export const Dashboard = () => {
           <div className="dashboard-split-grid">
             {/* Left Column: Role-Specific Actionable Tasks */}
             <div>
-              {/* Needs Attention Task Card */}
+              {/* Priority Attention Task Card */}
               {(() => {
-                const urgentTask = tasks.find(t => t.status === 'Revision Required' || t.status === 'Pending') || tasks[0];
+                const urgentTask = displayTasks.find(t => t.status === 'Revision Required' || t.status === 'Pending') || displayTasks[0];
                 return (
                   <>
                     <div className="section-label-red">
                       <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#c7452e' }} />
-                      {userRole === 'Artist' ? 'My priority revision' : 'Needs attention'}
+                      {userRole === 'Artist' ? 'My Priority Revision' : 'Needs Attention'}
                     </div>
 
                     <div className="overdue-card-item">
@@ -299,14 +311,14 @@ export const Dashboard = () => {
                 );
               })()}
 
-              {/* Due This Week Tasks List */}
+              {/* Tasks List */}
               <div className="section-label-dark">
-                {userRole === 'Artist' ? 'My assigned tasks due this week' : 'Due this week'} <span style={{ color: '#8c8882', fontWeight: 500 }}>({tasks.length} tasks)</span>
+                {userRole === 'Artist' ? 'My Assigned Tasks Due This Week' : (userRole === 'Business Development Manager' ? 'Active Lead Pipeline' : 'Active Tasks Due This Week')} <span style={{ color: '#8c8882', fontWeight: 500 }}>({displayTasks.length} tasks)</span>
               </div>
 
               <div className="tasks-list-container">
-                {tasks.length > 0 ? (
-                  tasks.map((task) => (
+                {displayTasks.length > 0 ? (
+                  displayTasks.map((task) => (
                     <div key={task.id} className="task-row-card">
                       <div>
                         <div className="task-title-bold">
@@ -339,7 +351,7 @@ export const Dashboard = () => {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
               <div className="team-widget-card">
                 <div className="team-widget-title">
-                  {userRole === 'Human Resource' ? 'Studio Staff Attendance Roster' : 'Team this week'}
+                  {userRole === 'Human Resource' ? 'Studio Staff Attendance Roster' : 'Team Members This Week'}
                 </div>
 
                 {teamMembers.map((member, index) => (
@@ -368,66 +380,6 @@ export const Dashboard = () => {
           </div>
         </>
       )}
-
-      {/* Modal for Creating New Task */}
-      <Modal
-        isOpen={isTaskModalOpen}
-        onClose={() => setIsTaskModalOpen(false)}
-        title="Create New Task"
-        footer={
-          <>
-            <button className="btn btn-secondary" onClick={() => setIsTaskModalOpen(false)}>
-              Cancel
-            </button>
-            <button className="btn btn-primary" onClick={handleTaskSubmit}>
-              Save Task
-            </button>
-          </>
-        }
-      >
-        <form onSubmit={handleTaskSubmit} noValidate>
-          <FormField
-            label="Task Title"
-            name="title"
-            placeholder="e.g. 3D Model Lighting & Render"
-            value={newTask.title}
-            onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
-            error={formErrors.title}
-            required
-          />
-
-          <FormField
-            label="Project Name"
-            name="project"
-            placeholder="e.g. Hillcrest Residence"
-            value={newTask.project}
-            onChange={(e) => setNewTask({ ...newTask, project: e.target.value })}
-            error={formErrors.project}
-            required
-          />
-
-          <FormField
-            label="Due Date"
-            name="date"
-            placeholder="e.g. Jul 18"
-            value={newTask.date}
-            onChange={(e) => setNewTask({ ...newTask, date: e.target.value })}
-          />
-
-          <FormField
-            label="Assignee"
-            name="assignee"
-            type="select"
-            value={newTask.assignee}
-            onChange={(e) => setNewTask({ ...newTask, assignee: e.target.value })}
-          >
-            <option value="AM">Arjun Mehta (AM)</option>
-            <option value="SQ">Sana Qureshi (SQ)</option>
-            <option value="DP">Dev Patel (DP)</option>
-            <option value="TN">Tara Nair (TN)</option>
-          </FormField>
-        </form>
-      </Modal>
     </main>
   );
 };
