@@ -1,5 +1,6 @@
 ﻿const express = require('express');
 const cors = require('cors');
+const compression = require('compression');
 const dotenv = require('dotenv');
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./config/swagger');
@@ -47,6 +48,7 @@ const app = express();
 
 // Middleware
 app.use(cors());
+app.use(compression());
 app.use(express.json());
 
 // Serve Swagger UI documentation at /api-docs
