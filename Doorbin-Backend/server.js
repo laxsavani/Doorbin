@@ -1,4 +1,4 @@
-const express = require('express');
+﻿const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const swaggerUi = require('swagger-ui-express');
@@ -26,6 +26,8 @@ require('./models/ArtistProfile');
 require('./models/Quotation');
 require('./models/Invoice');
 require('./models/Payment');
+require('./models/ProjectMilestonePayment');
+require('./models/ProjectMilestonePayment');
 require('./models/FinanceSettings');
 require('./models/FinanceCounter');
 require('./models/Employee');
@@ -63,6 +65,8 @@ app.use('/api/projects', require('./routes/projectRoutes'));
 app.use('/api/tasks', require('./routes/taskRoutes'));
 app.use('/api', require('./routes/timelineRoutes'));
 app.use('/api/resources', require('./routes/resourceRoutes'));
+app.use('/api/finance/milestone-tracker', require('./routes/milestoneTrackerRoutes'));
+app.use('/api/finance/milestone-tracker', require('./routes/milestoneTrackerRoutes'));
 app.use('/api/finance', require('./routes/financeRoutes'));
 app.use('/api/hr', require('./routes/hrRoutes'));
 app.use('/api/attendance', require('./routes/attendanceRoutes'));
@@ -131,3 +135,4 @@ if (require.main === module) {
 }
 
 module.exports = app;
+

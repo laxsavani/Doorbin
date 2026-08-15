@@ -68,7 +68,7 @@ export const Hrm = () => {
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
 
   // Forms
-              <FormField label={"Monthly Salary (\u20B9)"} name="monthlySalary" type="number" value={empForm.monthlySalary} onChange={e => setEmpForm({ ...empForm, monthlySalary: e.target.value })} placeholder="75000" />
+  const [empForm, setEmpForm] = useState({ name: "", email: "", phone: "", designation: "", role: "Artist", monthlySalary: "" });
   const [leaveForm, setLeaveForm] = useState({ employeeId: '', leaveType: 'Casual Leave', startDate: '', endDate: '', reason: '' });
   const [holidayForm, setHolidayForm] = useState({ holidayName: '', date: '', type: 'Festival' });
   const [reviewForm, setReviewForm] = useState({ employeeId: '', reviewPeriod: 'Q3 2026', qualityScore: 9, timelinessScore: 8, teamworkScore: 9, feedback: '' });

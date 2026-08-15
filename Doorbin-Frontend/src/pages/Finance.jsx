@@ -31,12 +31,14 @@ import {
 } from 'lucide-react';
 import { useViewMode } from '../hooks/useViewMode';
 import { Pagination } from '../components/Pagination';
+import { MilestoneTrackerTab } from '../components/MilestoneTrackerTab';
+import { exportFinanceTabData } from '../utils/financeExportUtils';
 import './Dashboard.css';
 
 export const Finance = () => {
   const [financePage, setFinancePage] = useState(1);
   const pageSize = 10;
-  const [activeTab, setActiveTab] = useState('quotations'); // 'quotations' | 'invoices' | 'payments' | 'ageing'
+  const [activeTab, setActiveTab] = useState('milestones'); // 'quotations' | 'invoices' | 'payments' | 'ageing'
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [toast, setToast] = useState(null);
@@ -512,6 +514,24 @@ export const Finance = () => {
         {/* Desktop Tabs */}
         <div className="desktop-tabs-container">
           <button
+            onClick={() => setActiveTab('milestones')}
+            style={{
+              padding: '0.75rem 1.25rem',
+              background: 'none',
+              border: 'none',
+              borderBottom: activeTab === 'milestones' ? '3px solid var(--color-primary)' : 'none',
+              fontWeight: activeTab === 'milestones' ? '600' : '400',
+              color: activeTab === 'milestones' ? 'var(--color-primary)' : 'var(--color-text-muted)',
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.45rem'
+            }}
+          >
+            <FileSpreadsheet size={16} /> Milestone Payment Tracker
+          </button>
+
+          <button
             onClick={() => setActiveTab('quotations')}
             style={{
               padding: '0.75rem 1.25rem',
@@ -640,8 +660,8 @@ export const Finance = () => {
               className="btn btn-secondary"
               style={{ padding: '0.45rem 0.75rem', fontSize: '0.78rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
               onClick={() => {
-                reportService.exportReport('excel', activeTab, { from: fromDate, to: toDate });
-                setToast({ message: `Exporting ${activeTab.toUpperCase()} report to Excel...`, type: 'success' });
+                exportFinanceTabData(activeTab, 'excel', { quotations: filteredQuotations, invoices: filteredInvoices, payments: filteredPayments, ageingData });
+                setToast({ message: `Exporting ${activeTab.toUpperCase()} data to Excel...`, type: 'success' });
               }}
             >
               <FileSpreadsheet size={14} color="#15803d" /> Excel
@@ -650,7 +670,7 @@ export const Finance = () => {
               className="btn btn-secondary"
               style={{ padding: '0.45rem 0.75rem', fontSize: '0.78rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
               onClick={() => {
-                reportService.exportReport('pdf', activeTab, { from: fromDate, to: toDate });
+                exportFinanceTabData(activeTab, 'pdf', { quotations: filteredQuotations, invoices: filteredInvoices, payments: filteredPayments, ageingData });
                 setToast({ message: `Exporting ${activeTab.toUpperCase()} report to PDF...`, type: 'success' });
               }}
             >
@@ -659,6 +679,9 @@ export const Finance = () => {
           </div>
         </div>
       </div>
+
+      {/* TAB CONTENT 0: MILESTONE PAYMENT TRACKER */}
+      {activeTab === 'milestones' && <MilestoneTrackerTab setToast={setToast} />}
 
       {/* TAB CONTENT 1: QUOTATIONS */}
       {activeTab === 'quotations' && (
@@ -1270,4 +1293,6 @@ export const Finance = () => {
     </div>
   );
 };
+
+
 
