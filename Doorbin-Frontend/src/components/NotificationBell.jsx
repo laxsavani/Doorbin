@@ -49,14 +49,7 @@ export const NotificationBell = () => {
     try {
       const readIds = getReadIds();
 
-      const [projectsData, tasksData, backendNotifs] = await Promise.all([
-        projectService.getProjects().catch(() => []),
-        taskService.getTasks().catch(() => []),
-        notificationService.getNotifications().catch(() => [])
-      ]);
-
-      const projects = Array.isArray(projectsData) ? projectsData : (projectsData?.projects || projectsData?.data || []);
-      const tasks = Array.isArray(tasksData) ? tasksData : (tasksData?.tasks || tasksData?.data || []);
+      const backendNotifs = await notificationService.getNotifications().catch(() => []);
       const dbNotifs = Array.isArray(backendNotifs) ? backendNotifs : (backendNotifs?.notifications || backendNotifs?.data || []);
 
       const today = new Date();

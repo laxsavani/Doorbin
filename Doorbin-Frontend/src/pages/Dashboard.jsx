@@ -44,12 +44,12 @@ export const Dashboard = () => {
     const fetchDashboardData = async () => {
       setLoading(true);
       try {
-        const data = await dashboardService.getDashboardData();
-        if (data.projects) setProjectCards(data.projects);
-        if (data.tasks) setTasks(data.tasks);
-
-        // Fetch Live Employees Roster
-        const emps = await hrService.getEmployees();
+        const [data, emps] = await Promise.all([
+          dashboardService.getDashboardData(),
+          hrService.getEmployees().catch(() => [])
+        ]);
+        if (data?.projects) setProjectCards(data.projects);
+        if (data?.tasks) setTasks(data.tasks);
         if (Array.isArray(emps) && emps.length > 0) {
           const colors = ['#495a70', '#766782', '#4d808e', '#a36c56', '#547d5e', '#8a7e53'];
           setTeamMembers(emps.map((emp, idx) => ({

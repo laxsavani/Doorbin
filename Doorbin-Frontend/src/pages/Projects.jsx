@@ -195,10 +195,12 @@ export const Projects = () => {
   const fetchProjectsClientsUsers = async () => {
     setLoading(true);
     try {
-      const data = await projectService.getProjects();
-      const clientsData = await clientService.getClients();
-      const usersData = await userService.getUsers();
-      const tasksData = await taskService.getTasks();
+      const [data, clientsData, usersData, tasksData] = await Promise.all([
+        projectService.getProjects(),
+        clientService.getClients(),
+        userService.getUsers(),
+        taskService.getTasks()
+      ]);
 
       let extractedProjects = Array.isArray(data) ? data : (data?.projects || data?.data || []);
       let extractedClients = Array.isArray(clientsData) ? clientsData : (clientsData?.clients || clientsData?.data || []);

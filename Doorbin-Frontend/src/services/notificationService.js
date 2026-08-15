@@ -62,6 +62,10 @@ export const notificationService = {
       return false;
     }
 
+    if (localStorage.getItem('doorbin_web_push_subscribed')) {
+      return true;
+    }
+
     try {
       const permission = await Notification.requestPermission();
       if (permission !== 'granted') {
@@ -91,6 +95,7 @@ export const notificationService = {
       }
 
       await this.subscribe(subscription);
+      localStorage.setItem('doorbin_web_push_subscribed', 'true');
       return true;
     } catch (err) {
       console.warn('Web Push registration error:', err.message);

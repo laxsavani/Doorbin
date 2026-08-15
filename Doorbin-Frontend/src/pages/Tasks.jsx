@@ -158,9 +158,11 @@ export const Tasks = () => {
   const fetchTasksProjectsUsers = async () => {
     setLoading(true);
     try {
-      const data = await taskService.getTasks();
-      const projectsData = await projectService.getProjects();
-      const usersData = await userService.getUsers();
+      const [data, projectsData, usersData] = await Promise.all([
+        taskService.getTasks(),
+        projectService.getProjects(),
+        userService.getUsers()
+      ]);
 
       let extractedTasks = Array.isArray(data) ? data : (data?.tasks || data?.data || []);
       let extractedProjects = Array.isArray(projectsData) ? projectsData : (projectsData?.projects || projectsData?.data || []);
