@@ -278,9 +278,26 @@ export const Login = () => {
           </div>
         </div>
 
-        {/* RIGHT COLUMN - LOGIN FORM SECTION (50% VIEWPORT, SAME BACKGROUND) */}
+        {/* RIGHT COLUMN - LOGIN FORM SECTION */}
         <div className="login-form-section">
-          {/* Form Content Body / Inline Success & Lockout Card Container */}
+          {/* Mobile Blurred Gallery Background Overlay */}
+          <div className="login-mobile-bg-overlay" aria-hidden="true">
+            <div className="login-mobile-bg-grid">
+              {galleryWall.map((item) => (
+                <div key={item.id} className="mobile-bg-grid-cell">
+                  <img src={item.url} alt="" className="mobile-bg-img" />
+                </div>
+              ))}
+            </div>
+            <div className="login-mobile-bg-tint" />
+          </div>
+
+          {/* Top Center Mobile Logo */}
+          <div className="mobile-top-logo-container">
+            <img src="/logo.png" alt="Doorbin Visuals Logo" className="mobile-doorbin-logo" />
+          </div>
+
+          {/* Form Content Body */}
           <div className="login-form-content-body">
             {isLockedOut ? (
               /* RATE LIMIT LOCKOUT CARD WITH COUNTDOWN & BLOCK SIGN */
@@ -298,7 +315,7 @@ export const Login = () => {
                 </div>
               </div>
             ) : showSuccessAnim ? (
-              /* INLINE ANIMATED SUCCESS CARD ON SAME BACKGROUND */
+              /* INLINE ANIMATED SUCCESS CARD */
               <div className="login-inline-success-card">
                 <div className="login-inline-check-circle">
                   <Check size={40} color="#ffffff" strokeWidth={3.5} />
@@ -372,7 +389,7 @@ export const Login = () => {
                   {/* Failed Attempt Warning Badge */}
                   {failedAttemptCount > 0 && failedAttemptCount < 5 && (
                     <div style={{
-                      backgroundColor: '#fff7ed',
+                      backgroundColor: 'rgba(255, 247, 237, 0.95)',
                       border: '1px solid #ffedd5',
                       color: '#c2410c',
                       borderRadius: '12px',
@@ -419,13 +436,18 @@ export const Login = () => {
             )}
           </div>
 
-          {/* Form Footer */}
-          <div className="login-form-footer">
-            &copy; 2026 Doorbin Visuals - High-End Architectural Visualization
+          {/* Bottom Center Mobile Powered By & Footer */}
+          <div className="login-form-footer-wrapper">
+            <div className="mobile-powered-by">
+              <Layers size={17} color="#aa653e" />
+              <span>Powered By NexAlliance IT Solutions</span>
+            </div>
+            <div className="login-form-footer">
+              &copy; 2026 Doorbin Visuals - High-End Architectural Visualization
+            </div>
           </div>
         </div>
       </div>
     </div>
   );
 };
-
