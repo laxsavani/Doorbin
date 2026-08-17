@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { reportService } from '../services/reportService';
+import { useViewMode } from '../hooks/useViewMode';
 import { FormField } from '../components/FormField';
 import { Modal } from '../components/Modal';
 import { Toast } from '../components/Toast';
 import { Loader } from '../components/Loader';
 import { formatDate } from '../utils/dateUtils';
 import {
+  LayoutGrid,
+  AlignJustify,
   PieChart,
   FileSpreadsheet,
   FileText,
@@ -21,7 +24,8 @@ import {
 import './Dashboard.css';
 
 export const ReportsAnalytics = () => {
-  const [activeTab, setActiveTab] = useState('projects'); // 'projects' | 'employees' | 'finance' | 'productivity' | 'scheduled'
+  const [activeTab, setActiveTab] = useState('projects');
+  const [viewMode, setViewMode] = useViewMode('card'); // 'projects' | 'employees' | 'finance' | 'productivity' | 'scheduled'
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState(null);
 
@@ -136,6 +140,46 @@ export const ReportsAnalytics = () => {
         </div>
 
         <div className="page-header-actions" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+          <div className="view-mode-toggle" style={{ display: 'inline-flex', background: '#f5efe6', padding: '0.2rem', borderRadius: '8px', border: '1px solid #e2ded8', gap: '0.2rem' }}>
+            <button
+              type="button"
+              className={`btn btn-icon ${viewMode === 'stripe' ? 'active' : ''}`}
+              style={{
+                padding: '0.4rem 0.6rem',
+                backgroundColor: viewMode === 'stripe' ? '#ffffff' : 'transparent',
+                boxShadow: viewMode === 'stripe' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                borderRadius: '6px',
+                border: 'none',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+              onClick={() => setViewMode('stripe')}
+              title="Table View"
+            >
+              <AlignJustify size={16} color={viewMode === 'stripe' ? '#aa653e' : '#6b7280'} />
+            </button>
+            <button
+              type="button"
+              className={`btn btn-icon ${viewMode === 'card' ? 'active' : ''}`}
+              style={{
+                padding: '0.4rem 0.6rem',
+                backgroundColor: viewMode === 'card' ? '#ffffff' : 'transparent',
+                boxShadow: viewMode === 'card' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                borderRadius: '6px',
+                border: 'none',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+              onClick={() => setViewMode('card')}
+              title="Card View"
+            >
+              <LayoutGrid size={16} color={viewMode === 'card' ? '#aa653e' : '#6b7280'} />
+            </button>
+          </div>
           <div style={{ display: 'inline-flex', gap: '0.4rem' }}>
             <button className="btn btn-secondary" style={{ padding: '0.45rem 0.85rem', fontSize: '0.8rem' }} onClick={() => handleExport(activeTab, 'excel')}>
               <FileSpreadsheet size={15} /> Export Excel
@@ -213,36 +257,80 @@ export const ReportsAnalytics = () => {
                   </div>
                 </div>
 
-                <div className="table-responsive">
-                  <table className="table">
-                    <thead>
-                      <tr>
-                        <th>PROJECT TITLE</th>
-                        <th>CATEGORY</th>
-                        <th>PROGRESS</th>
-                        <th>DELAY (DAYS)</th>
-                        <th>BUDGET (₹)</th>
-                        <th>STATUS</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {projectsList.map((p, idx) => (
-                        <tr key={idx}>
-                          <td style={{ fontWeight: '600' }}>{p.projectName || p.title || 'Untitled Project'}</td>
-                          <td>{p.category || p.projectCategory || 'Architecture'}</td>
-                          <td>{p.progressPercentage || p.progress || 0}%</td>
-                          <td style={{ color: (p.delayDays || 0) > 0 ? 'var(--color-danger)' : 'var(--color-success)' }}>{p.delayDays || 0} days</td>
-                          <td>₹{(p.budget || 0).toLocaleString('en-IN')}</td>
-                          <td>
-                            <span className={`badge ${p.status === 'Completed' ? 'badge-success' : p.status === 'Delayed' ? 'badge-danger' : 'badge-warning'}`}>
+                {viewMode === 'card' ? (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1rem' }}>
+                    {projectsList.map((p, idx) => {
+                      const prog = p.progressPercentage || p.progress || 0;
+                      const isDelayed = (p.delayDays || 0) > 0;
+                      return (
+                        <div key={idx} className="stat-card" style={{ padding: '1.15rem', display: 'flex', flexDirection: 'column', gap: '0.75rem', border: '1px solid #e5e0d5', borderRadius: '12px' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
+                            <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: '#1a1918' }}>{p.projectName || p.title || 'Untitled Project'}</h4>
+                            <span className={`badge ${p.status === 'Completed' ? 'badge-success' : p.status === 'Delayed' ? 'badge-danger' : 'badge-warning'}`} style={{ fontSize: '0.7rem' }}>
                               {p.status || 'In Progress'}
                             </span>
-                          </td>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <span className="badge badge-secondary" style={{ fontSize: '0.72rem' }}>{p.category || p.projectCategory || 'Architecture'}</span>
+                            <span style={{ fontSize: '0.75rem', color: isDelayed ? 'var(--color-danger)' : '#15803d', fontWeight: 600 }}>
+                              {isDelayed ? `⚠️ +${p.delayDays}d Delay` : '✅ On Schedule'}
+                            </span>
+                          </div>
+                          <div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginBottom: '0.25rem', fontWeight: 600, color: '#6b7280' }}>
+                              <span>Progress</span>
+                              <span>{prog}%</span>
+                            </div>
+                            <div style={{ backgroundColor: 'var(--color-border)', height: '6px', borderRadius: '3px', overflow: 'hidden' }}>
+                              <div style={{ width: `${prog}%`, backgroundColor: 'var(--color-primary)', height: '100%' }} />
+                            </div>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', paddingTop: '0.5rem', borderTop: '1px solid #f0ece1' }}>
+                            <div>
+                              <div style={{ fontSize: '0.68rem', color: '#9ca3af', textTransform: 'uppercase' }}>Budget</div>
+                              <div style={{ fontWeight: 700, color: '#1a1918' }}>₹{(p.budget || 0).toLocaleString('en-IN')}</div>
+                            </div>
+                            <div style={{ textAlign: 'right' }}>
+                              <div style={{ fontSize: '0.68rem', color: '#9ca3af', textTransform: 'uppercase' }}>Status</div>
+                              <div style={{ fontWeight: 600, color: '#aa653e' }}>{p.status || 'Active'}</div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="table-responsive">
+                    <table className="table">
+                      <thead>
+                        <tr>
+                          <th>PROJECT TITLE</th>
+                          <th>CATEGORY</th>
+                          <th>PROGRESS</th>
+                          <th>DELAY (DAYS)</th>
+                          <th>BUDGET (₹)</th>
+                          <th>STATUS</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                      </thead>
+                      <tbody>
+                        {projectsList.map((p, idx) => (
+                          <tr key={idx}>
+                            <td style={{ fontWeight: '600' }}>{p.projectName || p.title || 'Untitled Project'}</td>
+                            <td>{p.category || p.projectCategory || 'Architecture'}</td>
+                            <td>{p.progressPercentage || p.progress || 0}%</td>
+                            <td style={{ color: (p.delayDays || 0) > 0 ? 'var(--color-danger)' : 'var(--color-success)' }}>{p.delayDays || 0} days</td>
+                            <td>₹{(p.budget || 0).toLocaleString('en-IN')}</td>
+                            <td>
+                              <span className={`badge ${p.status === 'Completed' ? 'badge-success' : p.status === 'Delayed' ? 'badge-danger' : 'badge-warning'}`}>
+                                {p.status || 'In Progress'}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </>
             );
           })()}
@@ -265,32 +353,63 @@ export const ReportsAnalytics = () => {
                   </div>
                 </div>
 
-                <div className="table-responsive">
-                  <table className="table">
-                    <thead>
-                      <tr>
-                        <th>ARTIST / MANAGER</th>
-                        <th>ROLE</th>
-                        <th>TASKS COMPLETED</th>
-                        <th>PENDING TASKS</th>
-                        <th>UTILIZATION RATE</th>
-                        <th>PERFORMANCE RATING</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {employeeMetrics.map((e, idx) => (
-                        <tr key={idx}>
-                          <td style={{ fontWeight: '600' }}>{e.name}</td>
-                          <td>{e.role}</td>
-                          <td>{e.completedTasks}</td>
-                          <td>{e.pendingTasks}</td>
-                          <td>{e.utilizationRate}</td>
-                          <td style={{ fontWeight: '700', color: 'var(--color-primary)' }}>{e.performanceScore} / 10</td>
+                {viewMode === 'card' ? (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1rem' }}>
+                    {employeeMetrics.map((e, idx) => (
+                      <div key={idx} className="stat-card" style={{ padding: '1.15rem', display: 'flex', flexDirection: 'column', gap: '0.75rem', border: '1px solid #e5e0d5', borderRadius: '12px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: '#1a1918' }}>{e.name}</h4>
+                          <span className="badge badge-secondary" style={{ fontSize: '0.72rem' }}>{e.role}</span>
+                        </div>
+                        <div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginBottom: '0.25rem', fontWeight: 600, color: '#6b7280' }}>
+                            <span>Utilization Rate</span>
+                            <span>{e.utilizationRate}</span>
+                          </div>
+                          <div style={{ backgroundColor: 'var(--color-border)', height: '6px', borderRadius: '3px', overflow: 'hidden' }}>
+                            <div style={{ width: String(e.utilizationRate).includes('%') ? e.utilizationRate : `${e.utilizationRate}%`, backgroundColor: 'var(--color-primary)', height: '100%' }} />
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '0.5rem', borderTop: '1px solid #f0ece1', fontSize: '0.8rem' }}>
+                          <div style={{ display: 'flex', gap: '0.4rem' }}>
+                            <span className="badge badge-success" style={{ fontSize: '0.7rem' }}>✓ {e.completedTasks} Done</span>
+                            <span className="badge badge-warning" style={{ fontSize: '0.7rem' }}>⏳ {e.pendingTasks} Pending</span>
+                          </div>
+                          <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--color-primary)' }}>
+                            ⭐ {e.performanceScore} / 10
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="table-responsive">
+                    <table className="table">
+                      <thead>
+                        <tr>
+                          <th>ARTIST / MANAGER</th>
+                          <th>ROLE</th>
+                          <th>TASKS COMPLETED</th>
+                          <th>PENDING TASKS</th>
+                          <th>UTILIZATION RATE</th>
+                          <th>PERFORMANCE RATING</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                      </thead>
+                      <tbody>
+                        {employeeMetrics.map((e, idx) => (
+                          <tr key={idx}>
+                            <td style={{ fontWeight: '600' }}>{e.name}</td>
+                            <td>{e.role}</td>
+                            <td>{e.completedTasks}</td>
+                            <td>{e.pendingTasks}</td>
+                            <td>{e.utilizationRate}</td>
+                            <td style={{ fontWeight: '700', color: 'var(--color-primary)' }}>{e.performanceScore} / 10</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </>
             );
           })()}
@@ -344,7 +463,7 @@ export const ReportsAnalytics = () => {
                   </div>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+                <div className="reports-dual-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem' }}>
                   <div className="table-responsive">
                     <div style={{ padding: '1rem', fontWeight: '600', borderBottom: '1px solid var(--color-border)' }}>Department Efficiency Rates</div>
                     <table className="table">
@@ -381,36 +500,61 @@ export const ReportsAnalytics = () => {
 
       {/* TAB 5: SCHEDULED REPORTS */}
       {activeTab === 'scheduled' && (
-        <div className="table-responsive">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>TITLE</th>
-                <th>FREQUENCY</th>
-                <th>TIME</th>
-                <th>RECIPIENT EMAILS</th>
-                <th>FORMAT</th>
-                <th>ACTIONS</th>
-              </tr>
-            </thead>
-            <tbody>
-              {scheduledReports.map(s => (
-                <tr key={s._id}>
-                  <td style={{ fontWeight: '600' }}>{s.reportTitle}</td>
-                  <td><span className="badge badge-secondary">{s.frequency} ({s.dayOfWeek || `Day ${s.dayOfMonth}`})</span></td>
-                  <td>{s.time}</td>
-                  <td>{Array.isArray(s.recipients) ? s.recipients.join(', ') : s.recipients}</td>
-                  <td><span className="badge badge-success">{s.exportFormat?.toUpperCase()}</span></td>
-                  <td>
-                    <button className="btn btn-secondary" style={{ padding: '0.25rem 0.5rem', color: 'var(--color-danger)' }} onClick={() => handleDeleteSchedule(s._id)}>
-                      <Trash2 size={14} /> Remove
-                    </button>
-                  </td>
+        viewMode === 'card' ? (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1rem' }}>
+            {scheduledReports.map(s => (
+              <div key={s._id} className="stat-card" style={{ padding: '1.15rem', display: 'flex', flexDirection: 'column', gap: '0.75rem', border: '1px solid #e5e0d5', borderRadius: '12px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: '#1a1918' }}>{s.reportTitle}</h4>
+                  <span className="badge badge-success" style={{ fontSize: '0.7rem' }}>{s.exportFormat?.toUpperCase()}</span>
+                </div>
+                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                  <span className="badge badge-secondary" style={{ fontSize: '0.72rem' }}>📅 {s.frequency} ({s.dayOfWeek || `Day ${s.dayOfMonth}`})</span>
+                  <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>⏰ {s.time}</span>
+                </div>
+                <div style={{ fontSize: '0.78rem', color: '#4b5563', wordBreak: 'break-all' }}>
+                  <strong>To:</strong> {Array.isArray(s.recipients) ? s.recipients.join(', ') : s.recipients}
+                </div>
+                <div style={{ paddingTop: '0.5rem', borderTop: '1px solid #f0ece1', display: 'flex', justifyContent: 'flex-end' }}>
+                  <button className="btn btn-secondary" style={{ padding: '0.35rem 0.65rem', color: 'var(--color-danger)', fontSize: '0.75rem' }} onClick={() => handleDeleteSchedule(s._id)}>
+                    <Trash2 size={13} /> Remove
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="table-responsive">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>TITLE</th>
+                  <th>FREQUENCY</th>
+                  <th>TIME</th>
+                  <th>RECIPIENT EMAILS</th>
+                  <th>FORMAT</th>
+                  <th>ACTIONS</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {scheduledReports.map(s => (
+                  <tr key={s._id}>
+                    <td style={{ fontWeight: '600' }}>{s.reportTitle}</td>
+                    <td><span className="badge badge-secondary">{s.frequency} ({s.dayOfWeek || `Day ${s.dayOfMonth}`})</span></td>
+                    <td>{s.time}</td>
+                    <td>{Array.isArray(s.recipients) ? s.recipients.join(', ') : s.recipients}</td>
+                    <td><span className="badge badge-success">{s.exportFormat?.toUpperCase()}</span></td>
+                    <td>
+                      <button className="btn btn-secondary" style={{ padding: '0.25rem 0.5rem', color: 'var(--color-danger)' }} onClick={() => handleDeleteSchedule(s._id)}>
+                        <Trash2 size={14} /> Remove
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )
       )}
 
       {/* SCHEDULE DIGEST MODAL */}

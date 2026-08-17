@@ -659,11 +659,14 @@ export const Tasks = () => {
                         </td>
                         <td style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>
                           <div style={{ display: 'inline-flex', gap: '0.35rem', justifyContent: 'center' }}>
-                            <button onClick={(e) => { e.stopPropagation(); setSelectedTask(task); setIsDetailModalOpen(true); }} className="btn btn-secondary" style={{ padding: '0.35rem 0.65rem', fontSize: '0.75rem' }}>
+                            <button onClick={(e) => { e.stopPropagation(); setSelectedTask(task); setIsDetailModalOpen(true); }} className="btn btn-secondary" style={{ padding: '0.35rem 0.65rem', fontSize: '0.75rem' }} title="View Task Details">
                               Details
                             </button>
-                            <button onClick={(e) => { e.stopPropagation(); handleOpenEditModal(task); }} className="btn btn-secondary" style={{ padding: '0.35rem 0.65rem' }}>
+                            <button onClick={(e) => { e.stopPropagation(); handleOpenEditModal(task); }} className="btn btn-secondary" style={{ padding: '0.35rem 0.65rem', color: '#10529d' }} title="Edit Task">
                               <Edit3 size={14} />
+                            </button>
+                            <button onClick={(e) => { e.stopPropagation(); setDeletingTaskId(task._id); }} className="btn btn-secondary" style={{ padding: '0.35rem 0.65rem', color: '#dc2626', borderColor: '#fecaca' }} title="Delete Task">
+                              <Trash2 size={14} />
                             </button>
                           </div>
                         </td>
@@ -803,11 +806,15 @@ export const Tasks = () => {
                   </div>
 
                   {/* Card Bottom Footer */}
-                  <div style={{ borderTop: '1px solid #f2ece4', paddingTop: '0.85rem', marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                  <div
+                    style={{ borderTop: '1px solid #f2ece4', paddingTop: '0.85rem', marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.65rem' }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                       <select
                         value={task.status}
-                        onChange={(e) => handleStatusChange(task._id, e.target.value)}
+                        onClick={(e) => e.stopPropagation()}
+                        onChange={(e) => { e.stopPropagation(); handleStatusChange(task._id, e.target.value); }}
                         style={{
                           padding: '0.35rem 0.65rem',
                           borderRadius: '8px',
@@ -825,7 +832,8 @@ export const Tasks = () => {
 
                       <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center', flexWrap: 'wrap' }}>
                         <button
-                          onClick={() => { setSelectedTask(task); setIsDetailModalOpen(true); }}
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); setSelectedTask(task); setIsDetailModalOpen(true); }}
                           className="btn btn-secondary"
                           style={{ fontSize: '0.75rem', padding: '0.35rem 0.6rem', whiteSpace: 'nowrap' }}
                         >
@@ -833,7 +841,8 @@ export const Tasks = () => {
                         </button>
 
                         <button
-                          onClick={() => handleOpenRescheduleModal(task)}
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); handleOpenRescheduleModal(task); }}
                           className="btn btn-secondary"
                           style={{ fontSize: '0.75rem', padding: '0.35rem 0.5rem', color: '#b45309' }}
                           title="Reschedule Task Timeline"
@@ -842,7 +851,8 @@ export const Tasks = () => {
                         </button>
 
                         <button
-                          onClick={() => handleOpenEditModal(task)}
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); handleOpenEditModal(task); }}
                           className="btn btn-secondary"
                           style={{ fontSize: '0.75rem', padding: '0.35rem 0.5rem', color: '#10529d' }}
                           title="Edit Task Details"
@@ -851,7 +861,8 @@ export const Tasks = () => {
                         </button>
 
                         <button
-                          onClick={() => setDeletingTaskId(task._id)}
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); setIsDetailModalOpen(false); setDeletingTaskId(task._id); }}
                           className="btn btn-secondary"
                           style={{ fontSize: '0.75rem', padding: '0.35rem 0.5rem', color: '#dc2626', borderColor: '#fecaca' }}
                           title="Delete Task"
