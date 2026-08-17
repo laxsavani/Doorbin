@@ -60,7 +60,8 @@ export const Dashboard = () => {
         if (data?.tasks) setTasks(data.tasks);
         if (Array.isArray(emps) && emps.length > 0) {
           const colors = ['#495a70', '#766782', '#4d808e', '#a36c56', '#547d5e', '#8a7e53'];
-          setTeamMembers(emps.map((emp, idx) => {
+          const activeEmps = emps.filter(emp => emp.status !== 'Inactive' && emp.status !== 'Deactivated' && emp.isActive !== false);
+          setTeamMembers(activeEmps.map((emp, idx) => {
             const realRole = emp.designation || (typeof emp.role === 'object' ? emp.role?.name : emp.role) || (typeof emp.user?.role === 'object' ? emp.user?.role?.name : emp.user?.role) || 'Team Member';
             const realDept = (typeof emp.department === 'object' ? emp.department?.departmentName || emp.department?.name : emp.department) || (typeof emp.user?.department === 'object' ? emp.user?.department?.departmentName : emp.user?.department) || 'Production';
             return {
@@ -404,7 +405,7 @@ export const Dashboard = () => {
                   {userRole === 'Human Resource' ? 'Studio Staff Attendance Roster' : 'Team Members This Week'}
                 </div>
 
-                {teamMembers.map((member, index) => (
+                {teamMembers.filter(m => m.status === 'Active' || (m.status !== 'Inactive' && m.status !== 'Deactivated')).map((member, index) => (
                   <div key={index} className="team-member-row">
                     <div className="team-member-info">
                       <div className="team-avatar" style={{ backgroundColor: member.bg }}>
@@ -527,7 +528,7 @@ export const Dashboard = () => {
                 </tr>
               </thead>
               <tbody>
-                {teamMembers.map(m => (
+                {teamMembers.filter(m => m.status === 'Active' || (m.status !== 'Inactive' && m.status !== 'Deactivated')).map(m => (
                   <tr key={m.id || m._id}>
                     <td style={{ fontWeight: 600 }}>{m.name}</td>
                     <td><span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#B68D40' }}>{m.role}</span></td>
