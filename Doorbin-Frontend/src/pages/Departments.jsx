@@ -405,7 +405,7 @@ export const Departments = () => {
             onChange={(e) => setFormData({ ...formData, head: e.target.value })}
           >
             <option value="">None (Unassigned)</option>
-            {usersList.map((usr) => (
+            {usersList.filter(u => u.status !== 'Inactive' && u.status !== 'Deactivated').map((usr) => (
               <option key={usr._id} value={usr._id}>
                 {usr.name} ({typeof usr.role === 'object' ? usr.role?.name : usr.role})
               </option>
@@ -475,7 +475,7 @@ export const Departments = () => {
             onChange={(e) => setFormData({ ...formData, head: e.target.value })}
           >
             <option value="">None (Unassigned)</option>
-            {usersList.map((usr) => (
+            {usersList.filter(u => u.status !== 'Inactive' && u.status !== 'Deactivated').map((usr) => (
               <option key={usr._id} value={usr._id}>
                 {usr.name} ({typeof usr.role === 'object' ? usr.role?.name : usr.role})
               </option>

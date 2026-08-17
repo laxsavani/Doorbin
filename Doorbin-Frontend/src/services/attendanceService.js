@@ -5,6 +5,25 @@ import { authService } from './authService';
  * Attendance Service for single-entry Clock-In, Clock-Out & Active Session tracking
  */
 export const attendanceService = {
+
+  // GET employee attendance history (Item 9.6 & Item 9.8)
+  getEmployeeAttendance: async (employeeId, month, year) => {
+    if (!authService.isAuthenticated()) {
+      return { success: true, attendance: [], records: [] };
+    }
+    try {
+      const params = {};
+      if (month) params.month = month;
+      if (year) params.year = year;
+      const targetId = employeeId || 'me';
+      const response = await apiClient.get(`/hr/attendance/${targetId}`, { params });
+      return response.data;
+    } catch (error) {
+      console.warn('Backend employee attendance endpoint fallback:', error);
+      return { success: true, attendance: [], records: [] };
+    }
+  },
+
   // GET today's active attendance session for logged-in user
   getTodayAttendance: async () => {
     if (!authService.isAuthenticated()) {

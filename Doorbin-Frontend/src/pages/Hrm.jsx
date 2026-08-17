@@ -27,6 +27,13 @@ import { Pagination } from '../components/Pagination';
 import './Dashboard.css';
 
 export const Hrm = () => {
+  const getTodayYYYYMMDD = () => {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
   const [empPage, setEmpPage] = useState(1);
   const [attPage, setAttPage] = useState(1);
   const pageSize = 10;
@@ -49,15 +56,18 @@ export const Hrm = () => {
 
   // Leave Date Range Limits (Today -> Next 1 Year)
   const todayObj = new Date();
-  const todayStr = todayObj.toISOString().split('T')[0];
+  const todayStr = todayObj.toString()[0];
   const maxDateObj = new Date(todayObj);
   maxDateObj.setFullYear(todayObj.getFullYear() + 1);
-  const maxDateStr = maxDateObj.toISOString().split('T')[0];
+  const maxDateStr = maxDateObj.toString()[0];
 
   // Data states
   const [employees, setEmployees] = useState([]);
   const [attendanceLogs, setAttendanceLogs] = useState([]);
   const [leaveRequests, setLeaveRequests] = useState([]);
+  const [leaveTypes, setLeaveTypes] = useState([]);
+  const [isLeaveTypeModalOpen, setIsLeaveTypeModalOpen] = useState(false);
+  const [leaveTypeForm, setLeaveTypeForm] = useState({ name: '', code: '', daysAllowedPerYear: '12', description: '', colorCode: '#B68D40' });
   const [holidays, setHolidays] = useState([]);
   const [reviews, setReviews] = useState([]);
 
@@ -86,8 +96,8 @@ export const Hrm = () => {
       return;
     }
     setEditingLeaveId(leave._id);
-    const startStr = leave.fromDate ? new Date(leave.fromDate).toISOString().split('T')[0] : (leave.startDate || todayStr);
-    const endStr = leave.toDate ? new Date(leave.toDate).toISOString().split('T')[0] : (leave.endDate || todayStr);
+    const startStr = leave.fromDate ? new Date(leave.fromDate).toString()[0] : (leave.startDate || todayStr);
+    const endStr = leave.toDate ? new Date(leave.toDate).toString()[0] : (leave.endDate || todayStr);
 
     setLeaveForm({
       employeeId: typeof leave.employee === 'object' ? (leave.employee._id || leave.employee.id) : leave.employee,
@@ -101,6 +111,12 @@ export const Hrm = () => {
 
   // Export Attendance State
   const [exportMonth, setExportMonth] = useState(new Date().toISOString().slice(0, 7)); // YYYY-MM
+    const [attViewMode, setAttViewMode] = useState('day'); // 'day' | 'month' | 'year'
+  const [selectedDayDate, setSelectedDayDate] = useState(getTodayYYYYMMDD());
+  const [attendanceViewMode, setAttendanceViewMode] = useState('day'); // 'day' | 'month' | 'year'
+  const [selectedMonthVal, setSelectedMonthVal] = useState(getTodayYYYYMMDD().slice(0, 7)); // YYYY-MM
+  const [selectedYearVal, setSelectedYearVal] = useState(getTodayYYYYMMDD().slice(0, 4)); // YYYY
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
   const [exportEmployeeId, setExportEmployeeId] = useState('all');
 
   const handleExportAttendance = async (format) => {
@@ -141,10 +157,11 @@ export const Hrm = () => {
   const loadHrmData = async () => {
     setLoading(true);
     try {
-      const [empsData, attsData, leavesData, holsData, revsData] = await Promise.all([
+      const [empsData, attsData, leavesData, leaveTypesData, holsData, revsData] = await Promise.all([
         hrService.getEmployees(),
         hrService.getAttendanceLogs(),
         hrService.getLeaveRequests(),
+        hrService.getLeaveTypes(),
         hrService.getHolidays(),
         hrService.getPerformanceReviews()
       ]);
@@ -152,6 +169,7 @@ export const Hrm = () => {
       setEmployees(empsData || []);
       setAttendanceLogs(attsData || []);
       setLeaveRequests(leavesData || []);
+      setLeaveTypes(leaveTypesData || []);
       setHolidays(holsData || []);
       setReviews(revsData || []);
     } catch (err) {
@@ -176,6 +194,36 @@ export const Hrm = () => {
   };
 
   // Add Employee Handler
+  
+  // Dynamic Leave Type Master Handlers (Item Leave Master)
+  const handleAddLeaveType = async (e) => {
+    e.preventDefault();
+    if (!leaveTypeForm.name) {
+      setToast({ message: 'Leave Type Name is required', type: 'error' });
+      return;
+    }
+    try {
+      const created = await hrService.createLeaveType(leaveTypeForm);
+      setLeaveTypes(prev => [...prev, created]);
+      setToast({ message: 'Leave Type created successfully!', type: 'success' });
+      setLeaveTypeForm({ name: '', code: '', daysAllowedPerYear: '12', description: '', colorCode: '#B68D40' });
+      setIsLeaveTypeModalOpen(false);
+    } catch (err) {
+      setToast({ message: err.message || 'Failed to create leave type', type: 'error' });
+    }
+  };
+
+  const handleDeleteLeaveType = async (id) => {
+    if (!window.confirm('Are you sure you want to deactivate this Leave Type?')) return;
+    try {
+      await hrService.deleteLeaveType(id);
+      setLeaveTypes(prev => prev.filter(t => (t._id || t.id) !== id));
+      setToast({ message: 'Leave Type deactivated', type: 'info' });
+    } catch (err) {
+      setToast({ message: err.message || 'Failed to delete leave type', type: 'error' });
+    }
+  };
+
   const handleAddEmployee = async (e) => {
     e.preventDefault();
     if (!empForm.name || !empForm.email || !empForm.designation) {
@@ -438,28 +486,138 @@ export const Hrm = () => {
         return String(empId) === String(currentUserId) || !l.employee;
       });
 
-  const scopedAttendance = isDirectorOrHR
-    ? attendanceLogs
-    : attendanceLogs.filter(a => {
-        const empId = typeof a.employee === 'object' ? (a.employee?._id || a.employee?.id) : a.employee;
-        return String(empId) === String(currentUserId) || !a.employee;
-      });
+  
+  // Filter attendance logs by selected employee and view mode (Item 9.7 & Director Request)
+  const filteredByEmployeeAtt = attendanceLogs.filter(a => {
+    if (exportEmployeeId === 'all') return true;
+    const empId = typeof a.employee === 'object' ? (a.employee?._id || a.employee?.id) : a.employee;
+    return String(empId) === String(exportEmployeeId);
+  });
+
+    const safeToISO = (val) => {
+  if (!val) return '';
+  if (typeof val === 'string' && val.length === 10 && val.includes('-')) return val;
+  try {
+    const d = new Date(val);
+    if (isNaN(d.getTime())) return '';
+    return d.toISOString().split('T')[0];
+  } catch {
+    return '';
+  }
+};
+
+  const displayAttendanceLogs = (isDirectorOrHR ? filteredByEmployeeAtt : filteredByEmployeeAtt.filter(a => {
+    const empId = typeof a.employee === 'object' ? (a.employee?._id || a.employee?.id) : a.employee;
+    return String(empId) === String(currentUserId) || !a.employee;
+  })).filter(a => {
+    if (attViewMode === 'day') {
+      if (!selectedDayDate) return true;
+      const parts = selectedDayDate.split('-'); // ['2026', '08', '17']
+      const dayGB = parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : ''; // '17/08/2026'
+      const todayISO = safeToISO(new Date());
+      const todayParts = todayISO.split('-');
+      const todayGB = todayParts.length === 3 ? `${todayParts[2]}/${todayParts[1]}/${todayParts[0]}` : '';
+
+      const dateStr = String(a.dateFormatted || a.date || '');
+      const rawDateStr = safeToISO(a.rawDate || a.date);
+      const checkInDateStr = safeToISO(a.checkIn);
+
+      const isISO = dateStr.includes(selectedDayDate) || rawDateStr === selectedDayDate || checkInDateStr === selectedDayDate;
+      const isGB = dayGB && (dateStr.includes(dayGB) || dateStr === dayGB);
+      const isTodayFallback = (selectedDayDate === todayISO && (dateStr === 'Today' || dateStr.includes(todayGB)));
+
+      return isISO || isGB || isTodayFallback;
+    }
+    if (attViewMode === 'month') {
+      if (!a.date) return true;
+      const dStr = safeToISO(a.date) || String(a.date);
+      return dStr.includes(exportMonth);
+    }
+    if (attViewMode === 'year') {
+      if (!a.date) return true;
+      const dStr = safeToISO(a.date) || String(a.date);
+      return dStr.includes(selectedYear);
+    }
+    return true;
+  });
 
   const renderAttendanceTab = () => (
     <div>
       {/* Month-Wise Export & Filter Toolbar */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1.25rem', padding: '1rem', backgroundColor: '#ffffff', border: '1px solid #e9e5dc', borderRadius: '10px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+          {/* View Mode Selector: Day | Month | Year */}
           <div>
-            <label style={{ display: 'block', fontSize: '0.725rem', fontWeight: 700, color: '#8c8882', marginBottom: '0.25rem' }}>SELECT MONTH</label>
-            <input
-              type="month"
-              value={exportMonth}
-              onChange={(e) => setExportMonth(e.target.value)}
-              style={{ padding: '0.45rem 0.65rem', border: '1px solid #dcd7ce', borderRadius: '6px', fontSize: '0.825rem', color: '#1F1F1F' }}
-            />
+            <label style={{ display: 'block', fontSize: '0.725rem', fontWeight: 700, color: '#8c8882', marginBottom: '0.25rem' }}>VIEW MODE</label>
+            <div style={{ display: 'flex', border: '1px solid #dcd7ce', borderRadius: '6px', overflow: 'hidden', backgroundColor: '#ffffff' }}>
+              <button
+                type="button"
+                onClick={() => setAttendanceViewMode('day')}
+                style={{ padding: '0.4rem 0.6rem', fontSize: '0.775rem', fontWeight: 700, border: 'none', cursor: 'pointer', backgroundColor: attendanceViewMode === 'day' ? '#B68D40' : '#ffffff', color: attendanceViewMode === 'day' ? '#ffffff' : '#4b5563' }}
+              >
+                📅 Day
+              </button>
+              <button
+                type="button"
+                onClick={() => setAttendanceViewMode('month')}
+                style={{ padding: '0.4rem 0.6rem', fontSize: '0.775rem', fontWeight: 700, border: 'none', borderLeft: '1px solid #dcd7ce', cursor: 'pointer', backgroundColor: attendanceViewMode === 'month' ? '#B68D40' : '#ffffff', color: attendanceViewMode === 'month' ? '#ffffff' : '#4b5563' }}
+              >
+                📆 Month
+              </button>
+              <button
+                type="button"
+                onClick={() => setAttendanceViewMode('year')}
+                style={{ padding: '0.4rem 0.6rem', fontSize: '0.775rem', fontWeight: 700, border: 'none', borderLeft: '1px solid #dcd7ce', cursor: 'pointer', backgroundColor: attendanceViewMode === 'year' ? '#B68D40' : '#ffffff', color: attendanceViewMode === 'year' ? '#ffffff' : '#4b5563' }}
+              >
+                🗓️ Year
+              </button>
+            </div>
           </div>
 
+          {/* Dynamic Date Inputs based on View Mode */}
+          {attendanceViewMode === 'day' && (
+            <div>
+              <label style={{ display: 'block', fontSize: '0.725rem', fontWeight: 700, color: '#8c8882', marginBottom: '0.25rem' }}>SELECT DATE (CALENDAR)</label>
+              <input
+                type="date"
+                value={selectedDayDate}
+                onClick={(e) => { try { e.target.showPicker(); } catch(err){} }}
+                onChange={(e) => setSelectedDayDate(e.target.value)}
+                style={{ padding: '0.45rem 0.65rem', border: '1px solid #B68D40', borderRadius: '6px', fontSize: '0.825rem', color: '#1F1F1F', backgroundColor: '#ffffff', fontWeight: 600, cursor: 'pointer' }}
+              />
+            </div>
+          )}
+
+          {attendanceViewMode === 'month' && (
+            <div>
+              <label style={{ display: 'block', fontSize: '0.725rem', fontWeight: 700, color: '#8c8882', marginBottom: '0.25rem' }}>SELECT MONTH & YEAR</label>
+              <input
+                type="month"
+                value={selectedMonthVal}
+                onClick={(e) => { try { e.target.showPicker(); } catch(err){} }}
+                onChange={(e) => setSelectedMonthVal(e.target.value)}
+                style={{ padding: '0.45rem 0.65rem', border: '1px solid #B68D40', borderRadius: '6px', fontSize: '0.825rem', color: '#1F1F1F', backgroundColor: '#ffffff', fontWeight: 600, cursor: 'pointer' }}
+              />
+            </div>
+          )}
+
+          {attendanceViewMode === 'year' && (
+            <div>
+              <label style={{ display: 'block', fontSize: '0.725rem', fontWeight: 700, color: '#8c8882', marginBottom: '0.25rem' }}>SELECT YEAR</label>
+              <select
+                value={selectedYearVal}
+                onChange={(e) => setSelectedYearVal(e.target.value)}
+                style={{ padding: '0.45rem 0.65rem', border: '1px solid #B68D40', borderRadius: '6px', fontSize: '0.825rem', color: '#1F1F1F', backgroundColor: '#ffffff', fontWeight: 600, cursor: 'pointer' }}
+              >
+                <option value="2024">2024</option>
+                <option value="2025">2025</option>
+                <option value="2026">2026</option>
+                <option value="2027">2027</option>
+              </select>
+            </div>
+          )}
+
+          {/* Employee Filter Dropdown */}
           <div>
             <label style={{ display: 'block', fontSize: '0.725rem', fontWeight: 700, color: '#8c8882', marginBottom: '0.25rem' }}>FILTER EMPLOYEE</label>
             <select
@@ -467,8 +625,8 @@ export const Hrm = () => {
               onChange={(e) => setExportEmployeeId(e.target.value)}
               style={{ padding: '0.45rem 0.65rem', border: '1px solid #dcd7ce', borderRadius: '6px', fontSize: '0.825rem', color: '#1F1F1F', backgroundColor: '#ffffff' }}
             >
-              <option value="all">All Staff Members (Monthly Summary)</option>
-              {employees.map(e => (
+              <option value="all">All Staff Members (Studio-wide)</option>
+              {employees.filter(e => e.status !== 'Inactive' && e.status !== 'Deactivated').map(e => (
                 <option key={e._id || e.id} value={e.user?._id || e._id || e.id}>
                   {e.name || e.user?.name || 'Staff Member'}
                 </option>
@@ -515,7 +673,7 @@ export const Hrm = () => {
             </tr>
           </thead>
           <tbody>
-              {scopedAttendance.slice((attPage - 1) * pageSize, attPage * pageSize).map(att => {
+              {displayAttendanceLogs.slice((attPage - 1) * pageSize, attPage * pageSize).map(att => {
                 const isLeaveDay = att.status === 'On Leave' || att.status === 'Leave';
                 const checkInStr = isLeaveDay ? '--' : (att.checkIn ? formatISTTimeStr(att.checkIn) : (att.activeSession?.checkInFormatted || '--'));
                 const checkOutStr = isLeaveDay ? '--' : (att.checkOut ? formatISTTimeStr(att.checkOut) : (att.activeSession?.checkOutFormatted || '--'));
@@ -555,7 +713,7 @@ export const Hrm = () => {
 
       <Pagination
         currentPage={attPage}
-        totalItems={scopedAttendance.length}
+        totalItems={displayAttendanceLogs.length}
         pageSize={pageSize}
         onPageChange={setAttPage}
       />

@@ -75,7 +75,10 @@ export const Clients = () => {
         ...prev,
         companyName: enq.clientName || '',
         clientName: enq.architectName || enq.clientName || '',
-        notes: `Converted from Won Enquiry: ${enq.projectName || ''}. ${enq.notes || ''}`.trim()
+        defaultProjectType: enq.projectType || 'Architecture',
+        originEnquiry: enq._id,
+        industry: enq.projectType || 'Architecture',
+        notes: `Converted from Won Enquiry: ${enq.projectName || ''} (Type: ${enq.projectType || 'Architecture'}). ${enq.notes || ''}`.trim()
       }));
       setIsCreateModalOpen(true);
       setToast({
@@ -140,7 +143,19 @@ export const Clients = () => {
     try {
       await new Promise(resolve => setTimeout(resolve, 1500));
 
-      const response = await clientService.createClient(newClient);
+      const response = await clientService.createClient({
+        ...newClient,
+        defaultProjectType: newClient.defaultProjectType || convertedEnquiry?.projectType || 'Architecture',
+        originEnquiry: newClient.originEnquiry || convertedEnquiry?._id
+      });
+      if (convertedEnquiry?._id && response?._id) {
+        try {
+          await enquiryService.updateEnquiry(convertedEnquiry._id, {
+            existingClient: response._id,
+            status: 'Won'
+          });
+        } catch {}
+      }
       const createdItem = response.client || response || {
         _id: response._id || `66b0a1f8e91d2c345678${Date.now().toString().slice(-4)}`,
         ...newClient,

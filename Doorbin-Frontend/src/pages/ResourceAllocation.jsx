@@ -431,7 +431,7 @@ export const ResourceAllocation = () => {
             onChange={(e) => setEditProfileForm({ ...editProfileForm, userId: e.target.value })}
             required
           >
-            {usersList.map(u => <option key={u._id} value={u._id}>{u.name} ({u.email})</option>)}
+            {usersList.filter(u => u.status !== 'Inactive' && u.status !== 'Deactivated').map(u => <option key={u._id} value={u._id}>{u.name} ({u.email})</option>)}
           </FormField>
 
           <FormField

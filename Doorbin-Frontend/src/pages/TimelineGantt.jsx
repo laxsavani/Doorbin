@@ -448,7 +448,7 @@ export const TimelineGantt = () => {
                     No team members loaded.
                   </div>
                 ) : (
-                  usersList.map((user) => {
+                  usersList.filter(u => u.status !== 'Inactive' && u.status !== 'Deactivated').map((user) => {
                     const uId = user._id.toString();
                     const initials = user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
                     const roleTitle = typeof user.role === 'object' ? (user.role?.name || 'Team Member') : (user.role || 'Team Member');

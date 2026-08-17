@@ -22,6 +22,8 @@ const clientSchema = new mongoose.Schema({
   address:     { type: String },
   gstDetails:  { type: String },
   industry:    { type: String },
+  defaultProjectType: { type: String },
+  originEnquiry:      { type: mongoose.Schema.Types.ObjectId, ref: 'Enquiry' },
   contacts:    [contactSchema],                     // additional contacts
   notes:       { type: String },
   communicationLog: [communicationLogSchema],

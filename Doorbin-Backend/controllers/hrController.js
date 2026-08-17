@@ -1,6 +1,7 @@
 ﻿const Employee = require('../models/Employee');
 const Attendance = require('../models/Attendance');
 const Leave = require('../models/Leave');
+const LeaveType = require('../models/LeaveType');
 const Holiday = require('../models/Holiday');
 const PerformanceReview = require('../models/PerformanceReview');
 const User = require('../models/User');
@@ -1136,6 +1137,10 @@ const updateLeave = async (req, res) => {
 };
 
 module.exports = {
+  getLeaveTypes,
+  createLeaveType,
+  updateLeaveType,
+  deleteLeaveType,
   createEmployee,
   getEmployees,
   getEmployeeById,
@@ -1166,3 +1171,93 @@ module.exports = {
   getJoiningExitReport
 };
 
+
+// ============================================================
+// LEAVE TYPE MASTER CONTROLLERS
+// ============================================================
+
+// @desc    Get all dynamic Leave Types (with auto-seeding default master types)
+// @route   GET /api/hr/leave-types
+const getLeaveTypes = async (req, res) => {
+  try {
+    let types = await LeaveType.find({ isActive: true }).sort({ createdAt: 1 });
+    if (types.length === 0) {
+      // Auto seed default master leave types if empty
+      const defaults = [
+        { name: 'Casual Leave', code: 'CL', daysAllowedPerYear: 12, colorCode: '#3B82F6', description: 'Routine casual leave entitlement' },
+        { name: 'Sick Leave', code: 'SL', daysAllowedPerYear: 10, colorCode: '#EF4444', description: 'Medical and health related absence' },
+        { name: 'Paid Leave / Earned Leave', code: 'PL', daysAllowedPerYear: 15, colorCode: '#10B981', description: 'Annual accumulated privilege leave' },
+        { name: 'Maternity / Paternity Leave', code: 'ML', daysAllowedPerYear: 90, colorCode: '#8B5CF6', description: 'Parental welfare leave' },
+        { name: 'Unpaid Leave / LWP', code: 'LWP', daysAllowedPerYear: 0, colorCode: '#6B7280', description: 'Leave without pay' }
+      ];
+      types = await LeaveType.insertMany(defaults);
+    }
+    return res.json({ success: true, count: types.length, data: types });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Create new Leave Type Master
+// @route   POST /api/hr/leave-types
+const createLeaveType = async (req, res) => {
+  try {
+    const { name, code, daysAllowedPerYear, description, colorCode } = req.body;
+    if (!name) {
+      return res.status(400).json({ success: false, message: 'Leave Type Name is required' });
+    }
+    const existing = await LeaveType.findOne({ name: new RegExp(`^${name.trim()}$`, 'i') });
+    if (existing) {
+      return res.status(400).json({ success: false, message: 'Leave Type with this name already exists' });
+    }
+    const newType = await LeaveType.create({
+      name: name.trim(),
+      code: code ? code.toUpperCase().trim() : name.substring(0, 3).toUpperCase(),
+      daysAllowedPerYear: Number(daysAllowedPerYear) || 12,
+      description: description || '',
+      colorCode: colorCode || '#B68D40'
+    });
+    return res.status(201).json({ success: true, data: newType });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Update Leave Type Master
+// @route   PUT /api/hr/leave-types/:id
+const updateLeaveType = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, code, daysAllowedPerYear, description, colorCode } = req.body;
+    const type = await LeaveType.findById(id);
+    if (!type) {
+      return res.status(404).json({ success: false, message: 'Leave Type not found' });
+    }
+    if (name) type.name = name.trim();
+    if (code) type.code = code.toUpperCase().trim();
+    if (daysAllowedPerYear !== undefined) type.daysAllowedPerYear = Number(daysAllowedPerYear);
+    if (description !== undefined) type.description = description;
+    if (colorCode) type.colorCode = colorCode;
+    await type.save();
+    return res.json({ success: true, data: type });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Delete (Soft Delete) Leave Type Master
+// @route   DELETE /api/hr/leave-types/:id
+const deleteLeaveType = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const type = await LeaveType.findById(id);
+    if (!type) {
+      return res.status(404).json({ success: false, message: 'Leave Type not found' });
+    }
+    type.isActive = false;
+    await type.save();
+    return res.json({ success: true, message: 'Leave Type deactivated successfully' });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};

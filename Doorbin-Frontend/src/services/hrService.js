@@ -21,6 +21,54 @@ const DEFAULT_REVIEWS = [];
  * Human Resource Management Service managing Module 10: Employees, Attendance, Leave, Holidays & Performance Reviews
  */
 export const hrService = {
+
+  // LEAVE TYPE MASTER SERVICES (Dynamic Leave Types)
+  getLeaveTypes: async () => {
+    try {
+      const response = await apiClient.get('/hr/leave-types');
+      return response.data?.data || response.data || [];
+    } catch (error) {
+      console.warn('Backend getLeaveTypes fallback:', error);
+      return [
+        { _id: 'lt_1', name: 'Casual Leave', code: 'CL', daysAllowedPerYear: 12, colorCode: '#3B82F6' },
+        { _id: 'lt_2', name: 'Sick Leave', code: 'SL', daysAllowedPerYear: 10, colorCode: '#EF4444' },
+        { _id: 'lt_3', name: 'Paid Leave / Earned Leave', code: 'PL', daysAllowedPerYear: 15, colorCode: '#10B981' },
+        { _id: 'lt_4', name: 'Maternity / Paternity Leave', code: 'ML', daysAllowedPerYear: 90, colorCode: '#8B5CF6' },
+        { _id: 'lt_5', name: 'Unpaid Leave / LWP', code: 'LWP', daysAllowedPerYear: 0, colorCode: '#6B7280' }
+      ];
+    }
+  },
+
+  createLeaveType: async (data) => {
+    try {
+      const response = await apiClient.post('/hr/leave-types', data);
+      return response.data?.data || response.data;
+    } catch (error) {
+      const msg = error.response?.data?.message || 'Failed to create leave type';
+      throw new Error(msg);
+    }
+  },
+
+  updateLeaveType: async (id, data) => {
+    try {
+      const response = await apiClient.put(`/hr/leave-types/${id}`, data);
+      return response.data?.data || response.data;
+    } catch (error) {
+      const msg = error.response?.data?.message || 'Failed to update leave type';
+      throw new Error(msg);
+    }
+  },
+
+  deleteLeaveType: async (id) => {
+    try {
+      const response = await apiClient.delete(`/hr/leave-types/${id}`);
+      return response.data;
+    } catch (error) {
+      const msg = error.response?.data?.message || 'Failed to delete leave type';
+      throw new Error(msg);
+    }
+  },
+
   // EMPLOYEES / HR ROSTER API
   getEmployees: async (params = {}) => {
     try {
@@ -86,14 +134,17 @@ export const hrService = {
   },
 
   // ATTENDANCE API
+  // GET all attendance logs for HRM Attendance Tab
   getAttendanceLogs: async (params = {}) => {
     const currentUser = authService.getCurrentUser();
     const currentUserId = currentUser?._id || currentUser?.id;
 
     const endpointsToTry = [];
-    if (params.employeeId) {
+    if (params.employeeId && params.employeeId !== 'all') {
+      endpointsToTry.push(`/attendance?employeeId=${params.employeeId}`);
       endpointsToTry.push(`/hr/attendance/${params.employeeId}`);
     } else {
+      endpointsToTry.push('/attendance');
       endpointsToTry.push('/hr/reports/attendance');
       if (currentUserId) {
         endpointsToTry.push(`/hr/attendance/${currentUserId}`);
@@ -109,10 +160,14 @@ export const hrService = {
 
         if (Array.isArray(resData)) {
           rawRecords = resData;
+        } else if (resData.data && Array.isArray(resData.data)) {
+          rawRecords = resData.data;
         } else if (resData.attendanceDetails && Array.isArray(resData.attendanceDetails)) {
           rawRecords = resData.attendanceDetails;
         } else if (resData.attendance && Array.isArray(resData.attendance)) {
           rawRecords = resData.attendance;
+        } else if (resData.records && Array.isArray(resData.records)) {
+          rawRecords = resData.records;
         } else if (resData.activeSession) {
           rawRecords = [resData.activeSession];
         }
@@ -127,11 +182,15 @@ export const hrService = {
               safeDate = isNaN(d.getTime()) ? (typeof r.date === 'string' ? r.date : 'Today') : d.toLocaleDateString('en-GB');
             }
 
+            const empObj = typeof r.employee === 'object' ? r.employee : null;
+            const empName = empObj?.name || empObj?.email || r.employeeName || (typeof r.employee === 'string' ? r.employee : currentUser?.name || 'Staff Member');
+
             return {
               _id: r._id || `att_${Math.random()}`,
               employee: {
-                name: typeof r.employee === 'object' ? (r.employee?.name || r.employee?.email) : (r.employeeName || currentUser?.name || 'Staff Member'),
-                employeeCode: r.employee?.employeeCode || 'EMP-001'
+                _id: empObj?._id || r.employee,
+                name: empName,
+                employeeCode: empObj?.employeeCode || 'EMP-001'
               },
               date: safeDate,
               dateFormatted: safeDate,
@@ -142,12 +201,12 @@ export const hrService = {
             };
           });
         }
-      } catch {
+      } catch (err) {
         continue;
       }
     }
 
-    return DEFAULT_ATTENDANCE;
+    return [];
   },
 
   recordAttendance: async (attendanceData) => {

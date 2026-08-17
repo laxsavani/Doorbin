@@ -1,6 +1,10 @@
 ﻿const express = require('express');
 const router = express.Router();
 const {
+  getLeaveTypes,
+  createLeaveType,
+  updateLeaveType,
+  deleteLeaveType,
   createEmployee,
   getEmployees,
   getEmployeeById,
@@ -534,6 +538,13 @@ router.get('/reports/resource-utilization', protect, hrAccess, getResourceUtiliz
  *         description: Joining and exit report
  */
 router.get('/reports/joining-exit', protect, hrAccess, getJoiningExitReport);
+
+
+// LEAVE TYPE MASTER ROUTES
+router.get('/leave-types', protect, getLeaveTypes);
+router.post('/leave-types', protect, createLeaveType);
+router.put('/leave-types/:id', protect, updateLeaveType);
+router.delete('/leave-types/:id', protect, deleteLeaveType);
 
 module.exports = router;
 

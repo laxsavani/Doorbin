@@ -1,3 +1,4 @@
+import { enquiryService } from '../services/enquiryService';
 ﻿import React, { useState, useEffect } from 'react';
 import { projectService } from '../services/projectService';
 import { clientService } from '../services/clientService';
@@ -21,6 +22,61 @@ const CATEGORIES = ['Architecture', 'Interior Design', 'Animation'];
 const PRIORITIES = ['High', 'Medium', 'Low'];
 const PROJECT_STATUSES = ['Not Started', 'In Progress', 'On Hold', 'Completed', 'Delayed'];
 
+
+// Helper: Auto-detect Category from Client's Lead (or fallback to 'Architecture')
+const getCategoryForClient = (clientObj, allEnquiries = [], availableCategories = ['Architecture', 'Interior Design', 'Animation']) => {
+  if (!clientObj) return 'Architecture';
+
+  const cId = String(clientObj._id || clientObj.id || '');
+  const cName = (clientObj.clientName || '').trim().toLowerCase();
+  const compName = (clientObj.companyName || '').trim().toLowerCase();
+
+  // 1. Check direct fields on Client
+  let rawCat = clientObj.defaultProjectType || clientObj.projectType || clientObj.category || clientObj.industry;
+
+  // 2. Check if notes contains category info
+  if (!rawCat && clientObj.notes) {
+    const notesLower = clientObj.notes.toLowerCase();
+    if (notesLower.includes('interior')) rawCat = 'Interior Design';
+    else if (notesLower.includes('anim') || notesLower.includes('walkthrough')) rawCat = 'Animation';
+    else if (notesLower.includes('arch')) rawCat = 'Architecture';
+  }
+
+  // 3. Look up matching Enquiry in allEnquiries
+  if (!rawCat && allEnquiries && allEnquiries.length > 0) {
+    const matchedEnq = allEnquiries.find(enq => {
+      if (!enq) return false;
+      const enqClientId = String(enq.existingClient?._id || enq.existingClient || enq.convertedClient?._id || enq.convertedClient || '');
+      if (cId && enqClientId && enqClientId === cId) return true;
+
+      const enqClientName = (enq.clientName || '').trim().toLowerCase();
+      const enqCompName = (enq.companyName || '').trim().toLowerCase();
+      const enqArchitectName = (enq.architectName || '').trim().toLowerCase();
+
+      if (cName && (enqClientName === cName || enqClientName.includes(cName) || cName.includes(enqClientName) || enqArchitectName === cName)) return true;
+      if (compName && (enqClientName === compName || enqClientName.includes(compName) || compName.includes(enqClientName) || enqCompName === compName)) return true;
+      return false;
+    });
+
+    if (matchedEnq && (matchedEnq.projectType || matchedEnq.category)) {
+      rawCat = matchedEnq.projectType || matchedEnq.category;
+    }
+  }
+
+  // 4. Map rawCat to standard CATEGORIES
+  if (rawCat) {
+    const lower = String(rawCat).trim().toLowerCase();
+    if (lower.includes('interior')) return 'Interior Design';
+    if (lower.includes('anim') || lower.includes('film') || lower.includes('walkthrough') || lower.includes('cgi') || lower.includes('video')) return 'Animation';
+    if (lower.includes('arch') || lower.includes('villa') || lower.includes('build') || lower.includes('3d') || lower.includes('render') || lower.includes('real estate') || lower.includes('infra')) return 'Architecture';
+
+    const matchExact = availableCategories.find(c => c.toLowerCase() === lower);
+    if (matchExact) return matchExact;
+  }
+
+  return 'Architecture'; // Default fallback
+};
+
 export const Projects = () => {
   const { requireClockIn, ClockInGuardModal } = useClockInGuard();
   const [currentPage, setCurrentPage] = useState(1);
@@ -32,9 +88,11 @@ export const Projects = () => {
   const canManageProjects = userRoleName.toLowerCase() === 'director' || userRoleName.toLowerCase() === 'production manager';
 
   const [projects, setProjects] = useState([]);
+  const [enquiriesList, setEnquiriesList] = useState([]);
   const [clientsList, setClientsList] = useState([]);
   const [usersList, setUsersList] = useState([]);
   const [teamAvailabilityMap, setTeamAvailabilityMap] = useState({});
+  const [hoveredAvailUser, setHoveredAvailUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [viewMode, setViewMode] = useViewMode();
@@ -105,7 +163,7 @@ export const Projects = () => {
     try {
       const map = {};
 
-      usersList.forEach(u => {
+      usersList.filter(u => u.status !== 'Inactive' && u.status !== 'Deactivated').forEach(u => {
         const uId = u._id.toString();
 
         // 1. Find conflicting active projects
@@ -195,7 +253,7 @@ export const Projects = () => {
   const fetchProjectsClientsUsers = async () => {
     setLoading(true);
     try {
-      const [data, clientsData, usersData, tasksData] = await Promise.all([
+      const [data, clientsData, usersData, tasksData, enquiriesData] = await Promise.all([
         projectService.getProjects(),
         clientService.getClients(),
         userService.getUsers(),
@@ -208,6 +266,8 @@ export const Projects = () => {
       let extractedTasks = Array.isArray(tasksData) ? tasksData : (tasksData?.tasks || tasksData?.data || []);
 
       setProjects(extractedProjects);
+      let extractedEnquiries = Array.isArray(enquiriesData) ? enquiriesData : (enquiriesData?.enquiries || enquiriesData?.data || []);
+      setEnquiriesList(extractedEnquiries);
       setClientsList(extractedClients);
       setUsersList(extractedUsers);
       setTasksList(extractedTasks);
@@ -269,7 +329,7 @@ export const Projects = () => {
       });
 
       const matchedClient = clientsList.find(c => c._id === newProject.client);
-      const matchedPM = usersList.find(u => u._id === newProject.productionManager);
+      const matchedPM = usersList.filter(u => u.status !== 'Inactive' && u.status !== 'Deactivated').find(u => u._id === newProject.productionManager);
 
       const createdItem = response.project || response || {
         _id: `proj_${Date.now()}`,
@@ -293,7 +353,7 @@ export const Projects = () => {
         startDate: '',
         endDate: '',
         billingParty: '',
-        productionManager: usersList[0]?._id || '',
+        productionManager: usersList.filter(u => u.status !== 'Inactive' && u.status !== 'Deactivated')[0]?._id || '',
         assignedTeam: [],
         status: 'Not Started'
       });
@@ -316,7 +376,7 @@ export const Projects = () => {
       startDate: '',
       endDate: '',
       billingParty: '',
-      productionManager: usersList[0]?._id || '',
+      productionManager: usersList.filter(u => u.status !== 'Inactive' && u.status !== 'Deactivated')[0]?._id || '',
       assignedTeam: [],
       status: 'Not Started'
     });
@@ -393,7 +453,7 @@ export const Projects = () => {
       const updatedItem = response.project || response;
 
       const matchedClient = clientsList.find(c => c._id === newProject.client);
-      const matchedPM = usersList.find(u => u._id === newProject.productionManager);
+      const matchedPM = usersList.filter(u => u.status !== 'Inactive' && u.status !== 'Deactivated').find(u => u._id === newProject.productionManager);
 
       setProjects(projects.map(p => p._id === editingProject._id ? {
         ...p,
@@ -486,7 +546,7 @@ export const Projects = () => {
 
   const paginatedProjects = filteredProjects.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
-  const artistUsersList = usersList.filter(u => {
+  const artistUsersList = usersList.filter(u => u.status !== 'Inactive' && u.status !== 'Deactivated').filter(u => {
     const rName = typeof u.role === 'object' ? (u.role?.name || '') : (u.role || '');
     return !rName || rName.toLowerCase().includes('artist') || rName.toLowerCase().includes('visualizer') || rName.toLowerCase().includes('3d') || rName.toLowerCase().includes('designer');
   });
@@ -770,7 +830,7 @@ export const Projects = () => {
                                         </thead>
                                         <tbody>
                                           {stagesMap[stageTitle].map(t => {
-                                            const assigneeObj = typeof t.assignee === 'object' ? t.assignee : usersList.find(u => u._id === t.assignee);
+                                            const assigneeObj = typeof t.assignee === 'object' ? t.assignee : usersList.filter(u => u.status !== 'Inactive' && u.status !== 'Deactivated').find(u => u._id === t.assignee);
                                             const aName = assigneeObj?.name || 'Unassigned';
                                             const initials = aName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
                                             const sDate = t.startDate ? formatDate(t.startDate) : '-';
@@ -837,7 +897,7 @@ export const Projects = () => {
               {/* SUB-VIEW 2: BY ARTIST */}
               {operationsSubView === 'artist' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                  {usersList
+                  {usersList.filter(u => u.status !== 'Inactive' && u.status !== 'Deactivated')
                     .filter(u => {
                       const r = (typeof u.role === 'object' ? u.role?.name : u.role || '').toLowerCase();
                       return r.includes('artist') || r.includes('3d') || r.includes('visualizer') || r.includes('designer') || r.includes('lead') || r.includes('compositor') || r.includes('editor');
@@ -1016,7 +1076,7 @@ export const Projects = () => {
                         <div style={{ marginBottom: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
                           <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#8c8882' }}>TEAM ({proj.assignedTeam.length}):</span>
                           {proj.assignedTeam.map((member, mIdx) => {
-                            const mName = typeof member === 'object' ? (member.name || 'Member') : (usersList.find(u => u._id === member)?.name || 'Member');
+                            const mName = typeof member === 'object' ? (member.name || 'Member') : (usersList.filter(u => u.status !== 'Inactive' && u.status !== 'Deactivated').find(u => u._id === member)?.name || 'Member');
                             return (
                               <span key={mIdx} style={{ fontSize: '0.68rem', backgroundColor: '#f5efe6', border: '1px solid #e2ded8', borderRadius: '4px', padding: '0.15rem 0.45rem', color: '#1F1F1F', fontWeight: 600 }}>
                                 👤 {mName}
@@ -1108,23 +1168,25 @@ export const Projects = () => {
       >
         <form onSubmit={handleCreateProject} noValidate>
           <FormField
-            label="Project Name"
-            name="projectName"
-            placeholder="e.g. Hillcrest Luxury Villa Walkthrough"
-            value={newProject.projectName}
-            onChange={(e) => setNewProject({ ...newProject, projectName: e.target.value })}
-            error={formErrors.projectName}
-            required
-          />
-          <FormField
             label="Client"
             name="client"
             type="select"
             value={newProject.client}
-            onChange={(e) => setNewProject({ ...newProject, client: e.target.value })}
+            onChange={(e) => {
+              const selectedClientId = e.target.value;
+              const selectedClientObj = clientsList.find(c => String(c._id || c.id) === String(selectedClientId));
+              const autoCategory = getCategoryForClient(selectedClientObj, enquiriesList, CATEGORIES);
+
+              setNewProject(prev => ({
+                ...prev,
+                client: selectedClientId,
+                projectCategory: autoCategory
+              }));
+            }}
             error={formErrors.client}
             required
           >
+            <option value="">Select Client</option>
             {clientsList.map(c => <option key={c._id} value={c._id}>{c.companyName} ({c.clientName})</option>)}
           </FormField>
           <FormField
@@ -1153,15 +1215,15 @@ export const Projects = () => {
             error={formErrors.productionManager}
             required
           >
-            {usersList
+            {usersList.filter(u => u.status !== 'Inactive' && u.status !== 'Deactivated')
               .filter(u => {
                 const r = (typeof u.role === 'object' ? u.role?.name : u.role || '').toLowerCase();
                 return r.includes('production') || r.includes('manager') || r.includes('director') || r === 'pm';
               })
-              .concat(usersList.filter(u => {
+              .concat(usersList.filter(u => u.status !== 'Inactive' && u.status !== 'Deactivated').filter(u => {
                 const r = (typeof u.role === 'object' ? u.role?.name : u.role || '').toLowerCase();
                 return !(r.includes('production') || r.includes('manager') || r.includes('director') || r === 'pm');
-              }).length === usersList.length ? [] : [])
+              }).length === usersList.filter(u => u.status !== 'Inactive' && u.status !== 'Deactivated').length ? [] : [])
               .map(u => <option key={u._id} value={u._id}>{u.name} ({typeof u.role === 'object' ? u.role?.name : u.role})</option>)}
           </FormField>
           <FormField
@@ -1176,6 +1238,7 @@ export const Projects = () => {
             label="Start Date"
             name="startDate"
             type="date"
+            onClick={(e) => { try { e.target.showPicker(); } catch(err){} }}
             value={newProject.startDate}
             onChange={(e) => setNewProject({ ...newProject, startDate: e.target.value })}
             error={formErrors.startDate}
@@ -1235,62 +1298,132 @@ export const Projects = () => {
                 const isSelected = (newProject.assignedTeam || []).includes(uId);
                 const avail = teamAvailabilityMap[uId];
 
-                let badgeText = '🟢 Available';
+                let shortBadgeText = '🟢 Available';
                 let badgeBg = '#f0fdf4';
                 let badgeColor = '#16a34a';
 
                 if (avail) {
                   if (avail.badgeStatus === 'unavailable') {
-                    badgeText = `🔴 Unavailable (Booked on ${avail.bookedSummary || 'another project'})`;
+                    shortBadgeText = '🔴 Unavailable';
                     badgeBg = '#fef2f2';
                     badgeColor = '#dc2626';
                   } else if (avail.badgeStatus === 'partial') {
-                    const datesInfo = avail.freeDatesSummary ? `Free: ${avail.freeDatesSummary}` : `${avail.bookedDays} Days Conflict`;
-                    badgeText = `🟡 ${avail.freeDays} Days Available (${datesInfo})`;
+                    shortBadgeText = `🟡 Partial (${avail.freeDays}d Free)`;
                     badgeBg = '#fffbebf0';
                     badgeColor = '#b45309';
                   } else {
-                    const rangeInfo = avail.freeDatesSummary ? ` (${avail.freeDatesSummary})` : '';
-                    badgeText = `🟢 ${avail.freeDays || avail.totalDays || ''} Days Available${rangeInfo}`;
-                    badgeBg = '#f0fdf4';
-                    badgeColor = '#16a34a';
+                    shortBadgeText = '🟢 Available';
                   }
                 }
 
-                return (
-                  <label key={uId} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.825rem', cursor: 'pointer', padding: '0.35rem 0.5rem', borderRadius: '6px', backgroundColor: isSelected ? '#f5efe6' : 'transparent' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <input
-                        type="checkbox"
-                        checked={isSelected}
-                        onChange={(e) => {
-                          const currentTeam = newProject.assignedTeam || [];
-                          if (e.target.checked) {
-                            if (avail?.badgeStatus === 'unavailable') {
-                              setToast({ message: `Warning: ${u.name} is fully booked / unavailable from ${newProject.startDate} to ${newProject.endDate}!`, type: 'error' });
-                            } else if (avail?.badgeStatus === 'partial') {
-                              setToast({ message: `Notice: ${u.name} is only available for ${avail.freeDays} days out of ${avail.totalDays} days in this date range (${avail.bookedDays} days booked in another project/task).`, type: 'info' });
-                            }
-                            setNewProject({ ...newProject, assignedTeam: [...currentTeam, uId] });
-                          } else {
-                            setNewProject({ ...newProject, assignedTeam: currentTeam.filter(id => id !== uId) });
-                          }
-                        }}
-                      />
-                      <span style={{ fontWeight: 600, color: '#1F1F1F' }}>{u.name} ({u.role?.name || 'Artist'})</span>
-                    </div>
+                const isOpen = hoveredAvailUser === uId;
 
-                    <span style={{
-                      fontSize: '0.7rem',
-                      fontWeight: 700,
-                      padding: '0.15rem 0.55rem',
-                      borderRadius: '9999px',
-                      backgroundColor: badgeBg,
-                      color: badgeColor
-                    }}>
-                      {badgeText}
-                    </span>
-                  </label>
+                return (
+                  <div key={uId} style={{ position: 'relative' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.4rem 0.6rem', border: '1px solid #e9e5dc', borderRadius: '6px', backgroundColor: '#ffffff', cursor: 'pointer' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={(e) => {
+                            const currentTeam = newProject.assignedTeam || [];
+                            if (e.target.checked) {
+                              if (avail?.badgeStatus === 'unavailable') {
+                                setToast({ message: `Warning: ${u.name} is fully booked on ${avail.bookedSummary || 'another project'} from ${newProject.startDate} to ${newProject.endDate}!`, type: 'error' });
+                              } else if (avail?.badgeStatus === 'partial') {
+                                setToast({ message: `Notice: ${u.name} is only available for ${avail.freeDays} days out of ${avail.totalDays} days (Booked on ${avail.bookedSummary || 'another project'}).`, type: 'info' });
+                              }
+                              setNewProject(prev => ({ ...prev, assignedTeam: [...currentTeam, uId] }));
+                            } else {
+                              setNewProject(prev => ({ ...prev, assignedTeam: currentTeam.filter(id => id !== uId) }));
+                            }
+                          }}
+                        />
+                        <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#1F1F1F' }}>
+                          {u.name} <span style={{ fontSize: '0.75rem', color: '#8c8882', fontWeight: 400 }}>({u.designation || u.role?.name || 'Artist'})</span>
+                        </span>
+                      </div>
+
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                        <span style={{ padding: '0.15rem 0.5rem', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 700, backgroundColor: badgeBg, color: badgeColor }}>
+                          {shortBadgeText}
+                        </span>
+                        <span
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setHoveredAvailUser(isOpen ? null : uId);
+                          }}
+                          style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '20px', height: '20px', borderRadius: '50%', backgroundColor: badgeBg, color: badgeColor, border: `1px solid ${badgeColor}`, fontSize: '0.725rem', fontWeight: 'bold', cursor: 'pointer', transition: 'all 0.15s ease' }}
+                          title="Click for booking details"
+                        >
+                          i
+                        </span>
+                      </div>
+                    </label>
+
+                    {/* Sleek On-Click Small Floating Pop-up Card */}
+                    {isOpen && (
+                      <div
+                        onClick={(e) => e.stopPropagation()}
+                        style={{
+                          position: 'absolute',
+                          right: '0px',
+                          top: '100%',
+                          marginTop: '4px',
+                          zIndex: 999,
+                          backgroundColor: '#0F172A',
+                          color: '#F8FAFC',
+                          padding: '0.75rem 0.9rem',
+                          borderRadius: '8px',
+                          fontSize: '0.78rem',
+                          boxShadow: '0 12px 28px -5px rgba(0,0,0,0.5), 0 8px 10px -6px rgba(0,0,0,0.3)',
+                          minWidth: '260px',
+                          maxWidth: '310px',
+                          border: '1px solid #334155'
+                        }}
+                      >
+                        <div style={{ fontWeight: 700, marginBottom: '0.35rem', color: '#38BDF8', borderBottom: '1px solid #334155', paddingBottom: '0.35rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <span>📋 {u.name}</span>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setHoveredAvailUser(null);
+                            }}
+                            style={{ background: 'none', border: 'none', color: '#94A3B8', fontSize: '0.85rem', fontWeight: 'bold', cursor: 'pointer', padding: '0 0.2rem' }}
+                          >
+                            ✕
+                          </button>
+                        </div>
+
+                        {avail?.bookedSummary ? (
+                          <div style={{ marginBottom: '0.35rem', color: '#F8FAFC' }}>
+                            <div style={{ color: '#94A3B8', fontSize: '0.725rem', fontWeight: 600 }}>📁 Booked Project(s):</div>
+                            <div style={{ color: '#FCA5A5', fontSize: '0.75rem', fontWeight: 600, marginTop: '0.1rem' }}>
+                              {avail.bookedSummary}
+                            </div>
+                          </div>
+                        ) : (
+                          <div style={{ marginBottom: '0.25rem', color: '#4ADE80', fontSize: '0.75rem', fontWeight: 600 }}>
+                            ✅ No Project Conflicts Found
+                          </div>
+                        )}
+
+                        {avail?.conflictDatesSummary && (
+                          <div style={{ marginBottom: '0.25rem', color: '#CBD5E1', fontSize: '0.75rem' }}>
+                            <span style={{ color: '#F87171', fontWeight: 600 }}>⚠️ Conflict:</span> {avail.conflictDatesSummary} ({avail.bookedDays}d)
+                          </div>
+                        )}
+
+                        {avail?.freeDatesSummary && (
+                          <div style={{ color: '#CBD5E1', fontSize: '0.75rem' }}>
+                            <span style={{ color: '#4ADE80', fontWeight: 600 }}>✅ Free:</span> {avail.freeDatesSummary} ({avail.freeDays}d)
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 );
               })}
             </div>
@@ -1346,7 +1479,7 @@ export const Projects = () => {
             onChange={(e) => setNewProject({ ...newProject, productionManager: e.target.value })}
           >
             <option value="">Select PM</option>
-            {usersList
+            {usersList.filter(u => u.status !== 'Inactive' && u.status !== 'Deactivated')
               .filter(u => {
                 const r = (typeof u.role === 'object' ? u.role?.name : u.role || '').toLowerCase();
                 return r.includes('production') || r.includes('manager') || r.includes('director') || r === 'pm';
@@ -1441,7 +1574,7 @@ export const Projects = () => {
               Assign Project Team Members
             </label>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: '160px', overflowY: 'auto', border: '1px solid #e2ded8', borderRadius: '8px', padding: '0.75rem', backgroundColor: '#faf8f5' }}>
-              {usersList
+              {usersList.filter(u => u.status !== 'Inactive' && u.status !== 'Deactivated')
                 .filter(u => {
                   const r = (typeof u.role === 'object' ? u.role?.name : u.role || '').toLowerCase();
                   return r.includes('artist') || r.includes('3d') || r.includes('visualizer') || r.includes('designer') || r.includes('lead') || r.includes('production') || r.includes('manager');
@@ -1577,7 +1710,7 @@ export const Projects = () => {
                 </div>
                 <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
                   {selectedProject.assignedTeam.map((m, idx) => {
-                    const name = typeof m === 'object' ? (m.name || 'Member') : (usersList.find(u => u._id === m)?.name || 'Member');
+                    const name = typeof m === 'object' ? (m.name || 'Member') : (usersList.filter(u => u.status !== 'Inactive' && u.status !== 'Deactivated').find(u => u._id === m)?.name || 'Member');
                     return (
                       <span key={idx} style={{ fontSize: '0.75rem', backgroundColor: '#f5efe6', border: '1px solid #e2ded8', borderRadius: '6px', padding: '0.2rem 0.55rem', color: '#1F1F1F', fontWeight: 600 }}>
                         👤 {name}

@@ -13,6 +13,8 @@ import { ClockInOutWidget } from '../components/ClockInOutWidget';
 import './Dashboard.css';
 
 export const Dashboard = () => {
+  const [statModalType, setStatModalType] = useState(null); // 'projectCards' | 'tasks' | 'team' | 'leads' | null
+
   // Dynamic Logged-in User Session Extraction
   const currentUser = authService.getCurrentUser();
   const currentUserId = currentUser?._id || currentUser?.id;
@@ -21,19 +23,20 @@ export const Dashboard = () => {
     : (currentUser?.name?.name || currentUser?.email || 'Logged User');
 
   const rawRole = typeof currentUser?.role === 'object' ? (currentUser?.role?.name || 'Director') : (currentUser?.role || 'Director');
-  
-  // Normalized Role matching standard 5 Doorbin roles
   const userRole = rawRole.toLowerCase().includes('artist') ? 'Artist'
-    : rawRole.toLowerCase().includes('resource') || rawRole.toLowerCase().includes('hr') ? 'Human Resource'
-    : rawRole.toLowerCase().includes('development') || rawRole.toLowerCase().includes('business') || rawRole.toLowerCase().includes('bd') ? 'Business Development Manager'
-    : rawRole.toLowerCase().includes('production') || rawRole.toLowerCase().includes('manager') ? 'Production Manager'
+    : rawRole.toLowerCase().includes('resource') || rawRole.toLowerCase().includes('hrm') ? 'HR Manager'
+    : rawRole.toLowerCase().includes('production') || rawRole.toLowerCase().includes('pm') ? 'Production Manager'
+    : rawRole.toLowerCase().includes('client') ? 'Client'
     : 'Director';
+
+  const isDirector = userRole === 'Director' || rawRole.toLowerCase().includes('director');
 
   const [toast, setToast] = useState({ message: '', type: 'info' });
   const [loading, setLoading] = useState(true);
 
   // Dynamic Dashboard Data States
   const [projectCards, setProjectCards] = useState([]);
+  const [allProjects, setAllProjects] = useState([]);
   const [tasks, setTasks] = useState([]);
   const [teamMembers, setTeamMembers] = useState([]);
   const [enquiries, setEnquiries] = useState([]);
@@ -48,18 +51,30 @@ export const Dashboard = () => {
           dashboardService.getDashboardData(),
           hrService.getEmployees().catch(() => [])
         ]);
-        if (data?.projects) setProjectCards(data.projects);
+        if (data?.projectCards) setProjectCards(data.projectCards);
+        try {
+          const pList = await projectService.getProjects();
+          const pArr = Array.isArray(pList) ? pList : (pList?.projects || pList?.data || []);
+          if (pArr.length > 0) setAllProjects(pArr);
+        } catch {}
         if (data?.tasks) setTasks(data.tasks);
         if (Array.isArray(emps) && emps.length > 0) {
           const colors = ['#495a70', '#766782', '#4d808e', '#a36c56', '#547d5e', '#8a7e53'];
-          setTeamMembers(emps.map((emp, idx) => ({
-            id: emp._id,
-            name: emp.name,
-            avatar: emp.name ? emp.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : 'EM',
-            bg: colors[idx % colors.length],
-            status: emp.status === 'Active' ? 'Active' : 'On Leave',
-            isBooked: idx % 2 === 0
-          })));
+          setTeamMembers(emps.map((emp, idx) => {
+            const realRole = emp.designation || (typeof emp.role === 'object' ? emp.role?.name : emp.role) || (typeof emp.user?.role === 'object' ? emp.user?.role?.name : emp.user?.role) || 'Team Member';
+            const realDept = (typeof emp.department === 'object' ? emp.department?.departmentName || emp.department?.name : emp.department) || (typeof emp.user?.department === 'object' ? emp.user?.department?.departmentName : emp.user?.department) || 'Production';
+            return {
+              id: emp._id || emp.id || `emp_${idx}`,
+              name: emp.name || emp.user?.name || 'Staff Member',
+              email: emp.email || emp.user?.email || '--',
+              role: realRole,
+              department: realDept,
+              avatar: emp.name ? emp.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : 'EM',
+              bg: colors[idx % colors.length],
+              status: emp.status || (emp.isActive === false ? 'Inactive' : 'Active'),
+              isBooked: idx % 2 === 0
+            };
+          }));
         }
 
         // Fetch Live Enquiries for BDM
@@ -197,7 +212,7 @@ export const Dashboard = () => {
                 <div className="stat-card">
                   <div className="stat-card-title">PROJECTS WON</div>
                   <div className="stat-card-value" style={{ color: '#16a34a' }}>{projectCards.length || 6}</div>
-                  <div className="stat-card-subtext">Converted architectural projects</div>
+                  <div className="stat-card-subtext">Converted architectural projectCards</div>
                 </div>
               </>
             ) : userRole === 'Production Manager' ? (
@@ -230,25 +245,60 @@ export const Dashboard = () => {
             ) : (
               // Director Executive Overview
               <>
-                <div className="stat-card">
+                <div
+                  className="stat-card"
+                  onClick={() => isDirector && setStatModalType('projects')}
+                  style={{ cursor: isDirector ? 'pointer' : 'default', transition: 'all 0.2s ease' }}
+                  title={isDirector ? "Click to view full Studio Projects breakdown" : ""}
+                >
                   <div className="stat-card-title">TOTAL STUDIO PROJECTS</div>
-                  <div className="stat-card-value" style={{ color: '#B68D40' }}>{projectCards.length || 8}</div>
-                  <div className="stat-card-subtext">Architecture, Interior & Animation</div>
+                  <div className="stat-card-value" style={{ color: '#B68D40' }}>{(projectCards || []).length || projectCards.length || 8}</div>
+                  <div className="stat-card-subtext" >
+                    <span>Architecture, Interior & Animation</span>
+                    
+                  </div>
                 </div>
-                <div className="stat-card">
+
+                <div
+                  className="stat-card"
+                  onClick={() => isDirector && setStatModalType('tasks')}
+                  style={{ cursor: isDirector ? 'pointer' : 'default', transition: 'all 0.2s ease' }}
+                  title={isDirector ? "Click to view Active Tasks breakdown" : ""}
+                >
                   <div className="stat-card-title">ACTIVE TASKS DUE</div>
                   <div className="stat-card-value" style={{ color: '#2563eb' }}>{tasks.length || 12}</div>
-                  <div className="stat-card-subtext">Across active production stages</div>
+                  <div className="stat-card-subtext" >
+                    <span>Across active production stages</span>
+                    
+                  </div>
                 </div>
-                <div className="stat-card">
+
+                <div
+                  className="stat-card"
+                  onClick={() => isDirector && setStatModalType('team')}
+                  style={{ cursor: isDirector ? 'pointer' : 'default', transition: 'all 0.2s ease' }}
+                  title={isDirector ? "Click to view Active Team Members list" : ""}
+                >
                   <div className="stat-card-title">ACTIVE TEAM MEMBERS</div>
-                  <div className="stat-card-value" style={{ color: '#16a34a' }}>{teamMembers.length || 14}</div>
-                  <div className="stat-card-subtext">Artists, PM & HR staff</div>
+                  <div className="stat-card-value" style={{ color: '#16a34a' }}>{teamMembers.length || 7}</div>
+                  <div className="stat-card-subtext" >
+                    <span>Artists, PM & HR staff</span>
+                    
+                  </div>
                 </div>
-                <div className="stat-card">
+
+                <div
+                  className="stat-card"
+                  onClick={() => isDirector && setStatModalType('leads')}
+                  style={{ cursor: isDirector ? 'pointer' : 'default', transition: 'all 0.2s ease' }}
+                  title={isDirector ? "Click to view CRM Leads & Pitches" : ""}
+                >
                   <div className="stat-card-title">CRM LEADS & PITCHES</div>
                   <div className="stat-card-value" style={{ color: '#c7452e' }}>{enquiries.length || 8}</div>
-                  <div className="stat-card-subtext">Client inquiry pipeline</div>
+                  <div className="stat-card-subtext" >
+                    <span>Client inquiry pipeline</span>
+                    
+                  </div>
                 </div>
               </>
             )}
@@ -377,7 +427,162 @@ export const Dashboard = () => {
                 </div>
               </div>
             </div>
+          
+      {/* Interactive Detail Pop-up Modals for Director Dashboard Stat Cards */}
+      <Modal
+        isOpen={Boolean(statModalType)}
+        onClose={() => setStatModalType(null)}
+        title={
+          statModalType === 'projects'
+            ? `🏢 Studio Projects Breakdown (${(projectCards || []).length || projectCards.length})`
+            : statModalType === 'tasks'
+              ? `📝 Active Production Tasks (${tasks.length})`
+              : statModalType === 'team'
+                ? `👥 Active Studio Team Members (${teamMembers.length})`
+                : `🎯 CRM Leads & Pitch Pipeline (${enquiries.length})`
+        }
+        footer={
+          <button className="btn btn-secondary" onClick={() => setStatModalType(null)}>Close</button>
+        }
+      >
+        {/* Modal 1: Projects Breakdown */}
+        {statModalType === 'projects' && (
+          <div className="table-responsive" style={{ maxHeight: '350px', overflowY: 'auto' }}>
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>PROJECT NAME</th>
+                  <th>CATEGORY</th>
+                  <th>CLIENT</th>
+                  <th>STATUS</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(projectCards && projectCards.length > 0 ? projectCards : [
+                  { id: '1', projectName: '3D Villa Visualization', projectCategory: 'Architecture', clientName: 'Skyline Architects', status: 'In Progress' },
+                  { id: '2', projectName: 'Interior Render Suite', projectCategory: 'Interior Design', clientName: 'Design Studio', status: 'In Progress' },
+                  { id: '3', projectName: 'Commercial Walkthrough', projectCategory: 'Animation', clientName: 'Apex Infra', status: 'Completed' },
+                  { id: '4', projectName: 'Luxury Resort Masterplan', projectCategory: 'Architecture', clientName: 'Oceanic Properties', status: 'In Progress' },
+                  { id: '5', projectName: 'Penthouse Interior 3D', projectCategory: 'Interior Design', clientName: 'Grand Living', status: 'Completed' },
+                  { id: '6', projectName: 'Urban Plaza Animation', projectCategory: 'Animation', clientName: 'Metro Corp', status: 'In Progress' },
+                  { id: '7', projectName: 'Residential Complex', projectCategory: 'Architecture', clientName: 'BuildCon Ltd', status: 'In Progress' },
+                  { id: '8', projectName: 'Boutique Hotel Render', projectCategory: 'Interior Design', clientName: 'Hospitality Group', status: 'Completed' }
+                ]).map((p, pIdx) => (
+                  <tr key={p._id || p.id || `proj_${pIdx}`}>
+                    <td style={{ fontWeight: 600 }}>{p.projectName || p.title || p.name || 'Studio Project'}</td>
+                    <td><span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#B68D40' }}>{p.projectCategory || p.category || 'Architecture'}</span></td>
+                    <td style={{ fontSize: '0.8rem', color: '#4b5563' }}>{p.client?.clientName || p.clientName || (typeof p.client === 'string' ? p.client : 'Studio Client')}</td>
+                    <td>
+                      <span style={{ padding: '0.15rem 0.5rem', borderRadius: '12px', fontSize: '0.725rem', fontWeight: 700, backgroundColor: '#f0fdf4', color: '#16a34a' }}>
+                        {p.status || p.badge || 'In Progress'}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
+        )}
+
+        {/* Modal 2: Active Tasks */}
+        {statModalType === 'tasks' && (
+          <div className="table-responsive" style={{ maxHeight: '350px', overflowY: 'auto' }}>
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>TASK TITLE</th>
+                  <th>ASSIGNEE</th>
+                  <th>PRIORITY</th>
+                  <th>STATUS</th>
+                </tr>
+              </thead>
+              <tbody>
+                {tasks.map(t => (
+                  <tr key={t._id || t.id}>
+                    <td style={{ fontWeight: 600 }}>{t.taskTitle || t.title || 'Task'}</td>
+                    <td style={{ fontSize: '0.8rem' }}>{t.assignee?.name || t.assignedTo || 'Artist'}</td>
+                    <td><span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#b45309' }}>{t.priority || 'Medium'}</span></td>
+                    <td>
+                      <span style={{ padding: '0.15rem 0.5rem', borderRadius: '12px', fontSize: '0.725rem', fontWeight: 700, backgroundColor: '#eff6ff', color: '#2563eb' }}>
+                        {t.status || 'In Progress'}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Modal 3: Active Team Members */}
+        {statModalType === 'team' && (
+          <div className="table-responsive" style={{ maxHeight: '350px', overflowY: 'auto' }}>
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>MEMBER NAME</th>
+                  <th>DESIGNATION / ROLE</th>
+                  <th>DEPARTMENT</th>
+                  <th>STATUS</th>
+                </tr>
+              </thead>
+              <tbody>
+                {teamMembers.map(m => (
+                  <tr key={m.id || m._id}>
+                    <td style={{ fontWeight: 600 }}>{m.name}</td>
+                    <td><span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#B68D40' }}>{m.role}</span></td>
+                    <td style={{ fontSize: '0.8rem', color: '#4b5563' }}>{m.department}</td>
+                    <td>
+                      <span style={{
+                        padding: '0.15rem 0.5rem',
+                        borderRadius: '12px',
+                        fontSize: '0.725rem',
+                        fontWeight: 700,
+                        backgroundColor: (m.status === 'Active' || m.status === 'Present') ? '#f0fdf4' : '#fef2f2',
+                        color: (m.status === 'Active' || m.status === 'Present') ? '#16a34a' : '#dc2626'
+                      }}>
+                        {m.status || 'Active'}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Modal 4: CRM Leads & Pitches */}
+        {statModalType === 'leads' && (
+          <div className="table-responsive" style={{ maxHeight: '350px', overflowY: 'auto' }}>
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>LEAD / CLIENT NAME</th>
+                  <th>PROJECT TYPE</th>
+                  <th>ESTIMATED VALUE</th>
+                  <th>STAGE</th>
+                </tr>
+              </thead>
+              <tbody>
+                {enquiries.map(e => (
+                  <tr key={e._id || e.id}>
+                    <td style={{ fontWeight: 600 }}>{e.clientName || e.name || 'Lead'}</td>
+                    <td><span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#B68D40' }}>{e.projectType || 'Architecture'}</span></td>
+                    <td style={{ fontSize: '0.8rem', fontWeight: 700, color: '#16a34a' }}>₹{e.estimatedBudget || e.budget || '50,000'}</td>
+                    <td>
+                      <span style={{ padding: '0.15rem 0.5rem', borderRadius: '12px', fontSize: '0.725rem', fontWeight: 700, backgroundColor: '#fffbebf0', color: '#b45309' }}>
+                        {e.status || e.stage || 'New Pitch'}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Modal>
+
+</div>
         </>
       )}
     </main>

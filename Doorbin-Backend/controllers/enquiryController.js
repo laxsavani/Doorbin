@@ -461,6 +461,10 @@ const convertEnquiry = async (req, res) => {
     // Step 1: Reuse existingClient if set
     if (enquiry.existingClient) {
       clientObj = await Client.findById(enquiry.existingClient);
+      if (clientObj && enquiry.projectType) {
+        clientObj.defaultProjectType = enquiry.projectType;
+        await clientObj.save();
+      }
     }
 
     // Step 2: Auto-create Client in Module 3 if not set
@@ -472,6 +476,8 @@ const convertEnquiry = async (req, res) => {
         email: generateEmail,
         phone: 'N/A',
         notes: `Auto-created from Won Enquiry: ${enquiry.projectName}`,
+        defaultProjectType: enquiry.projectType,
+        originEnquiry: enquiry._id,
         createdBy: req.user._id
       });
 

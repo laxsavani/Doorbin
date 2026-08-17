@@ -1,3 +1,4 @@
+import { attendanceService } from '../services/attendanceService';
 import React, { useState, useEffect } from 'react';
 import { timelineService } from '../services/timelineService';
 import { hrService } from '../services/hrService';
@@ -10,7 +11,7 @@ import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, Clock, Tag, 
 import './Dashboard.css';
 
 const DAYS_OF_WEEK = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-const EVENT_TYPES = ['All', 'Project Start', 'Project End', 'Reminder', 'Task', 'Milestone', 'Meeting', 'Leave', 'Holiday'];
+const EVENT_TYPES = ['All', 'Reminder', 'Task', 'Milestone', 'Meeting', 'Leave', 'Holiday'];
 
 export const StudioCalendar = () => {
   const currentUser = authService.getCurrentUser();
@@ -22,6 +23,31 @@ export const StudioCalendar = () => {
     ? (currentUser?.role?.name || 'Artist')
     : (currentUser?.role || 'Artist');
   const isDirector = userRoleName.toLowerCase() === 'director';
+  const roleNameLower = userRoleName.toLowerCase();
+  const isManagement = isDirector || roleNameLower.includes('manager') || roleNameLower.includes('pm') || roleNameLower.includes('production');
+  const isArtistRole = !isManagement;
+  const visibleEventTypes = isArtistRole ? ['All', 'Leave', 'Holiday'] : EVENT_TYPES;
+
+  const [artistAttendanceMap, setArtistAttendanceMap] = useState({});
+
+  useEffect(() => {
+    if (isArtistRole && currentUserId) {
+      attendanceService.getEmployeeAttendance(currentUserId).then(res => {
+        const attList = Array.isArray(res) ? res : (res?.attendance || res?.records || []);
+        const map = {};
+        attList.forEach(a => {
+          if (a.date) {
+            const dStr = new Date(a.date).toISOString().split('T')[0];
+            const inTime = a.checkInFormatted || (a.checkIn ? new Date(a.checkIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : null);
+            const outTime = a.checkOutFormatted || (a.checkOut ? new Date(a.checkOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : null);
+            map[dStr] = { inTime, outTime, status: a.status || 'Present' };
+          }
+        });
+        setArtistAttendanceMap(map);
+      }).catch(() => setArtistAttendanceMap({}));
+    }
+  }, [isArtistRole, currentUserId]);
+
 
   const today = new Date();
   const todayDateStr = `${today.getFullYear()}-${(today.getMonth() + 1).toString().padStart(2, '0')}-${today.getDate().toString().padStart(2, '0')}`;
@@ -383,6 +409,8 @@ export const StudioCalendar = () => {
 
   // Filter events by selected type AND user role assignment
   const filteredEvents = events.filter(e => {
+    // Remove Project Start and Project End events studio-wide as requested
+    if (e.type === 'Project Start' || e.type === 'Project End') return false;
     const matchesType = selectedTypeFilter === 'All' || e.type === selectedTypeFilter;
     if (!matchesType) return false;
 
@@ -450,7 +478,7 @@ export const StudioCalendar = () => {
             <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.75rem' }}>
               {/* Type Filter Pills */}
               <div style={{ display: 'flex', gap: '0.35rem', backgroundColor: '#faf9f6', padding: '3px', borderRadius: '10px', border: '1px solid #eeeae3', flexWrap: 'wrap' }}>
-                {EVENT_TYPES.map(type => (
+                {visibleEventTypes.map(type => (
                   <button
                     key={type}
                     onClick={() => setSelectedTypeFilter(type)}
@@ -580,6 +608,24 @@ export const StudioCalendar = () => {
                       )}
 
                       {/* Desktop Events List in Day Cell */}
+                      {artistAttendanceMap[cell.dateStr] && (
+                        <div style={{
+                          marginBottom: '4px',
+                          fontSize: '0.625rem',
+                          fontWeight: 700,
+                          padding: '2px 5px',
+                          borderRadius: '5px',
+                          backgroundColor: '#f0fdf4',
+                          border: '1px solid #bbf7d0',
+                          color: '#166534',
+                          lineHeight: '1.25'
+                        }}>
+                          <div>🟢 <b>In:</b> {artistAttendanceMap[cell.dateStr].inTime || '--:--'}</div>
+                          {artistAttendanceMap[cell.dateStr].outTime && (
+                            <div>🔴 <b>Out:</b> {artistAttendanceMap[cell.dateStr].outTime}</div>
+                          )}
+                        </div>
+                      )}
                       {!isMobile && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', flex: 1 }}>
                           {displayEvents.map((evt, eIdx) => {

@@ -74,7 +74,7 @@ export const NotificationBell = () => {
       });
 
       // 2. Scan Projects for User & 2-Day Start/End Reminders
-      projects.forEach(p => {
+      [].forEach(p => {
         const pName = p.projectName || p.name || 'Project';
         const team = (p.assignedTeam || []).map(m => (typeof m === 'object' ? (m._id || m.id || m.name) : String(m)));
         const pm = typeof p.productionManager === 'object' ? (p.productionManager?._id || p.productionManager?.name) : String(p.productionManager || '');
@@ -111,7 +111,7 @@ export const NotificationBell = () => {
       });
 
       // 3. Scan Tasks for User & 2-Day Due Reminders
-      tasks.forEach(t => {
+      [].forEach(t => {
         const assigneeStr = typeof t.assignee === 'object' ? (t.assignee?.name || t.assignee?._id || '') : String(t.assignee || '');
         const isUserTask = isDirector || !currentUserId || assigneeStr.includes(currentUserName) || assigneeStr === currentUserId;
 

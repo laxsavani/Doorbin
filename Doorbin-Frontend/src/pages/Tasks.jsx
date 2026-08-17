@@ -20,6 +20,18 @@ const TASK_STATUSES = ['Pending', 'Assigned', 'In Progress', 'Under Review', 'Co
 const PRIORITIES = ['High', 'Medium', 'Low'];
 
 export const Tasks = () => {
+
+  // Helper: Auto-calculate 8 Hours per day between Start Date and End Date
+  const calcHoursFromDates = (startStr, endStr) => {
+    if (!startStr || !endStr) return '';
+    const d1 = new Date(startStr);
+    const d2 = new Date(endStr);
+    if (isNaN(d1.getTime()) || isNaN(d2.getTime()) || d2 < d1) return '';
+    const diffTime = Math.abs(d2 - d1);
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1; // inclusive days
+    return String(diffDays * 8); // 8 hours per day
+  };
+
   const currentUser = authService.getCurrentUser();
   const currentUserId = currentUser?._id || currentUser?.id;
   const currentUserName = typeof currentUser?.name === 'string'
@@ -880,16 +892,16 @@ export const Tasks = () => {
       >
         <form onSubmit={handleCreateTask} noValidate>
           <FormField
-            label="Task Name"
+            label="Task Title"
             name="taskName"
-            placeholder="e.g. High-Poly Villa Facade 3D Model"
+            placeholder="e.g. 3D Exterior Lighting & Texturing"
             value={newTask.taskName}
             onChange={(e) => setNewTask({ ...newTask, taskName: e.target.value })}
             error={formErrors.taskName}
             required
           />
           <FormField
-            label="Project"
+            label="Project Entity"
             name="project"
             type="select"
             value={newTask.project}
@@ -897,68 +909,78 @@ export const Tasks = () => {
             error={formErrors.project}
             required
           >
+            <option value="">Select Project</option>
             {projectsList.map(p => <option key={p._id} value={p._id}>{p.projectName}</option>)}
           </FormField>
-          {isArtist ? (
-            <FormField
-              label="Artist Assignee *"
-              name="assigneeText"
-              type="text"
-              value={`${currentUserName} (${userRoleName}) [Auto-Assigned]`}
-              disabled
-            />
-          ) : (
-            <FormField
-              label="Artist Assignee"
-              name="assignee"
-              type="select"
-              value={newTask.assignee || currentUserId}
-              onChange={(e) => setNewTask({ ...newTask, assignee: e.target.value })}
-              error={formErrors.assignee}
-              required
-            >
-              {usersList.map(u => (
-                <option key={u._id} value={u._id}>
-                  {u.name || u.email} ({typeof u.role === 'object' ? (u.role?.name || 'Artist') : (u.role || 'Artist')})
-                </option>
-              ))}
-            </FormField>
-          )}
           <FormField
-            label="Reviewer / PM"
+            label="Assignee (Artist / Specialist)"
+            name="assignee"
+            type="select"
+            value={newTask.assignee}
+            onChange={(e) => setNewTask({ ...newTask, assignee: e.target.value })}
+            error={formErrors.assignee}
+            required
+          >
+            <option value="">Select Assignee</option>
+            {usersList.filter(u => u.status !== 'Inactive' && u.status !== 'Deactivated').map(u => (
+              <option key={u._id} value={u._id}>{u.name} ({typeof u.role === 'object' ? u.role?.name : u.role})</option>
+            ))}
+          </FormField>
+          <FormField
+            label="Reviewer (Lead / PM)"
             name="reviewer"
             type="select"
             value={newTask.reviewer}
             onChange={(e) => setNewTask({ ...newTask, reviewer: e.target.value })}
           >
+            <option value="">Optional Reviewer (Auto-selects PM/Director)</option>
             {usersList
               .filter(u => {
+                if (u.status === 'Inactive' || u.status === 'Deactivated') return false;
                 const r = (typeof u.role === 'object' ? u.role?.name : u.role || '').toLowerCase();
-                return r.includes('production') || r.includes('manager') || r.includes('director') || r === 'pm' || r.includes('lead');
+                return r.includes('manager') || r.includes('director') || r === 'pm' || r.includes('lead');
               })
               .map(u => <option key={u._id} value={u._id}>{u.name} ({typeof u.role === 'object' ? u.role?.name : u.role})</option>)}
           </FormField>
-          <FormField
-            label="Estimated Hours"
-            name="estimatedHours"
-            type="number"
-            placeholder="e.g. 40"
-            value={newTask.estimatedHours}
-            onChange={(e) => setNewTask({ ...newTask, estimatedHours: e.target.value })}
-          />
           <FormField
             label="Start Date"
             name="startDate"
             type="date"
             value={newTask.startDate}
-            onChange={(e) => setNewTask({ ...newTask, startDate: e.target.value })}
+            onClick={(e) => { try { e.target.showPicker(); } catch(err){} }}
+            onChange={(e) => {
+              const val = e.target.value;
+              const autoHrs = calcHoursFromDates(val, newTask.endDate);
+              setNewTask(prev => ({
+                ...prev,
+                startDate: val,
+                estimatedHours: autoHrs || prev.estimatedHours
+              }));
+            }}
           />
           <FormField
             label="End Date"
             name="endDate"
             type="date"
             value={newTask.endDate}
-            onChange={(e) => setNewTask({ ...newTask, endDate: e.target.value })}
+            onClick={(e) => { try { e.target.showPicker(); } catch(err){} }}
+            onChange={(e) => {
+              const val = e.target.value;
+              const autoHrs = calcHoursFromDates(newTask.startDate, val);
+              setNewTask(prev => ({
+                ...prev,
+                endDate: val,
+                estimatedHours: autoHrs || prev.estimatedHours
+              }));
+            }}
+          />
+          <FormField
+            label="Estimated Hours (Auto-calculated: 8h/day)"
+            name="estimatedHours"
+            type="number"
+            placeholder="e.g. 40"
+            value={newTask.estimatedHours}
+            onChange={(e) => setNewTask({ ...newTask, estimatedHours: e.target.value })}
           />
           {newTask.startDate && newTask.endDate && (
             <div style={{
@@ -1037,7 +1059,7 @@ export const Tasks = () => {
             value={newTask.assignee}
             onChange={(e) => setNewTask({ ...newTask, assignee: e.target.value })}
           >
-            {usersList.map(u => <option key={u._id} value={u._id}>{u.name} ({typeof u.role === 'object' ? u.role?.name : u.role})</option>)}
+            {usersList.filter(u => u.status !== 'Inactive' && u.status !== 'Deactivated').map(u => <option key={u._id} value={u._id}>{u.name} ({typeof u.role === 'object' ? u.role?.name : u.role})</option>)}
           </FormField>
           <FormField
             label="Reviewer (Lead / PM)"
@@ -1046,68 +1068,55 @@ export const Tasks = () => {
             value={newTask.reviewer}
             onChange={(e) => setNewTask({ ...newTask, reviewer: e.target.value })}
           >
+            <option value="">Optional Reviewer (Auto-selects PM/Director)</option>
             {usersList
               .filter(u => {
+                if (u.status === 'Inactive' || u.status === 'Deactivated') return false;
                 const r = (typeof u.role === 'object' ? u.role?.name : u.role || '').toLowerCase();
-                return r.includes('production') || r.includes('manager') || r.includes('director') || r === 'pm' || r.includes('lead');
+                return r.includes('manager') || r.includes('director') || r === 'pm' || r.includes('lead');
               })
               .map(u => <option key={u._id} value={u._id}>{u.name} ({typeof u.role === 'object' ? u.role?.name : u.role})</option>)}
           </FormField>
-          <FormField
-            label="Estimated Hours"
-            name="estimatedHours"
-            type="number"
-            placeholder="e.g. 40"
-            value={newTask.estimatedHours}
-            onChange={(e) => setNewTask({ ...newTask, estimatedHours: e.target.value })}
-          />
           <FormField
             label="Start Date"
             name="startDate"
             type="date"
             value={newTask.startDate}
-            onChange={(e) => setNewTask({ ...newTask, startDate: e.target.value })}
+            onClick={(e) => { try { e.target.showPicker(); } catch(err){} }}
+            onChange={(e) => {
+              const val = e.target.value;
+              const autoHrs = calcHoursFromDates(val, newTask.endDate);
+              setNewTask(prev => ({
+                ...prev,
+                startDate: val,
+                estimatedHours: autoHrs || prev.estimatedHours
+              }));
+            }}
           />
           <FormField
             label="End Date"
             name="endDate"
             type="date"
             value={newTask.endDate}
-            onChange={(e) => setNewTask({ ...newTask, endDate: e.target.value })}
+            onClick={(e) => { try { e.target.showPicker(); } catch(err){} }}
+            onChange={(e) => {
+              const val = e.target.value;
+              const autoHrs = calcHoursFromDates(newTask.startDate, val);
+              setNewTask(prev => ({
+                ...prev,
+                endDate: val,
+                estimatedHours: autoHrs || prev.estimatedHours
+              }));
+            }}
           />
-          {newTask.startDate && newTask.endDate && (
-            <div style={{
-              marginBottom: '1rem',
-              padding: '0.65rem 0.85rem',
-              backgroundColor: '#f5efe6',
-              borderRadius: '8px',
-              border: '1px solid #e2ded8',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              fontSize: '0.85rem'
-            }}>
-              <span style={{ fontWeight: 600, color: 'var(--color-primary)' }}>📅 Calculated Task Duration:</span>
-              <span style={{ fontWeight: 700, fontSize: '0.95rem', color: '#1F1F1F' }}>
-                {(() => {
-                  const s = new Date(newTask.startDate);
-                  const e = new Date(newTask.endDate);
-                  if (isNaN(s.getTime()) || isNaN(e.getTime()) || s > e) return '0 Days';
-                  const days = Math.max(1, Math.round((e.getTime() - s.getTime()) / (1000 * 3600 * 24)) + 1);
-                  return `${days} Days`;
-                })()}
-              </span>
-            </div>
-          )}
           <FormField
-            label="Task Status"
-            name="status"
-            type="select"
-            value={newTask.status}
-            onChange={(e) => setNewTask({ ...newTask, status: e.target.value })}
-          >
-            {TASK_STATUSES.map(st => <option key={st} value={st}>{st}</option>)}
-          </FormField>
+            label="Estimated Hours (Auto-calculated: 8h/day)"
+            name="estimatedHours"
+            type="number"
+            placeholder="e.g. 40"
+            value={newTask.estimatedHours}
+            onChange={(e) => setNewTask({ ...newTask, estimatedHours: e.target.value })}
+          />
           <FormField
             label="Priority"
             name="priority"

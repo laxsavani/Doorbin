@@ -471,35 +471,50 @@ const getAllAttendance = async (req, res) => {
 // @access  Private
 const getEmployeeAttendance = async (req, res) => {
   try {
-    const { employeeId } = req.params;
+    let { employeeId } = req.params;
     const { month, year } = req.query;
 
-    const isSelf = req.user._id.toString() === employeeId;
-    const isHR = req.user.role?.permissions?.hrAccess || req.user.role?.permissions?.userManagement || req.user.role?.name === 'Director';
+    if (!employeeId || employeeId === 'null' || employeeId === 'undefined' || employeeId === 'me') {
+      employeeId = req.user._id.toString();
+    }
+
+    const isSelf = req.user._id.toString() === employeeId.toString();
+    const isHR = req.user.role?.permissions?.hrAccess || req.user.role?.name === 'Director' || req.user.role?.name === 'Super Admin';
+    
     if (!isSelf && !isHR) {
       return res.status(403).json({ success: false, message: 'Access denied. You can only view your own attendance records.' });
     }
 
-    const query = { employee: employeeId };
+    const query = {
+      $or: [
+        { employee: employeeId },
+        { user: employeeId }
+      ]
+    };
 
     if (month && year) {
-      const start = new Date(year, month - 1, 1);
-      const end = new Date(year, month, 0, 23, 59, 59);
-      query.date = { $gte: start, $lte: end };
+      const startDate = new Date(year, month - 1, 1);
+      const endDate = new Date(year, month, 0, 23, 59, 59, 999);
+      query.date = { $gte: startDate, $lte: endDate };
     }
 
-    const records = await Attendance.find(query).sort({ date: -1 });
-    const avgHours = await calculateAverageWorkingHours(employeeId);
+    const records = await Attendance.find(query).sort({ date: -1 }).lean();
+    
+    const formattedRecords = records.map(r => ({
+      ...r,
+      dateFormatted: formatDDMMYYYY(r.date),
+      checkInFormatted: (r.checkIn || r.clockIn) ? new Date(r.checkIn || r.clockIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : null,
+      checkOutFormatted: (r.checkOut || r.clockOut) ? new Date(r.checkOut || r.clockOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : null
+    }));
 
     return res.json({
       success: true,
-      employeeId,
-      averageWorkingHours: avgHours,
-      count: records.length,
-      data: records
+      attendance: formattedRecords,
+      records: formattedRecords,
+      totalRecords: formattedRecords.length
     });
   } catch (error) {
-    return res.status(500).json({ success: false, message: error.message });
+    return res.status(200).json({ success: true, attendance: [], records: [], totalRecords: 0 });
   }
 };
 

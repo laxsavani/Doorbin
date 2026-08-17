@@ -75,25 +75,39 @@ export const ClockInOutWidget = ({ variant = 'topbar', onStatusChange }) => {
     }
   };
 
-  const handleClockIn = async () => {
+    const handleClockIn = async () => {
     setLoading(true);
     setToast({ message: '', type: 'info' });
 
     try {
       const res = await attendanceService.clockIn();
-      setAttendance(res);
+      
+      // Normalize activeSession structure so timer starts immediately on 1st click without refresh
+      const checkInStamp = res?.attendance?.checkIn || res?.activeSession?.checkIn || res?.checkIn || new Date().toISOString();
+      const sessionObj = {
+        checkIn: checkInStamp,
+        ...(res?.attendance || res?.activeSession || res || {})
+      };
+
+      setAttendance({
+        isClockedIn: true,
+        activeSession: sessionObj,
+        workingHours: 0
+      });
       setIsClockedIn(true);
+
       const currentTimeIST = formatISTTime();
       setToast({
         message: `Clocked In successfully at ${currentTimeIST} (Asia/Kolkata IST)`,
         type: 'success'
       });
-      if (onStatusChange) onStatusChange(res);
+
+      if (onStatusChange) onStatusChange({ isClockedIn: true, activeSession: sessionObj });
     } catch (err) {
-      setToast({
-        message: err.message || 'Clock In failed',
-        type: 'error'
-      });
+      const errText = err.response?.data?.message || err.message || 'Clock In failed';
+      setToast({ message: errText, type: 'error' });
+      // Fallback refresh
+      fetchAttendance();
     } finally {
       setLoading(false);
     }
