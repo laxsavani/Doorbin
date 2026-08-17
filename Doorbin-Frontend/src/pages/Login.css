@@ -380,19 +380,62 @@
   margin-top: 1rem;
 }
 
-/* Responsive Mobile Layout */
+/* Responsive Mobile & Tablet Layout */
 @media (max-width: 992px) {
   .login-card-container {
     grid-template-columns: 1fr;
-  }
-
-  .login-form-section {
-    padding: 2.5rem 1.5rem;
-    overflow-y: auto;
+    height: auto;
+    min-height: 100vh;
   }
 
   .login-showcase-section {
-    display: none;
+    display: none !important;
+  }
+
+  .login-form-section {
+    padding: 2.5rem 1.75rem;
+    overflow-y: auto;
+    margin-left: 0 !important;
+    clip-path: none !important;
+    height: auto !important;
+    min-height: 100vh;
+    justify-content: center;
+  }
+
+  .login-form-content-body {
+    max-width: 440px;
+    width: 100%;
+    margin: 2rem auto;
+  }
+}
+
+@media (max-width: 576px) {
+  .login-form-section {
+    padding: 2rem 1.25rem;
+  }
+
+  .login-header-text h1 {
+    font-size: 1.75rem;
+  }
+
+  .login-header-text p {
+    font-size: 0.825rem;
+    margin-bottom: 1.25rem;
+  }
+
+  .pill-input {
+    padding: 0.75rem 1.15rem;
+    font-size: 0.85rem;
+  }
+
+  .login-options-row {
+    margin: 0.3rem 0.25rem 1.15rem 0.25rem;
+    font-size: 0.75rem;
+  }
+
+  .btn-login-submit {
+    padding: 0.8rem;
+    font-size: 0.875rem;
   }
 }
 
