@@ -376,6 +376,9 @@ export const MilestoneTrackerTab = ({ setToast }) => {
           // Find or create Project
           let targetProj = allProjects.find(p => p.projectName?.toLowerCase() === projName.toLowerCase());
 
+          const cleanCName = (clientName || `${projName} Client`).trim();
+          const cSlug = cleanCName.toLowerCase().replace(/[^a-z0-9]/g, '');
+
           if (!targetProj) {
             // Find or create Client
             let targetClient = allClients.find(c => {
@@ -384,8 +387,6 @@ export const MilestoneTrackerTab = ({ setToast }) => {
             });
 
             if (!targetClient) {
-              const cleanCName = (clientName || `${projName} Client`).trim();
-              const cSlug = cleanCName.toLowerCase().replace(/[^a-z0-9]/g, '');
               const createdClientRes = await clientService.createClient({
                 companyName: cleanCName,
                 clientName: cleanCName,
