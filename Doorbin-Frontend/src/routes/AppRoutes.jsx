@@ -12,6 +12,7 @@ import { Enquiries } from '../pages/Enquiries';
 import { Projects } from '../pages/Projects';
 import { Tasks } from '../pages/Tasks';
 import { TimelineGantt } from '../pages/TimelineGantt';
+import { ProjectInfo } from '../pages/ProjectInfo';
 import { StudioCalendar } from '../pages/StudioCalendar';
 import { ResourceAllocation } from '../pages/ResourceAllocation';
 import { WorkflowTemplates } from '../pages/WorkflowTemplates';
@@ -123,6 +124,17 @@ export const AppRoutes = () => {
           <ProtectedRoute>
             <MainLayout>
               <TimelineGantt />
+            </MainLayout>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/project-info"
+        element={
+          <ProtectedRoute>
+            <MainLayout>
+              <ProjectInfo />
             </MainLayout>
           </ProtectedRoute>
         }

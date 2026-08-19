@@ -19,7 +19,7 @@ import {
   FolderKanban,
   Layers,
   CheckSquare,
-  GitCommit,
+  GitCommit, GitFork,
   Calendar as CalendarIcon,
   PieChart,
   DollarSign,
@@ -167,6 +167,7 @@ export const MainLayout = ({ children }) => {
   const projectSubItems = [
     (isDirectorRole || checkPerm('projectManagement')) ? { title: 'Projects', path: '/projects', icon: FolderKanban } : null,
     (isDirectorRole || checkPerm(['timelineAccess', 'projectManagement'])) ? { title: 'Gantt Timeline', path: '/timeline', icon: GitCommit } : null,
+    (isDirectorRole || checkPerm(['timelineAccess', 'projectManagement'])) ? { title: 'Project Info', path: '/project-info', icon: GitFork } : null,
     (isDirectorRole || checkPerm(['calendarAccess', 'taskManagement', 'projectManagement'])) ? { title: 'Studio Calendar', path: '/calendar', icon: CalendarIcon } : null
   ].filter(Boolean);
 

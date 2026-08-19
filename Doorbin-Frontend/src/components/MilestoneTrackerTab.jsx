@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { milestoneTrackerService } from '../services/milestoneTrackerService';
 import { projectService } from '../services/projectService';
+import { clientService } from '../services/clientService';
+import { userService } from '../services/userService';
+import * as XLSX from 'xlsx';
 import { FormField } from './FormField';
 import { Modal } from './Modal';
 import { Toast } from './Toast';
@@ -244,6 +247,46 @@ export const MilestoneTrackerTab = ({ setToast }) => {
     }
   };
 
+  // Robust date parser supporting '10-Apr-26', '12-May-2028', '15/08/2026', '2026-08-15', Excel serial dates
+  const parseExcelDateValue = (val) => {
+    if (!val) return '';
+    if (val instanceof Date && !isNaN(val.getTime())) {
+      return val.toISOString().split('T')[0];
+    }
+    // Excel Serial Number (e.g. 46122)
+    if (typeof val === 'number' && val > 30000 && val < 60000) {
+      const date = new Date(Math.round((val - 25569) * 86400 * 1000));
+      return !isNaN(date.getTime()) ? date.toISOString().split('T')[0] : '';
+    }
+    const str = String(val).trim();
+    if (!str || str === '-' || str === '.') return '';
+
+    // Handle format like "10-Apr-26" or "12-May-2028"
+    const mmmMatch = str.match(/^(\d{1,2})[-/ ]([A-Za-z]{3,4})[-/ ](\d{2,4})$/);
+    if (mmmMatch) {
+      const day = String(parseInt(mmmMatch[1], 10)).padStart(2, '0');
+      const mStr = mmmMatch[2].toLowerCase();
+      const months = { jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06', jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12' };
+      const mm = months[mStr.slice(0, 3)];
+      let yr = parseInt(mmmMatch[3], 10);
+      if (yr < 100) yr += 2000;
+      if (mm) return `${yr}-${mm}-${day}`;
+    }
+
+    // Handle format like "15/08/2026" or "15-08-2026"
+    const ddmmyyMatch = str.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{2,4})$/);
+    if (ddmmyyMatch) {
+      const day = String(parseInt(ddmmyyMatch[1], 10)).padStart(2, '0');
+      const month = String(parseInt(ddmmyyMatch[2], 10)).padStart(2, '0');
+      let yr = parseInt(ddmmyyMatch[3], 10);
+      if (yr < 100) yr += 2000;
+      return `${yr}-${month}-${day}`;
+    }
+
+    const pd = new Date(str);
+    return !isNaN(pd.getTime()) ? pd.toISOString().split('T')[0] : '';
+  };
+
   const handleBulkUploadSubmit = async (e) => {
     e.preventDefault();
     if (!uploadFile) {
@@ -253,13 +296,229 @@ export const MilestoneTrackerTab = ({ setToast }) => {
 
     setUploading(true);
     setUploadSummary(null);
+
     try {
-      const res = await milestoneTrackerService.bulkUpload(uploadFile);
-      setUploadSummary(res);
-      if (setToast) setToast({ message: `Bulk upload processed! ${res.successCount} projects updated.`, type: 'success' });
-      loadTrackers();
+      // 1. Read binary array buffer
+      const data = await uploadFile.arrayBuffer();
+      const workbook = XLSX.read(data, { type: 'array', cellDates: true });
+      const firstSheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[firstSheetName];
+
+      if (!worksheet) {
+        throw new Error('No readable worksheet found in the uploaded file');
+      }
+
+      // Convert sheet to 2D array of rows
+      const rawRows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+      if (!rawRows || rawRows.length <= 2) {
+        throw new Error('Sheet does not contain data rows');
+      }
+
+      // Fetch fresh projects, clients & users roster
+      const [freshProjs, freshClients, freshUsers] = await Promise.all([
+        projectService.getProjects({ limit: 500 }),
+        clientService.getClients(),
+        userService.getUsers()
+      ]);
+
+      const allProjects = Array.isArray(freshProjs) ? freshProjs : (freshProjs?.data || freshProjs?.projects || []);
+      const allClients = Array.isArray(freshClients) ? freshClients : (freshClients?.data || []);
+      const allUsers = Array.isArray(freshUsers) ? freshUsers : (freshUsers?.users || []);
+      
+      const defaultPmUser = allUsers.find(u => {
+        const r = (u.role?.name || u.role || '').toString().toLowerCase();
+        return r.includes('pm') || r.includes('production') || r.includes('admin') || r.includes('director');
+      }) || allUsers[0];
+      const defaultPmId = defaultPmUser?._id;
+
+      const results = [];
+      let successCount = 0;
+      let errorCount = 0;
+
+      // Iterate starting from row 3 (0-indexed: index 2)
+      for (let rIdx = 2; rIdx < rawRows.length; rIdx++) {
+        const row = rawRows[rIdx];
+        if (!row || !Array.isArray(row) || row.length === 0) continue;
+
+        // Extract columns:
+        // Col 0 (A): Sr No, Col 1 (B): Project Name, Col 2 (C): Client Name, Col 3 (D): Architect, Col 4 (E): Status
+        const colA = String(row[0] || '').trim();
+        const colB = String(row[1] || '').trim();
+        const colC = String(row[2] || '').trim();
+        const colD = String(row[3] || '').trim();
+        const colE = String(row[4] || '').trim();
+
+        let projName = colB;
+        let clientName = colC;
+
+        // Fallback if Sr No was omitted
+        if (!projName && colA && isNaN(Number(colA)) && colA.toLowerCase() !== 'sr. no.') {
+          projName = colA;
+        }
+
+        // Ignore empty rows silently
+        if (!projName && !clientName) continue;
+
+        const lowerProj = projName.toLowerCase();
+        // Ignore repeated headers or TOTAL summary rows
+        if (
+          lowerProj === 'project name' || 
+          lowerProj === 'sr. no.' || 
+          lowerProj === 'total' || 
+          lowerProj === 'grand total' || 
+          lowerProj.startsWith('total') ||
+          lowerProj === 'summary'
+        ) {
+          continue;
+        }
+
+        try {
+          // Find or create Project
+          let targetProj = allProjects.find(p => p.projectName?.toLowerCase() === projName.toLowerCase());
+
+          if (!targetProj) {
+            // Find or create Client
+            let targetClient = allClients.find(c => {
+              const cName = (c.companyName || c.clientName || '').toLowerCase();
+              return clientName && cName.includes(clientName.toLowerCase());
+            });
+
+            if (!targetClient) {
+              const cleanCName = (clientName || `${projName} Client`).trim();
+              const cSlug = cleanCName.toLowerCase().replace(/[^a-z0-9]/g, '');
+              const createdClientRes = await clientService.createClient({
+                companyName: cleanCName,
+                clientName: cleanCName,
+                email: `${cSlug || 'client'}@doorbinclient.com`,
+                phone: '9876543210',
+                category: 'Client',
+                directoryType: 'Client',
+                industry: 'Real Estate & Architecture',
+                status: 'Active'
+              });
+              targetClient = createdClientRes?.client || createdClientRes?.data || createdClientRes;
+              allClients.push(targetClient);
+            }
+
+            const clientId = targetClient?._id || targetClient;
+            const now = new Date();
+            const todayStr = now.toISOString().split('T')[0];
+            const endD = new Date(now.getTime() + 60 * 86400000);
+            const endDStr = endD.toISOString().split('T')[0];
+
+            const createdProjRes = await projectService.createProject({
+              projectName: projName,
+              client: clientId,
+              projectCategory: 'Architecture',
+              productionManager: defaultPmId,
+              startDate: todayStr,
+              endDate: endDStr,
+              priority: 'Medium',
+              billingParty: cleanCName,
+              architect: colD || '',
+              status: ['In Progress', 'Completed', 'Delayed', 'Not Started'].includes(colE) ? colE : 'In Progress',
+              budget: 100000
+            });
+            targetProj = createdProjRes?.project || createdProjRes?.data || createdProjRes;
+            allProjects.push(targetProj);
+          }
+
+          const targetProjectId = targetProj?._id;
+
+          // Parse 5 Milestones
+          // M1: F(5), G(6 Amt), H(7 Date), I(8 Status)
+          // M2: J(9), K(10 Amt), L(11 Date), M(12 Status)
+          // M3: N(13), O(14 Amt), P(15 Date), Q(16 Status)
+          // M4: R(17), S(18 Amt), T(19 Date), U(20 Status)
+          // M5: V(21), W(22 Amt), X(23 Date), Y(24 Status)
+          const parsedMilestones = [];
+          let totalParsedAmt = 0;
+
+          for (let m = 0; m < 5; m++) {
+            const baseIndex = 5 + (m * 4);
+            const amtRaw = row[baseIndex + 1];
+            const dateRaw = row[baseIndex + 2];
+            const stRaw = row[baseIndex + 3];
+
+            let amt = null;
+            if (amtRaw !== undefined && amtRaw !== '' && amtRaw !== '-') {
+              const clean = String(amtRaw).replace(/[^0-9.]/g, '');
+              amt = clean ? Number(clean) : null;
+              if (amt) totalParsedAmt += amt;
+            }
+
+            const parsedDate = parseExcelDateValue(dateRaw);
+
+            let status = 'Due';
+            if (stRaw) {
+              const stLower = String(stRaw).trim().toLowerCase();
+              if (stLower.includes('rec')) status = 'Received';
+              else if (stLower.includes('wip') || stLower.includes('prog')) status = 'WIP';
+              else status = 'Due';
+            } else if (parsedDate || amt) {
+              status = 'Received';
+            }
+
+            parsedMilestones.push({
+              milestoneNumber: m + 1,
+              amount: amt,
+              dateReceived: parsedDate || undefined,
+              status
+            });
+          }
+
+          // Update Project Milestone Payment document
+          const trackerPayload = {
+            projectId: targetProjectId,
+            architectDesigner: colD || targetProj.architect || '',
+            notes: String(row[30] || ''),
+            milestones: parsedMilestones
+          };
+
+          try {
+            await milestoneTrackerService.updateTracker(targetProjectId, trackerPayload);
+          } catch (updateErr) {
+            await milestoneTrackerService.createTracker(trackerPayload);
+          }
+
+          successCount++;
+          results.push({
+            row: rIdx + 1,
+            projectName: projName,
+            status: 'success',
+            message: `Synced with ${parsedMilestones.filter(m => m.amount > 0).length} milestones`
+          });
+        } catch (rowErr) {
+          console.error(`Row ${rIdx + 1} processing error:`, rowErr);
+          errorCount++;
+          results.push({
+            row: rIdx + 1,
+            projectName: projName || `Row ${rIdx + 1}`,
+            status: 'error',
+            message: rowErr.message || 'Error processing row'
+          });
+        }
+      }
+
+      setUploadSummary({
+        successCount,
+        errorCount,
+        skippedCount: 0,
+        results
+      });
+
+      if (setToast) {
+        setToast({ 
+          message: `Bulk upload completed! ${successCount} project(s) added & synced to database.`, 
+          type: 'success' 
+        });
+      }
+
+      await loadTrackers();
+      await loadProjectsRoster();
     } catch (err) {
-      if (setToast) setToast({ message: err.message || 'Failed to process bulk upload file', type: 'error' });
+      console.error('Bulk upload error:', err);
+      if (setToast) setToast({ message: err.message || 'Failed to process sheet', type: 'error' });
     } finally {
       setUploading(false);
     }

@@ -717,7 +717,7 @@ export const Projects = () => {
               <select
                 value={selectedStatusFilter}
                 onChange={(e) => setSelectedStatusFilter(e.target.value)}
-                style={{ padding: '0.45rem 0.85rem', borderRadius: '10px', border: '1px solid #ECE9E4', fontSize: '0.78rem', fontWeight: 600, backgroundColor: '#FFFFFF', color: '#1C1A17' }}
+                style={{ padding: '0.45rem 0.85rem', borderRadius: '10px', border: '1px solid #ECE9E4', fontSize: '0.78rem', fontWeight: 500, backgroundColor: '#FFFFFF', color: '#1C1A17' }}
               >
                 <option value="All">All Statuses</option>
                 {PROJECT_STATUSES.map(st => <option key={st} value={st}>{st}</option>)}
@@ -741,7 +741,7 @@ export const Projects = () => {
                     padding: '6px 16px',
                     borderRadius: '99px',
                     fontSize: '12.5px',
-                    fontWeight: 600,
+                    fontWeight: 500,
                     whiteSpace: 'nowrap',
                     backgroundColor: isSelected ? '#1C1A17' : '#FFFFFF',
                     color: isSelected ? '#FAF9F7' : '#55504A',
@@ -773,7 +773,7 @@ export const Projects = () => {
                     backgroundColor: '#FFFFFF',
                     color: '#1C1A17',
                     fontSize: '12px',
-                    fontWeight: 600,
+                    fontWeight: 500,
                     cursor: 'pointer',
                     boxShadow: '0 1px 2px rgba(28,26,23,0.03)'
                   }}
@@ -790,7 +790,7 @@ export const Projects = () => {
                       borderRadius: '6px',
                       border: 'none',
                       fontSize: '0.78rem',
-                      fontWeight: 600,
+                      fontWeight: 500,
                       backgroundColor: operationsSubView === 'project' ? '#FFFFFF' : 'transparent',
                       color: operationsSubView === 'project' ? '#1C1A17' : '#8A857D',
                       boxShadow: operationsSubView === 'project' ? '0 1px 3px rgba(28,26,23,0.08)' : 'none',
@@ -806,7 +806,7 @@ export const Projects = () => {
                       borderRadius: '6px',
                       border: 'none',
                       fontSize: '0.78rem',
-                      fontWeight: 600,
+                      fontWeight: 500,
                       backgroundColor: operationsSubView === 'artist' ? '#FFFFFF' : 'transparent',
                       color: operationsSubView === 'artist' ? '#1C1A17' : '#8A857D',
                       boxShadow: operationsSubView === 'artist' ? '0 1px 3px rgba(28,26,23,0.08)' : 'none',
@@ -897,7 +897,7 @@ export const Projects = () => {
 
                             <div style={{ flex: '1', minWidth: 0 }}>
                               <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px', minWidth: 0 }}>
-                                <span style={{ fontSize: '14.5px', fontWeight: 600, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: '#1C1A17' }}>
+                                <span style={{ fontSize: '14px', fontWeight: 500, letterSpacing: '-0.005em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: '#1C1A17' }}>
                                   {proj.projectName}
                                 </span>
                                 <span style={{ fontFamily: 'var(--font-mono)', fontSize: '10px', letterSpacing: '0.06em', color: '#8A857D', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
@@ -918,7 +918,7 @@ export const Projects = () => {
                             </div>
 
                             {/* Status badge */}
-                            <span style={{ fontSize: '10.5px', fontWeight: 600, padding: '3px 9px', borderRadius: '99px', whiteSpace: 'nowrap', backgroundColor: statusBg, color: statusFg }}>
+                            <span style={{ fontSize: '10.5px', fontWeight: 500, padding: '3px 9px', borderRadius: '99px', whiteSpace: 'nowrap', backgroundColor: statusBg, color: statusFg }}>
                               {proj.status}
                             </span>
 
@@ -991,7 +991,7 @@ export const Projects = () => {
                                 return (
                                   <div key={stageName}>
                                     {/* Stage Section Header (Studio PM style) */}
-                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '9px 20px 7px 48px', fontSize: '12px', fontWeight: 600, color: '#55504A', backgroundColor: '#FCFBFA', borderBottom: '1px solid #F5F2ED' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '9px 20px 7px 48px', fontSize: '12px', fontWeight: 500, color: '#55504A', backgroundColor: '#FCFBFA', borderBottom: '1px solid #F5F2ED' }}>
                                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                         <span>{stageName}</span>
                                         {tasks.length > 0 && (
@@ -1011,7 +1011,7 @@ export const Projects = () => {
                                           background: 'transparent',
                                           color: '#C75B39',
                                           fontSize: '11px',
-                                          fontWeight: 600,
+                                          fontWeight: 500,
                                           cursor: 'pointer',
                                           display: 'inline-flex',
                                           alignItems: 'center',
@@ -1050,7 +1050,7 @@ export const Projects = () => {
                                           </span>
                                           
                                           <div style={{ width: '140px', flex: 'none', display: 'flex', alignItems: 'center', gap: '7px' }}>
-                                            <div style={{ width: '20px', height: '20px', borderRadius: '50%', backgroundColor: avColor, color: '#FFFFFF', display: 'grid', placeItems: 'center', fontSize: '8px', fontWeight: 600 }}>
+                                            <div style={{ width: '20px', height: '20px', borderRadius: '50%', backgroundColor: avColor, color: '#FFFFFF', display: 'grid', placeItems: 'center', fontSize: '8px', fontWeight: 500 }}>
                                               {initials}
                                             </div>
                                             <span style={{ fontSize: '11.5px', color: '#55504A' }}>{aName}</span>
@@ -1075,7 +1075,7 @@ export const Projects = () => {
                                                 border: 'none',
                                                 cursor: 'pointer',
                                                 fontSize: '10.5px',
-                                                fontWeight: 600,
+                                                fontWeight: 500,
                                                 padding: '3px 9px',
                                                 borderRadius: '99px',
                                                 whiteSpace: 'nowrap',
@@ -1169,7 +1169,7 @@ export const Projects = () => {
                                             backgroundColor: '#1C1A17',
                                             color: '#FAF9F7',
                                             fontSize: '11px',
-                                            fontWeight: 600,
+                                            fontWeight: 500,
                                             cursor: 'pointer',
                                             display: 'inline-flex',
                                             alignItems: 'center',
@@ -1223,15 +1223,15 @@ export const Projects = () => {
                       <div key={aId} style={{ backgroundColor: '#FFFFFF', border: '1px solid #ECE9E4', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 1px 3px rgba(28,26,23,0.03)' }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem', padding: '0.85rem 1.15rem', backgroundColor: '#FAF9F7', borderBottom: '1px solid #ECE9E4' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                            <div style={{ width: '28px', height: '28px', borderRadius: '50%', backgroundColor: '#1C1A17', color: '#FAF9F7', fontSize: '0.75rem', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <div style={{ width: '28px', height: '28px', borderRadius: '50%', backgroundColor: '#1C1A17', color: '#FAF9F7', fontSize: '0.75rem', fontWeight: 500, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                               {initials}
                             </div>
                             <div>
-                              <div style={{ fontWeight: 700, fontSize: '0.9rem', color: '#1C1A17' }}>{artist.name}</div>
+                              <div style={{ fontWeight: 500, fontSize: '0.9rem', color: '#1C1A17' }}>{artist.name}</div>
                               <div style={{ fontSize: '0.72rem', color: '#8A857D' }}>{roleTitle}</div>
                             </div>
                           </div>
-                          <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#8A857D' }}>
+                          <div style={{ fontSize: '0.75rem', fontWeight: 500, color: '#8A857D' }}>
                             {activeCount} active · {doneCount} done
                           </div>
                         </div>
@@ -1255,7 +1255,7 @@ export const Projects = () => {
                                       <td style={{ padding: '0.55rem 0.5rem', color: '#8A857D', fontSize: '0.78rem', textAlign: 'right' }}>{pName}</td>
                                       <td style={{ padding: '0.55rem 0.5rem', color: '#8A857D', fontSize: '0.78rem', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>{dueStr}</td>
                                       <td style={{ padding: '0.55rem 0.5rem', textAlign: 'right', width: '100px' }}>
-                                        <span style={{ fontSize: '0.7rem', fontWeight: 700, padding: '0.15rem 0.5rem', borderRadius: '99px', backgroundColor: t.status === 'Completed' || t.status === 'Done' ? '#EAF5EE' : '#FAF9F7', color: t.status === 'Completed' || t.status === 'Done' ? '#2E7D4E' : '#8A857D' }}>
+                                        <span style={{ fontSize: '0.7rem', fontWeight: 500, padding: '0.15rem 0.5rem', borderRadius: '99px', backgroundColor: t.status === 'Completed' || t.status === 'Done' ? '#EAF5EE' : '#FAF9F7', color: t.status === 'Completed' || t.status === 'Done' ? '#2E7D4E' : '#8A857D' }}>
                                           {t.status}
                                         </span>
                                       </td>
@@ -1313,7 +1313,7 @@ export const Projects = () => {
                       return (
                         <tr key={p._id} style={{ borderBottom: '1px solid #ECE9E4', transition: 'background-color 0.15s ease' }}>
                           <td style={{ padding: '1rem 1.25rem' }}>
-                            <div style={{ fontWeight: 600, color: '#1C1A17', fontSize: '13.5px' }}>{p.projectName}</div>
+                            <div style={{ fontWeight: 500, color: '#1C1A17', fontSize: '13.5px' }}>{p.projectName}</div>
                             <div style={{ fontSize: '11px', color: '#8A857D', marginTop: '2px' }}>
                               Client: {clientName} {p.architect && `· Arch: ${p.architect}`}
                             </div>
@@ -1328,7 +1328,7 @@ export const Projects = () => {
                             {pmName}
                           </td>
                           <td style={{ padding: '1rem 0.75rem' }}>
-                            <span style={{ fontSize: '11px', fontWeight: 600, padding: '3px 8px', borderRadius: '99px', backgroundColor: statusBadgeBg, color: statusBadgeColor }}>
+                            <span style={{ fontSize: '11px', fontWeight: 500, padding: '3px 8px', borderRadius: '99px', backgroundColor: statusBadgeBg, color: statusBadgeColor }}>
                               {p.status}
                             </span>
                           </td>
@@ -1392,7 +1392,7 @@ export const Projects = () => {
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
                         <div>
                           <span className="micro-category-pill">{p.projectCategory}</span>
-                          <h3 style={{ fontSize: '1rem', fontWeight: 700, margin: '0.4rem 0 0.2rem', color: '#1C1A17' }}>{p.projectName}</h3>
+                          <h3 style={{ fontSize: '1rem', fontWeight: 500, margin: '0.4rem 0 0.2rem', color: '#1C1A17' }}>{p.projectName}</h3>
                           <div style={{ fontSize: '0.8rem', color: '#8A857D' }}>{clientName}</div>
                           {p.architect && (
                             <div style={{ fontSize: '0.75rem', color: '#8A857D', marginTop: '2px' }}>
@@ -1400,7 +1400,7 @@ export const Projects = () => {
                             </div>
                           )}
                         </div>
-                        <span style={{ fontSize: '11px', fontWeight: 600, padding: '3px 8px', borderRadius: '99px', backgroundColor: '#FAF9F7', border: '1px solid #ECE9E4', color: '#1C1A17' }}>
+                        <span style={{ fontSize: '11px', fontWeight: 500, padding: '3px 8px', borderRadius: '99px', backgroundColor: '#FAF9F7', border: '1px solid #ECE9E4', color: '#1C1A17' }}>
                           {p.status}
                         </span>
                       </div>
@@ -1408,15 +1408,15 @@ export const Projects = () => {
                       <div style={{ margin: '1rem 0', padding: '0.75rem', backgroundColor: '#FAF9F7', borderRadius: '8px', border: '1px solid #ECE9E4' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: '#8A857D', marginBottom: '0.35rem' }}>
                           <span>Timeline</span>
-                          <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, color: '#1C1A17' }}>{timeline.text}</span>
+                          <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 500, color: '#1C1A17' }}>{timeline.text}</span>
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: '#8A857D', marginBottom: '0.35rem' }}>
                           <span>Production Manager</span>
-                          <span style={{ fontWeight: 600, color: '#1C1A17' }}>{pmName}</span>
+                          <span style={{ fontWeight: 500, color: '#1C1A17' }}>{pmName}</span>
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: '#8A857D' }}>
                           <span>Active Tasks</span>
-                          <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, color: '#1C1A17' }}>{projTasks.length} tasks</span>
+                          <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 500, color: '#1C1A17' }}>{projTasks.length} tasks</span>
                         </div>
                       </div>
                     </div>
@@ -1491,7 +1491,7 @@ export const Projects = () => {
                   fontSize: '11.5px',
                   color: '#C75B39',
                   cursor: 'pointer',
-                  fontWeight: 600,
+                  fontWeight: 500,
                   textDecoration: 'underline',
                   display: 'inline-flex',
                   alignItems: 'center',
@@ -1645,7 +1645,7 @@ export const Projects = () => {
                   fontSize: '11.5px',
                   color: '#C75B39',
                   cursor: 'pointer',
-                  fontWeight: 600,
+                  fontWeight: 500,
                   textDecoration: 'underline',
                   display: 'inline-flex',
                   alignItems: 'center',
@@ -1759,17 +1759,17 @@ export const Projects = () => {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '10px' }}>
               <div style={{ padding: '12px 14px', borderRadius: '10px', background: '#FAF9F7', border: '1px solid #ECE9E4' }}>
                 <div style={{ fontSize: '10px', fontFamily: 'var(--font-mono)', letterSpacing: '0.08em', color: '#8A857D', textTransform: 'uppercase', marginBottom: '4px' }}>PROGRESS</div>
-                <div style={{ fontSize: '15px', fontWeight: 700, fontFamily: 'var(--font-mono)', color: '#1C1A17' }}>{selectedProject.progressPercentage || 0}%</div>
+                <div style={{ fontSize: '15px', fontWeight: 500, fontFamily: 'var(--font-mono)', color: '#1C1A17' }}>{selectedProject.progressPercentage || 0}%</div>
               </div>
 
               <div style={{ padding: '12px 14px', borderRadius: '10px', background: '#FAF9F7', border: '1px solid #ECE9E4' }}>
                 <div style={{ fontSize: '10px', fontFamily: 'var(--font-mono)', letterSpacing: '0.08em', color: '#8A857D', textTransform: 'uppercase', marginBottom: '4px' }}>PRIORITY</div>
-                <div style={{ fontSize: '14px', fontWeight: 600, color: selectedProject.priority === 'High' ? '#C75B39' : '#1C1A17' }}>{selectedProject.priority || 'Medium'}</div>
+                <div style={{ fontSize: '14px', fontWeight: 500, color: selectedProject.priority === 'High' ? '#C75B39' : '#1C1A17' }}>{selectedProject.priority || 'Medium'}</div>
               </div>
 
               <div style={{ padding: '12px 14px', borderRadius: '10px', background: '#FAF9F7', border: '1px solid #ECE9E4' }}>
                 <div style={{ fontSize: '10px', fontFamily: 'var(--font-mono)', letterSpacing: '0.08em', color: '#8A857D', textTransform: 'uppercase', marginBottom: '4px' }}>ARCHITECT</div>
-                <div style={{ fontSize: '13px', fontWeight: 600, color: '#1C1A17' }}>{selectedProject.architect || 'Not specified'}</div>
+                <div style={{ fontSize: '13px', fontWeight: 500, color: '#1C1A17' }}>{selectedProject.architect || 'Not specified'}</div>
               </div>
 
               <div style={{ padding: '12px 14px', borderRadius: '10px', background: '#FAF9F7', border: '1px solid #ECE9E4' }}>

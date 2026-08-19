@@ -523,6 +523,56 @@ const deleteTracker = async (req, res) => {
 // @desc    Bulk Upload Milestone Trackers from Excel/CSV
 // @route   POST /api/finance/milestone-tracker/bulk-upload
 // @access  Private (financeAccess)
+// Safe helper to extract primitive string/date from any ExcelJS cell (handling hyperlinks, formulas, richText)
+const getSafeCellText = (cell) => {
+  if (!cell) return '';
+  const val = cell.value;
+  if (val === null || val === undefined) return '';
+  if (typeof val === 'object') {
+    if (val instanceof Date) return val;
+    if (val.text) return String(val.text).trim();
+    if (val.result !== undefined) return String(val.result).trim();
+    if (val.richText && Array.isArray(val.richText)) return val.richText.map(t => t.text || '').join('').trim();
+  }
+  return String(val).trim();
+};
+
+// Robust date parser supporting '10-Apr-26', '12-May-2028', '15/08/2026', '2026-08-15', and Excel serial dates
+const parseCustomDateValue = (val) => {
+  if (!val) return null;
+  if (val instanceof Date && !isNaN(val.getTime())) return val;
+  const str = String(val).trim();
+  if (!str || str === '-' || str === '.') return null;
+
+  // Handle format like "10-Apr-26" or "12-May-2028"
+  const mmmMatch = str.match(/^(\d{1,2})[-/ ]([A-Za-z]{3,4})[-/ ](\d{2,4})$/);
+  if (mmmMatch) {
+    const day = parseInt(mmmMatch[1], 10);
+    const mStr = mmmMatch[2].toLowerCase();
+    const months = { jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5, jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11 };
+    const month = months[mStr.slice(0, 3)];
+    let yr = parseInt(mmmMatch[3], 10);
+    if (yr < 100) yr += 2000;
+    if (month !== undefined) {
+      return new Date(yr, month, day, 12, 0, 0);
+    }
+  }
+
+  // Handle format like "15/08/2026" or "15-08-2026"
+  const ddmmyyMatch = str.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{2,4})$/);
+  if (ddmmyyMatch) {
+    const day = parseInt(ddmmyyMatch[1], 10);
+    const month = parseInt(ddmmyyMatch[2], 10) - 1;
+    let yr = parseInt(ddmmyyMatch[3], 10);
+    if (yr < 100) yr += 2000;
+    return new Date(yr, month, day, 12, 0, 0);
+  }
+
+  const pd = new Date(str);
+  if (!isNaN(pd.getTime())) return pd;
+  return null;
+};
+
 const bulkUploadTrackers = async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ success: false, message: 'Please upload an Excel (.xlsx) or CSV file' });
@@ -547,143 +597,221 @@ const bulkUploadTrackers = async (req, res) => {
     let skippedCount = 0;
 
     const allProjects = await Project.find().populate('client', 'clientName companyName');
+    const allClients = await Client.find();
 
+    const rowsToProcess = [];
     worksheet.eachRow((row, rowNumber) => {
+      // Header rows are typically row 1 and row 2 in the template
       if (rowNumber <= 2) return;
+      rowsToProcess.push({ row, rowNumber });
+    });
 
-      const rowValues = row.values;
-      const projNameRaw = rowValues[2] ? String(rowValues[2]).trim() : '';
-      const clientNameRaw = rowValues[3] ? String(rowValues[3]).trim() : '';
+    for (const { row, rowNumber } of rowsToProcess) {
+      // Direct cell extraction using 1-based column indexing
+      // Col 1 (A): Sr No, Col 2 (B): Project Name, Col 3 (C): Client Name, Col 4 (D): Architect / Designer, Col 5 (E): Project Status
+      const col1 = getSafeCellText(row.getCell(1));
+      const col2 = getSafeCellText(row.getCell(2));
+      const col3 = getSafeCellText(row.getCell(3));
+      const col4 = getSafeCellText(row.getCell(4));
+      const col5 = getSafeCellText(row.getCell(5));
 
-      if (!projNameRaw && !clientNameRaw) {
-        skippedCount++;
-        results.push({ row: rowNumber, projectName: '', status: 'skipped', message: 'Empty row, skipped' });
-        return;
+      let projNameRaw = col2;
+      let clientNameRaw = col3;
+
+      // Handle fallback if Project Name is in Col 1 and Sr No was omitted
+      if (!projNameRaw && col1 && isNaN(Number(col1)) && col1.toLowerCase() !== 'sr. no.') {
+        projNameRaw = col1;
       }
 
-      const matchedProjects = allProjects.filter(p => {
-        const nameMatch = p.projectName.toLowerCase() === projNameRaw.toLowerCase();
-        if (!nameMatch) return false;
+      // Skip completely empty rows silently
+      if (!projNameRaw && !clientNameRaw) {
+        continue;
+      }
 
-        if (clientNameRaw) {
-          const c = p.client;
-          const cName = typeof c === 'object' ? (c?.companyName || c?.clientName || '') : '';
-          return cName.toLowerCase().includes(clientNameRaw.toLowerCase());
+      const lowerProjName = projNameRaw.toLowerCase().trim();
+
+      // Skip repeated headers or summary/total rows
+      if (
+        lowerProjName === 'project name' ||
+        lowerProjName === 'sr. no.' ||
+        lowerProjName === 'sr.no.' ||
+        lowerProjName === 'total' ||
+        lowerProjName === 'grand total' ||
+        lowerProjName.startsWith('total') ||
+        lowerProjName === 'summary'
+      ) {
+        continue;
+      }
+
+      try {
+        let matchedProjects = allProjects.filter(p => {
+          const nameMatch = p.projectName.toLowerCase() === projNameRaw.toLowerCase();
+          if (!nameMatch) return false;
+          if (clientNameRaw) {
+            const c = p.client;
+            const cName = typeof c === 'object' ? (c?.companyName || c?.clientName || '') : '';
+            return cName.toLowerCase().includes(clientNameRaw.toLowerCase());
+          }
+          return true;
+        });
+
+        let targetProject = matchedProjects[0];
+        const archDesigner = col4;
+        const projStatusRaw = col5;
+
+        // 1. AUTO-CREATE CLIENT & PROJECT IF NOT IN DATABASE
+        if (!targetProject) {
+          let targetClient = allClients.find(c => {
+            const cName = (c.companyName || c.clientName || '').toLowerCase();
+            return clientNameRaw && cName.includes(clientNameRaw.toLowerCase());
+          });
+
+          if (!targetClient) {
+            targetClient = await Client.create({
+              companyName: clientNameRaw || `${projNameRaw} Client`,
+              clientName: clientNameRaw || 'Direct Client',
+              category: 'Client',
+              directoryType: 'Client',
+              industry: 'Architecture & Real Estate',
+              status: 'Active'
+            });
+            allClients.push(targetClient);
+          }
+
+          let initialStatus = 'In Progress';
+          if (['Not Started', 'In Progress', 'Completed', 'Delayed', 'On Hold'].includes(projStatusRaw)) {
+            initialStatus = projStatusRaw;
+          }
+
+          targetProject = await Project.create({
+            projectName: projNameRaw,
+            client: targetClient._id,
+            projectCategory: 'Architecture',
+            status: initialStatus,
+            architect: archDesigner || '',
+            budget: 100000
+          });
+          allProjects.push(targetProject);
+        } else {
+          // Update architect or status if provided in sheet
+          if (archDesigner && !targetProject.architect) {
+            targetProject.architect = archDesigner;
+            await targetProject.save();
+          }
+          if (projStatusRaw && ['Not Started', 'In Progress', 'Completed', 'Delayed', 'On Hold'].includes(projStatusRaw)) {
+            targetProject.status = projStatusRaw;
+            await targetProject.save();
+          }
         }
-        return true;
-      });
 
-      if (matchedProjects.length === 0) {
+        // 2. Parse 5 Milestones
+        const parsedMilestones = [];
+        let totalCalculatedAmount = 0;
+
+        for (let mIdx = 0; mIdx < 5; mIdx++) {
+          // In template:
+          // M1: F (6), G (7 Amount), H (8 Date), I (9 Status)
+          // M2: J (10), K (11 Amount), L (12 Date), M (13 Status)
+          // M3: N (14), O (15 Amount), P (16 Date), Q (17 Status)
+          // M4: R (18), S (19 Amount), T (20 Date), U (21 Status)
+          // M5: V (22), W (23 Amount), X (24 Date), Y (25 Status)
+          const baseCol = 6 + (mIdx * 4);
+          const amountRaw = getSafeCellText(row.getCell(baseCol + 1));
+          const dateRaw = getSafeCellText(row.getCell(baseCol + 2));
+          const statusRaw = getSafeCellText(row.getCell(baseCol + 3));
+
+          let numAmount = null;
+          if (amountRaw != null && amountRaw !== '' && amountRaw !== '-') {
+            const cleanAmt = String(amountRaw).replace(/[^0-9.]/g, '');
+            numAmount = cleanAmt ? Number(cleanAmt) : null;
+            if (numAmount) totalCalculatedAmount += numAmount;
+          }
+
+          const dateRec = parseCustomDateValue(dateRaw);
+
+          let st = statusRaw ? String(statusRaw).trim() : 'Due';
+          if (!['Due', 'WIP', 'Received'].includes(st)) {
+            if (dateRec || (numAmount && st.toLowerCase().includes('rec'))) st = 'Received';
+            else if (st.toLowerCase().includes('wip') || st.toLowerCase().includes('prog')) st = 'WIP';
+            else st = 'Due';
+          }
+
+          parsedMilestones.push({
+            milestoneNumber: mIdx + 1,
+            amount: numAmount,
+            dateReceived: dateRec,
+            status: st
+          });
+        }
+
+        // Update project budget if total parsed milestone value is higher
+        if (totalCalculatedAmount > (targetProject.budget || 0)) {
+          targetProject.budget = totalCalculatedAmount;
+          await targetProject.save();
+        }
+
+        // Extract Notes from Column 31 (AE)
+        const notesRaw = getSafeCellText(row.getCell(31));
+
+        // 3. Upsert ProjectMilestonePayment document in MongoDB
+        let trackerDoc = await ProjectMilestonePayment.findOne({ project: targetProject._id });
+        if (!trackerDoc) {
+          trackerDoc = new ProjectMilestonePayment({
+            project: targetProject._id,
+            architectDesigner: archDesigner || targetProject.architect || '',
+            notes: notesRaw || '',
+            milestones: parsedMilestones
+          });
+        } else {
+          trackerDoc.architectDesigner = archDesigner || trackerDoc.architectDesigner || targetProject.architect || '';
+          if (notesRaw) trackerDoc.notes = notesRaw;
+          parsedMilestones.forEach(newM => {
+            const existingM = trackerDoc.milestones.find(m => m.milestoneNumber === newM.milestoneNumber);
+            if (existingM) {
+              if (newM.amount !== null) existingM.amount = newM.amount;
+              if (newM.dateReceived !== null) existingM.dateReceived = newM.dateReceived;
+              if (newM.status) existingM.status = newM.status;
+            } else {
+              trackerDoc.milestones.push(newM);
+            }
+          });
+        }
+
+        await trackerDoc.save();
+
+        successCount++;
+        results.push({
+          row: rowNumber,
+          projectName: projNameRaw,
+          status: 'success',
+          message: `Successfully added & synced "${projNameRaw}" with ${parsedMilestones.filter(m => m.amount > 0).length} milestones`
+        });
+      } catch (rowErr) {
+        console.error(`Error processing row ${rowNumber}:`, rowErr);
         errorCount++;
         results.push({
           row: rowNumber,
           projectName: projNameRaw,
           status: 'error',
-          message: `No matching Project found with name "${projNameRaw}" — create the Project first in Project Management before uploading payment data.`
+          message: rowErr.message || 'Error parsing row data'
         });
-        return;
-      }
-
-      const targetProject = matchedProjects[0];
-      const archDesigner = rowValues[4] ? String(rowValues[4]).trim() : '';
-
-      const parsedMilestones = [];
-      for (let mIdx = 0; mIdx < 5; mIdx++) {
-        const baseCol = 6 + (mIdx * 4);
-        const amountVal = rowValues[baseCol + 1];
-        const dateVal = rowValues[baseCol + 2];
-        const statusVal = rowValues[baseCol + 3];
-
-        let numAmount = null;
-        if (amountVal != null && amountVal !== '') {
-          const cleanAmt = String(amountVal).replace(/[^0-9.]/g, '');
-          numAmount = cleanAmt ? Number(cleanAmt) : null;
-        }
-
-        let dateRec = null;
-        if (dateVal) {
-          const parsedD = new Date(dateVal);
-          if (!isNaN(parsedD.getTime())) dateRec = parsedD;
-        }
-
-        let st = statusVal ? String(statusVal).trim() : 'Due';
-        if (!['Due', 'WIP', 'Received'].includes(st)) st = 'Due';
-        if (dateRec && !statusVal) st = 'Received';
-
-        parsedMilestones.push({
-          milestoneNumber: mIdx + 1,
-          amount: numAmount,
-          dateReceived: dateRec,
-          status: st
-        });
-      }
-
-      const uploadedValueVal = rowValues[27];
-      let mismatchWarning = null;
-      if (uploadedValueVal != null && uploadedValueVal !== '') {
-        const cleanVal = String(uploadedValueVal).replace(/[^0-9.]/g, '');
-        const numVal = Number(cleanVal);
-        if (numVal && targetProject.budget && Math.abs(numVal - targetProject.budget) > 1) {
-          mismatchWarning = `Uploaded Total Value (₹${numVal.toLocaleString()}) differs from Project budget (₹${Number(targetProject.budget).toLocaleString()}) — Project budget was NOT changed.`;
-        }
-      }
-
-      const notesVal = rowValues[31] ? String(rowValues[31]).trim() : '';
-
-      results.push({
-        row: rowNumber,
-        projectName: targetProject.projectName,
-        status: 'success',
-        action: 'updated',
-        mismatchWarning,
-        projectId: targetProject._id,
-        parsedMilestones,
-        notesVal,
-        archDesigner,
-        targetProject
-      });
-    });
-
-    // Execute database updates for valid rows & sync finance documents
-    for (const r of results) {
-      if (r.status === 'success' && r.projectId) {
-        const syncedMilestones = [];
-        for (const mItem of r.parsedMilestones) {
-          const synced = await syncMilestoneFinanceDocuments(r.targetProject, mItem, req.user._id);
-          syncedMilestones.push(synced);
-        }
-
-        await ProjectMilestonePayment.findOneAndUpdate(
-          { project: r.projectId },
-          {
-            project: r.projectId,
-            architectDesigner: r.archDesigner,
-            milestones: syncedMilestones,
-            notes: r.notesVal,
-            updatedBy: req.user._id
-          },
-          { upsert: true, new: true }
-        );
-        successCount++;
       }
     }
 
-    return res.json({
+    return res.status(200).json({
       success: true,
-      totalRows: worksheet.rowCount - 2,
+      message: `Sheet processed successfully! ${successCount} project(s) added and synced to database.`,
       successCount,
-      skippedCount,
       errorCount,
+      skippedCount,
       results
     });
-  } catch (error) {
-    return res.status(500).json({ success: false, message: error.message });
+  } catch (err) {
+    console.error('Error during bulk upload:', err);
+    return res.status(500).json({ success: false, message: 'Server error processing upload file: ' + err.message });
   }
 };
 
-// @desc    Export Milestone Payment Trackers (Excel / PDF / CSV)
-// @route   GET /api/finance/milestone-tracker/export
-// @access  Private (financeAccess)
 const exportTrackers = async (req, res) => {
   const { format = 'excel', projectStatus, client } = req.query;
 
