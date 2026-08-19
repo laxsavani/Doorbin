@@ -251,17 +251,23 @@ export const MilestoneTrackerTab = ({ setToast }) => {
   const parseExcelDateValue = (val) => {
     if (!val) return '';
     if (val instanceof Date && !isNaN(val.getTime())) {
-      return val.toISOString().split('T')[0];
+      const y = val.getFullYear();
+      const m = String(val.getMonth() + 1).padStart(2, '0');
+      const d = String(val.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
     }
     // Excel Serial Number (e.g. 46122)
     if (typeof val === 'number' && val > 30000 && val < 60000) {
-      const date = new Date(Math.round((val - 25569) * 86400 * 1000));
-      return !isNaN(date.getTime()) ? date.toISOString().split('T')[0] : '';
+      const date = new Date((val - (25567 + 2)) * 86400 * 1000);
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, '0');
+      const d = String(date.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
     }
     const str = String(val).trim();
     if (!str || str === '-' || str === '.') return '';
 
-    // Handle format like "10-Apr-26" or "12-May-2028"
+    // Handle format like "10-Apr-26" or "12-May-26" or "12-May-2028"
     const mmmMatch = str.match(/^(\d{1,2})[-/ ]([A-Za-z]{3,4})[-/ ](\d{2,4})$/);
     if (mmmMatch) {
       const day = String(parseInt(mmmMatch[1], 10)).padStart(2, '0');
@@ -284,7 +290,13 @@ export const MilestoneTrackerTab = ({ setToast }) => {
     }
 
     const pd = new Date(str);
-    return !isNaN(pd.getTime()) ? pd.toISOString().split('T')[0] : '';
+    if (!isNaN(pd.getTime())) {
+      const y = pd.getFullYear();
+      const m = String(pd.getMonth() + 1).padStart(2, '0');
+      const d = String(pd.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+    return '';
   };
 
   const handleBulkUploadSubmit = async (e) => {
@@ -373,60 +385,10 @@ export const MilestoneTrackerTab = ({ setToast }) => {
         }
 
         try {
-          // Find or create Project
-          let targetProj = allProjects.find(p => p.projectName?.toLowerCase() === projName.toLowerCase());
-
           const cleanCName = (clientName || `${projName} Client`).trim();
           const cSlug = cleanCName.toLowerCase().replace(/[^a-z0-9]/g, '');
 
-          if (!targetProj) {
-            // Find or create Client
-            let targetClient = allClients.find(c => {
-              const cName = (c.companyName || c.clientName || '').toLowerCase();
-              return clientName && cName.includes(clientName.toLowerCase());
-            });
-
-            if (!targetClient) {
-              const createdClientRes = await clientService.createClient({
-                companyName: cleanCName,
-                clientName: cleanCName,
-                email: `${cSlug || 'client'}@doorbinclient.com`,
-                phone: '9876543210',
-                category: 'Client',
-                directoryType: 'Client',
-                industry: 'Real Estate & Architecture',
-                status: 'Active'
-              });
-              targetClient = createdClientRes?.client || createdClientRes?.data || createdClientRes;
-              allClients.push(targetClient);
-            }
-
-            const clientId = targetClient?._id || targetClient;
-            const now = new Date();
-            const todayStr = now.toISOString().split('T')[0];
-            const endD = new Date(now.getTime() + 60 * 86400000);
-            const endDStr = endD.toISOString().split('T')[0];
-
-            const createdProjRes = await projectService.createProject({
-              projectName: projName,
-              client: clientId,
-              projectCategory: 'Architecture',
-              productionManager: defaultPmId,
-              startDate: todayStr,
-              endDate: endDStr,
-              priority: 'Medium',
-              billingParty: cleanCName,
-              architect: colD || '',
-              status: ['In Progress', 'Completed', 'Delayed', 'Not Started'].includes(colE) ? colE : 'In Progress',
-              budget: 100000
-            });
-            targetProj = createdProjRes?.project || createdProjRes?.data || createdProjRes;
-            allProjects.push(targetProj);
-          }
-
-          const targetProjectId = targetProj?._id;
-
-          // Parse 5 Milestones
+          // Parse 5 Milestones First to compute exact Total Project Value & Budget
           // M1: F(5), G(6 Amt), H(7 Date), I(8 Status)
           // M2: J(9), K(10 Amt), L(11 Date), M(12 Status)
           // M3: N(13), O(14 Amt), P(15 Date), Q(16 Status)
@@ -468,11 +430,93 @@ export const MilestoneTrackerTab = ({ setToast }) => {
             });
           }
 
+          // Total Project Value from Sheet (Col AA / Index 26) or sum of milestones
+          const totalValRaw = row[26];
+          let sheetTotalValue = totalParsedAmt;
+          if (totalValRaw !== undefined && totalValRaw !== '' && totalValRaw !== '-') {
+            const cleanTot = String(totalValRaw).replace(/[^0-9.]/g, '');
+            if (cleanTot && Number(cleanTot) > 0) sheetTotalValue = Number(cleanTot);
+          }
+          if (sheetTotalValue <= 0) sheetTotalValue = 100000;
+
+          // Normalized Project Status
+          let exactStatus = 'In Progress';
+          const lowerStatus = colE.toLowerCase();
+          if (lowerStatus.includes('prog') || lowerStatus.includes('wip')) exactStatus = 'In Progress';
+          else if (lowerStatus.includes('comp') || lowerStatus.includes('done')) exactStatus = 'Completed';
+          else if (lowerStatus.includes('delay')) exactStatus = 'Delayed';
+          else if (lowerStatus.includes('hold')) exactStatus = 'On Hold';
+          else if (lowerStatus.includes('not') || lowerStatus.includes('start')) exactStatus = 'Not Started';
+
+          // Find or create Project
+          let targetProj = allProjects.find(p => p.projectName?.toLowerCase() === projName.toLowerCase());
+
+          if (!targetProj) {
+            // Find or create Client
+            let targetClient = allClients.find(c => {
+              const cName = (c.companyName || c.clientName || '').toLowerCase();
+              return clientName && cName.includes(clientName.toLowerCase());
+            });
+
+            if (!targetClient) {
+              const createdClientRes = await clientService.createClient({
+                companyName: cleanCName,
+                clientName: cleanCName,
+                email: `${cSlug || 'client'}@doorbinclient.com`,
+                phone: '9876543210',
+                category: 'Client',
+                directoryType: 'Client',
+                industry: 'Real Estate & Architecture',
+                status: 'Active'
+              });
+              targetClient = createdClientRes?.client || createdClientRes?.data || createdClientRes;
+              allClients.push(targetClient);
+            }
+
+            const clientId = targetClient?._id || targetClient;
+            const now = new Date();
+            const todayStr = now.toISOString().split('T')[0];
+            const endD = new Date(now.getTime() + 60 * 86400000);
+            const endDStr = endD.toISOString().split('T')[0];
+
+            const createdProjRes = await projectService.createProject({
+              projectName: projName,
+              client: clientId,
+              projectCategory: 'Architecture',
+              productionManager: defaultPmId,
+              startDate: todayStr,
+              endDate: endDStr,
+              priority: 'Medium',
+              billingParty: cleanCName,
+              architect: colD || '',
+              status: exactStatus,
+              budget: sheetTotalValue
+            });
+            targetProj = createdProjRes?.project || createdProjRes?.data || createdProjRes;
+            allProjects.push(targetProj);
+          } else {
+            // Update existing project budget, status and architect from sheet
+            try {
+              await projectService.updateProject(targetProj._id, {
+                budget: sheetTotalValue,
+                status: exactStatus,
+                architect: colD || targetProj.architect || ''
+              });
+            } catch (pUpdateErr) {
+              console.warn('Notice updating project metadata:', pUpdateErr);
+            }
+          }
+
+          const targetProjectId = targetProj?._id;
+
+          // Extract Notes from Column 30 (AE)
+          const notesFromSheet = String(row[30] || '').trim();
+
           // Update Project Milestone Payment document
           const trackerPayload = {
             projectId: targetProjectId,
             architectDesigner: colD || targetProj.architect || '',
-            notes: String(row[30] || ''),
+            notes: notesFromSheet,
             milestones: parsedMilestones
           };
 
@@ -487,7 +531,7 @@ export const MilestoneTrackerTab = ({ setToast }) => {
             row: rIdx + 1,
             projectName: projName,
             status: 'success',
-            message: `Synced with ${parsedMilestones.filter(m => m.amount > 0).length} milestones`
+            message: `Synced "${projName}" (Status: ${exactStatus}, Value: ₹${sheetTotalValue.toLocaleString('en-IN')})`
           });
         } catch (rowErr) {
           console.error(`Row ${rIdx + 1} processing error:`, rowErr);
@@ -510,7 +554,7 @@ export const MilestoneTrackerTab = ({ setToast }) => {
 
       if (setToast) {
         setToast({ 
-          message: `Bulk upload completed! ${successCount} project(s) added & synced to database.`, 
+          message: `Bulk upload completed! ${successCount} project(s) synchronized with exact sheet values.`, 
           type: 'success' 
         });
       }
