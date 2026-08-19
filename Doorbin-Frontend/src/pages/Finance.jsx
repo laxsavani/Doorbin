@@ -55,6 +55,7 @@ export const Finance = () => {
 
   // Search & Filters
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedFY, setSelectedFY] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [dateFilter, setDateFilter] = useState('all'); // 'all' | 'today' | 'this_month' | 'last_month' | 'custom'
   const [fromDate, setFromDate] = useState('');
@@ -100,6 +101,18 @@ export const Finance = () => {
   useEffect(() => {
     setFinancePage(1);
   }, [activeTab, dateFilter, fromDate, toDate]);
+
+  
+  // Helper: Filter record by Financial Year (Apr 1 - Mar 31)
+  const matchesFinancialYear = (dateVal, fy) => {
+    if (!fy || fy === 'ALL' || !dateVal) return true;
+    const d = new Date(dateVal);
+    if (isNaN(d.getTime())) return true;
+    const y = d.getFullYear();
+    const m = d.getMonth() + 1; // 1-12
+    const recordFY = m >= 4 ? `FY ${y}-${(y + 1).toString().slice(-2)}` : `FY ${y - 1}-${y.toString().slice(-2)}`;
+    return recordFY === fy;
+  };
 
   const loadFinanceData = async () => {
     setLoading(true);

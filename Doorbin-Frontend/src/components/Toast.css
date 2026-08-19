@@ -1,48 +1,52 @@
 /* Toast alert component styles */
-.toast-container {
-  position: fixed;
-  top: 1rem;
-  right: 1rem;
-  z-index: 2000;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  max-width: 400px;
-  width: calc(100% - 2rem);
+.toast-portal-wrapper {
+  position: fixed !important;
+  top: 24px !important;
+  right: 24px !important;
+  z-index: 999999 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0.5rem !important;
+  max-width: 380px !important;
+  width: auto !important;
+  pointer-events: auto !important;
 }
 
 .toast {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 0.75rem;
-  padding: 0.875rem 1rem;
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-lg);
-  font-size: var(--font-size-sm);
-  color: var(--color-text-main);
-  animation: slideInRight 250ms ease-out;
-  background-color: var(--color-bg-card);
-  border-left: 4px solid var(--color-primary);
+  padding: 0.75rem 1rem;
+  border-radius: 10px;
+  box-shadow: 0 4px 16px rgba(28, 26, 23, 0.12);
+  font-size: 13px;
+  font-weight: 500;
+  color: #1C1A17;
+  animation: slideInTopRight 200ms cubic-bezier(0.16, 1, 0.3, 1);
+  background-color: #FFFFFF;
+  border: 1px solid #ECE9E4;
+  border-left: 4px solid #1C1A17;
 }
 
 .toast-success {
-  border-left-color: var(--color-success);
-  background-color: #f0fdf4;
+  border-left-color: #2E7D4E;
+  background-color: #FAFDFB;
 }
 
 .toast-error {
-  border-left-color: var(--color-danger);
-  background-color: #fef2f2;
+  border-left-color: #C75B39;
+  background-color: #FDFBFA;
 }
 
 .toast-info {
-  border-left-color: var(--color-secondary);
-  background-color: #f0f9ff;
+  border-left-color: #8A857D;
+  background-color: #FAF9F7;
 }
 
 .toast-content {
   flex: 1;
-  font-weight: 500;
+  font-weight: 600;
+  color: #1C1A17;
   word-break: break-word;
 }
 
@@ -50,14 +54,19 @@
   background: none;
   border: none;
   cursor: pointer;
-  color: var(--color-text-muted);
+  color: #8A857D;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 2px;
+  margin-left: 8px;
 }
 
-@keyframes slideInRight {
-  from { transform: translateX(100%); opacity: 0; }
-  to { transform: translateX(0); opacity: 1; }
+.toast-close:hover {
+  color: #1C1A17;
+}
+
+@keyframes slideInTopRight {
+  from { transform: translateY(-12px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
 }

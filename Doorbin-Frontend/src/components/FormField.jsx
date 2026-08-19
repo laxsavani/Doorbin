@@ -7,6 +7,7 @@ import React from 'react';
  */
 export const FormField = ({
   label,
+  labelRight,
   name,
   type = 'text',
   value,
@@ -35,9 +36,12 @@ export const FormField = ({
   return (
     <div className="form-group">
       {label && (
-        <label htmlFor={name} className="form-label">
-          {label} {required && <span style={{ color: 'var(--color-danger)' }}>*</span>}
-        </label>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+          <label htmlFor={name} className="form-label" style={{ margin: 0 }}>
+            {label} {required && <span style={{ color: 'var(--color-danger)' }}>*</span>}
+          </label>
+          {labelRight && <div>{labelRight}</div>}
+        </div>
       )}
 
       {type === 'select' ? (

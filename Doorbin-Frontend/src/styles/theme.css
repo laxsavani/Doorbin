@@ -1,46 +1,52 @@
-/* Master Design Tokens & SOP Compliant CSS Variables */
 :root {
-  /* Color Palette - Matching Exact User Specification */
-  --color-primary: #B68D40;         /* Gold Accent */
-  --color-primary-hover: #9e7834;
-  --color-primary-gradient: linear-gradient(135deg, #B68D40 0%, #8a6828 100%);
-  --color-primary-light: #fbf7f0;
+  /* Studio PM Design Tokens - Exact Studio PM Architecture */
+  --color-primary: #C75B39;         /* Terracotta Coral Accent */
+  --color-primary-hover: #A8492C;
+  --color-primary-light: #FDF0E9;
+  --color-primary-gradient: linear-gradient(135deg, #C75B39 0%, #A8492C 100%);
   
-  --color-secondary: #1F1F1F;       /* Charcoal Black */
-  --color-secondary-hover: #121212;
+  --color-secondary: #1C1A17;       /* Refined Deep Charcoal Black */
+  --color-secondary-hover: #3A362F;
   
-  --color-success: #10b981;
-  --color-success-bg: #ecfdf5;
-  --color-warning: #f59e0b;
-  --color-warning-bg: #fffbeb;
-  --color-danger: #ef4444;
-  --color-danger-bg: #fef2f2;
+  --color-success: #2E7D4E;
+  --color-success-bg: #EAF5EE;
+  --color-warning: #C75B39;
+  --color-warning-bg: #FDF0E9;
+  --color-danger: #C75B39;
+  --color-danger-bg: #FDF0E9;
+  --color-info: #2563EB;
+  --color-info-bg: #EBF3FC;
   
-  --color-bg-page: #f7f6f2;
-  --color-bg-card: #ffffff;         /* White */
-  --color-bg-input: #f4efe8;
-  --color-bg-dark: #1F1F1F;         /* Charcoal Black */
+  --color-bg-page: #FAF9F7;         /* Warm Linen Canvas */
+  --color-bg-card: #FFFFFF;         /* Crisp White */
+  --color-bg-input: #FFFFFF;
+  --color-bg-subtle: #F5F2ED;
+  --color-bg-sidebar: #FAF9F7;
+  --color-bg-dark: #1C1A17;
   
-  --color-text-main: #1F1F1F;       /* Charcoal Black */
-  --color-text-muted: #78726a;
-  --color-text-inverse: #ffffff;    /* White */
+  --color-text-main: #1C1A17;       /* Refined Deep Charcoal */
+  --color-text-muted: #8A857D;      /* Warm Stone Gray */
+  --color-text-dim: #B5B0A8;        /* Placeholder / Tag */
+  --color-text-inverse: #FAF9F7;    /* Off-white */
   
-  --color-border: #dcd3c8;
-  --color-border-hover: #c4b9aa;
-  --color-border-danger: #ef4444;
+  --color-border: #ECE9E4;          /* Soft Warm Off-White Border */
+  --color-border-hover: #C9C4BC;
+  --color-border-sub: #F5F2ED;
+  --color-border-danger: #EAD9CC;
   
-  /* Typography - Matching Exact Screenshot Specification */
-  --font-heading: 'Cormorant Garamond', Georgia, serif;
-  --font-body: 'Poppins', system-ui, -apple-system, sans-serif;
-  --font-family-base: 'Poppins', system-ui, -apple-system, sans-serif;
+  /* Typography - Exact Studio PM Font Families & Scales */
+  --font-heading: 'Newsreader', Georgia, serif;
+  --font-body: 'Hanken Grotesk', system-ui, -apple-system, sans-serif;
+  --font-family-base: 'Hanken Grotesk', system-ui, -apple-system, sans-serif;
+  --font-mono: 'Spline Sans Mono', monospace;
 
-  --font-size-xs: 0.75rem;    /* 12px */
-  --font-size-sm: 0.875rem;   /* 14px */
-  --font-size-base: 1rem;     /* 16px */
-  --font-size-lg: 1.125rem;   /* 18px */
-  --font-size-xl: 1.25rem;    /* 20px */
-  --font-size-2xl: 1.625rem;  /* 26px */
-  --font-size-3xl: 2.25rem;   /* 36px */
+  --font-size-xs: 0.725rem;   /* 11.5px */
+  --font-size-sm: 0.8125rem;  /* 13px */
+  --font-size-base: 0.875rem; /* 14px */
+  --font-size-lg: 1rem;       /* 16px */
+  --font-size-xl: 1.1875rem;  /* 19px */
+  --font-size-2xl: 1.5rem;    /* 24px */
+  --font-size-3xl: 2rem;      /* 32px */
 
   /* Spacing */
   --spacing-1: 0.25rem;
@@ -53,21 +59,21 @@
   --spacing-10: 2.5rem;
 
   /* Elevation & Shadows */
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.04);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.06);
-  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.08);
-  --shadow-xl: 0 24px 48px -12px rgba(0, 0, 0, 0.12);
+  --shadow-sm: 0 1px 3px rgba(28, 26, 23, 0.03);
+  --shadow-md: 0 4px 16px rgba(28, 26, 23, 0.06);
+  --shadow-lg: 0 12px 32px rgba(28, 26, 23, 0.08);
+  --shadow-xl: 0 24px 48px -12px rgba(28, 26, 23, 0.12);
 
   /* Border Radius */
-  --radius-sm: 0.375rem;
-  --radius-md: 0.75rem;
-  --radius-lg: 1.25rem;
-  --radius-xl: 1.75rem;
-  --radius-pill: 9999px;
+  --radius-sm: 0.375rem;      /* 6px */
+  --radius-md: 0.5rem;        /* 8px */
+  --radius-lg: 0.75rem;       /* 12px */
+  --radius-xl: 1rem;          /* 16px */
+  --radius-pill: 99px;
 
   /* Transitions */
-  --transition-fast: 150ms ease-in-out;
-  --transition-normal: 250ms ease-in-out;
+  --transition-fast: 150ms ease;
+  --transition-normal: 250ms ease;
 }
 
 /* Reset & Base Styles */
@@ -86,10 +92,18 @@ body {
   min-height: 100vh;
 }
 
-/* Headings using Cormorant Garamond */
+/* Headings using Newsreader Serif */
 h1, h2, h3, h4, h5, h6, .hero-serif-title {
   font-family: var(--font-heading) !important;
-  font-weight: 600;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: var(--color-text-main);
+}
+
+.hero-serif-title {
+  font-size: 32px;
+  font-style: italic;
+  font-weight: 400;
 }
 
 .app-container {
@@ -100,92 +114,112 @@ h1, h2, h3, h4, h5, h6, .hero-serif-title {
 
 .main-content {
   flex: 1;
-  padding: var(--spacing-6);
-  max-width: 1280px;
+  padding: 32px 36px 60px;
   width: 100%;
   margin: 0 auto;
 }
 
-/* Buttons SOP Standard */
+/* Buttons Studio PM Standard */
 .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: var(--spacing-2);
-  padding: 0.75rem 1.5rem;
-  font-size: var(--font-size-sm);
+  gap: 6px;
+  padding: 8px 16px;
+  font-size: 13px;
   font-weight: 600;
-  border-radius: var(--radius-pill);
+  border-radius: 8px;
   border: 1px solid transparent;
   cursor: pointer;
   transition: all var(--transition-fast);
   text-decoration: none;
   line-height: 1.25;
+  font-family: var(--font-body);
 }
 
 .btn-primary {
-  background: var(--color-primary-gradient);
-  color: var(--color-text-inverse);
-  box-shadow: 0 4px 14px rgba(182, 141, 64, 0.3);
+  background-color: #1C1A17;
+  color: #FAF9F7;
+  border-color: #1C1A17;
+  box-shadow: 0 1px 3px rgba(28, 26, 23, 0.08);
 }
 .btn-primary:hover:not(:disabled) {
-  opacity: 0.95;
-  transform: translateY(-1px);
-  box-shadow: 0 6px 18px rgba(182, 141, 64, 0.4);
+  background-color: #3A362F;
+  border-color: #3A362F;
+  color: #FAF9F7;
+}
+
+.btn-accent {
+  background-color: var(--color-primary);
+  color: #FAF9F7;
+  border-color: var(--color-primary);
+}
+.btn-accent:hover:not(:disabled) {
+  background-color: var(--color-primary-hover);
 }
 
 .btn-secondary {
-  background-color: var(--color-bg-card);
-  color: var(--color-text-main);
-  border-color: var(--color-border);
+  background-color: #FFFFFF;
+  color: #1C1A17;
+  border-color: #ECE9E4;
 }
 .btn-secondary:hover:not(:disabled) {
-  background-color: var(--color-bg-input);
+  background-color: #F1EEE9;
+  border-color: #C9C4BC;
 }
 
 .btn-danger {
-  background-color: var(--color-danger);
-  color: var(--color-text-inverse);
+  background-color: #FDF0E9;
+  color: #C75B39;
+  border-color: #EAD9CC;
+}
+.btn-danger:hover:not(:disabled) {
+  background-color: #C75B39;
+  color: #FFFFFF;
 }
 
 .btn:disabled {
-  opacity: 0.6;
+  opacity: 0.55;
   cursor: not-allowed;
   transform: none !important;
 }
 
-/* Form Controls & Validation SOP Standard */
+/* Form Controls & Validation */
 .form-group {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-1);
-  margin-bottom: var(--spacing-4);
+  gap: 4px;
+  margin-bottom: 14px;
   width: 100%;
 }
 
 .form-label {
-  font-size: var(--font-size-xs);
+  font-size: 12px;
   font-weight: 600;
-  color: var(--color-text-main);
-  margin-left: var(--spacing-3);
+  color: #55504A;
+  margin-left: 2px;
 }
 
 .form-control {
   width: 100%;
-  padding: 0.85rem 1.25rem;
-  font-size: var(--font-size-sm);
+  padding: 8px 14px;
+  font-size: 13px;
   font-family: var(--font-body);
-  color: var(--color-text-main);
-  background-color: var(--color-bg-card);
-  border: 1px solid var(--color-border);
-  border-radius: 14px;
+  color: #1C1A17;
+  background-color: #FFFFFF;
+  border: 1px solid #ECE9E4;
+  border-radius: 8px;
   outline: none;
-  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+  transition: border-color var(--transition-fast);
+}
+
+.form-control::placeholder {
+  color: #B5B0A8;
 }
 
 .form-control:focus {
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px rgba(182, 141, 64, 0.15);
+  border-color: #C75B39;
+  box-shadow: 0 0 0 2px rgba(199, 91, 57, 0.12);
 }
 
 /* Universal Custom Dropdown & Select Styling */
@@ -193,121 +227,132 @@ select, select.form-control {
   appearance: none;
   -webkit-appearance: none;
   -moz-appearance: none;
-  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231F1F1F' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238A857D' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
   background-repeat: no-repeat;
-  background-position: right 1.25rem center;
-  background-size: 0.95rem;
-  padding-right: 2.75rem !important;
+  background-position: right 12px center;
+  background-size: 0.85rem;
+  padding-right: 2.25rem !important;
   cursor: pointer;
-  border-radius: 14px !important;
+  border-radius: 8px !important;
+  background-color: #FFFFFF;
+  border: 1px solid #ECE9E4;
+  font-size: 12.5px;
+  color: #55504A;
 }
 
 select option {
-  background-color: #ffffff !important;
-  color: #1F1F1F !important;
-  padding: 0.75rem 1rem !important;
-  font-size: 0.875rem !important;
+  background-color: #FFFFFF !important;
+  color: #1C1A17 !important;
+  padding: 8px 12px !important;
+  font-size: 13px !important;
   font-family: var(--font-body) !important;
-  border-radius: 8px;
 }
 
 select option:hover,
 select option:focus,
 select option:active,
 select option:checked {
-  background-color: #fbf7f0 !important;
-  color: #B68D40 !important;
+  background-color: #F1EEE9 !important;
+  color: #1C1A17 !important;
 }
 
-/* SOP #7.3: Invalid fields must show a red border */
 .form-control.is-invalid {
-  border-color: var(--color-border-danger) !important;
-  background-color: #fff5f5;
+  border-color: #C75B39 !important;
+  background-color: #FDF0E9;
 }
 
 .form-control.is-invalid:focus {
-  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15);
+  box-shadow: 0 0 0 2px rgba(199, 91, 57, 0.2);
 }
 
-/* SOP #7.2: Validation messages must be displayed directly below the respective field */
 .error-message {
-  font-size: var(--font-size-xs);
-  color: var(--color-danger);
-  margin-top: 4px;
-  margin-left: var(--spacing-3);
+  font-size: 11.5px;
+  color: #C75B39;
+  margin-top: 3px;
+  margin-left: 2px;
   font-weight: 500;
 }
 
-/* Table SOP Standard */
+/* Table Studio PM Standard */
 .table-responsive {
   width: 100%;
   overflow-x: auto;
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--color-border);
-  background-color: var(--color-bg-card);
-  box-shadow: var(--shadow-sm);
+  border-radius: 12px;
+  border: 1px solid #ECE9E4;
+  background-color: #FFFFFF;
+  box-shadow: none;
 }
 
 .table {
   width: 100%;
   border-collapse: collapse;
   text-align: left;
-  font-size: var(--font-size-sm);
+  font-size: 13px;
+  font-family: var(--font-body);
 }
 
 .table th {
-  background-color: var(--color-bg-input);
-  color: var(--color-text-muted);
-  font-weight: 600;
-  padding: var(--spacing-3) var(--spacing-4);
-  border-bottom: 1px solid var(--color-border);
+  background-color: #FAF9F7;
+  color: #8A857D;
+  font-family: var(--font-mono);
+  font-weight: 500;
+  padding: 10px 16px;
+  border-bottom: 1px solid #ECE9E4;
   text-transform: uppercase;
-  font-size: 0.75rem;
-  letter-spacing: 0.05em;
+  font-size: 10px;
+  letter-spacing: 0.06em;
 }
 
 .table td {
-  padding: var(--spacing-3) var(--spacing-4);
-  border-bottom: 1px solid var(--color-border);
-  color: var(--color-text-main);
+  padding: 12px 16px;
+  border-bottom: 1px solid #F5F2ED;
+  color: #1C1A17;
   vertical-align: middle;
+  font-size: 13px;
 }
 
 .table tr:last-child td {
   border-bottom: none;
 }
 
-.table tr:hover {
-  background-color: var(--color-bg-input);
+.table tr:hover td {
+  background-color: #FAF9F7;
 }
 
+/* Badges & Status Pills */
 .badge {
   display: inline-flex;
   align-items: center;
-  padding: 0.25em 0.6em;
-  font-size: 0.75rem;
+  padding: 3px 8px;
+  font-size: 10.5px;
   font-weight: 600;
-  border-radius: var(--radius-pill);
+  border-radius: 99px;
+  font-family: var(--font-body);
+  white-space: nowrap;
 }
 .badge-success {
-  background-color: var(--color-success-bg);
-  color: var(--color-success);
+  background-color: #EAF5EE;
+  color: #2E7D4E;
 }
 .badge-warning {
-  background-color: var(--color-warning-bg);
-  color: var(--color-warning);
+  background-color: #FDF0E9;
+  color: #C75B39;
 }
 .badge-danger {
-  background-color: var(--color-danger-bg);
-  color: var(--color-danger);
+  background-color: #FDF0E9;
+  color: #C75B39;
+}
+.badge-secondary {
+  background-color: #F1EEE9;
+  color: #55504A;
 }
 
-/* Smooth Page Fade-In and Element Animations */
+/* Smooth Page Fade-In and Animations */
 .smooth-fade-in {
-  animation: pageFadeIn 350ms cubic-bezier(0.16, 1, 0.3, 1);
+  animation: fadeUp 300ms ease both;
 }
 
-@keyframes pageFadeIn {
+@keyframes fadeUp {
   from {
     opacity: 0;
     transform: translateY(8px);
@@ -316,4 +361,31 @@ select option:checked {
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+
+.micro-category-pill {
+  font-family: var(--font-mono) !important;
+  font-size: 10.5px !important;
+  letter-spacing: 0.05em !important;
+  text-transform: uppercase !important;
+  color: #8A857D !important;
+  background-color: #F1EEE9 !important;
+  padding: 2px 8px !important;
+  border-radius: 4px !important;
+  border: 1px solid #ECE9E4 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  font-weight: 500 !important;
 }

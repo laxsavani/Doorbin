@@ -148,10 +148,12 @@ export const MainLayout = ({ children }) => {
     ? userRoleObj
     : (userRoleObj?.name || 'Director');
 
-  // Extract Backend Permissions Object
-  const activePermissions = (typeof userRoleObj === 'object' && userRoleObj?.permissions)
+  // Extract Backend Permissions Object (Merged with Secondary Role for Dual BDE + HR)
+  const primaryPerms = (typeof userRoleObj === 'object' && userRoleObj?.permissions)
     ? userRoleObj.permissions
     : (rawUser?.permissions || ROLES_DATA.find(r => r.name.toLowerCase() === userRoleName.toLowerCase())?.permissions || ROLES_DATA[0].permissions);
+  const secondaryPerms = (typeof rawUser?.secondaryRole === 'object' && rawUser?.secondaryRole?.permissions) ? rawUser.secondaryRole.permissions : {};
+  const activePermissions = { ...primaryPerms, ...secondaryPerms };
 
   const checkPerm = (permissionKeys) => {
     if (!activePermissions) return false;
@@ -163,16 +165,14 @@ export const MainLayout = ({ children }) => {
   const isDirectorRole = userRoleName.toLowerCase() === 'director';
 
   const projectSubItems = [
-    (isDirectorRole || checkPerm('projectManagement')) ? { title: 'Projects & Stages', path: '/projects', icon: FolderKanban } : null,
-    (isDirectorRole || checkPerm(['taskManagement', 'projectManagement'])) ? { title: 'Task Management', path: '/tasks', icon: CheckSquare } : null,
+    (isDirectorRole || checkPerm('projectManagement')) ? { title: 'Projects', path: '/projects', icon: FolderKanban } : null,
     (isDirectorRole || checkPerm(['timelineAccess', 'projectManagement'])) ? { title: 'Gantt Timeline', path: '/timeline', icon: GitCommit } : null,
-    (isDirectorRole || checkPerm(['calendarAccess', 'taskManagement', 'projectManagement'])) ? { title: 'Studio Calendar', path: '/calendar', icon: CalendarIcon } : null,
-    (isDirectorRole || checkPerm(['resourceAllocation', 'projectManagement'])) ? { title: 'Resource Allocation', path: '/resources', icon: PieChart } : null
+    (isDirectorRole || checkPerm(['calendarAccess', 'taskManagement', 'projectManagement'])) ? { title: 'Studio Calendar', path: '/calendar', icon: CalendarIcon } : null
   ].filter(Boolean);
 
   const crmSubItems = [
     (isDirectorRole || checkPerm('businessDevAccess')) ? { title: 'Lead Management', path: '/enquiries', icon: Briefcase } : null,
-    (isDirectorRole || checkPerm('businessDevAccess')) ? { title: 'Client Directory', path: '/clients', icon: Building2 } : null,
+    (isDirectorRole || checkPerm('businessDevAccess')) ? { title: 'Directory', path: '/clients', icon: Building2 } : null,
     (isDirectorRole || checkPerm(['financeAccess', 'businessDevAccess'])) ? { title: 'Finance Management', path: '/finance', icon: DollarSign } : null
   ].filter(Boolean);
 

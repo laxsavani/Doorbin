@@ -259,7 +259,34 @@ export const StudioCalendar = () => {
         }
       });
 
-      const combined = [...fetched, ...holidayEvents, ...leaveEvents, ...projectEvents];
+      // Expand tasks across their entire start-to-end date duration (Aug 20 to Aug 28)
+      const expandedTaskEvents = [];
+      (fetched || []).forEach(e => {
+        if (e.type === 'Task') {
+          const startD = parseLocalDateStr(e.startDate || e.dateStr);
+          const endD = parseLocalDateStr(e.endDate || e.dueDate || e.dateStr) || startD;
+          if (startD && endD && startD <= endD) {
+            const cur = new Date(startD);
+            const stop = new Date(endD);
+            while (cur <= stop) {
+              const dStr = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, '0')}-${String(cur.getDate()).padStart(2, '0')}`;
+              expandedTaskEvents.push({
+                ...e,
+                id: `${e.id || e.taskId}_${dStr}`,
+                date: dStr,
+                dateStr: dStr
+              });
+              cur.setDate(cur.getDate() + 1);
+            }
+          } else {
+            expandedTaskEvents.push(e);
+          }
+        } else {
+          expandedTaskEvents.push(e);
+        }
+      });
+
+      const combined = [...expandedTaskEvents, ...holidayEvents, ...leaveEvents, ...projectEvents];
       const uniqueEventsMap = new Map();
       combined.forEach(item => {
         const key = item.id ? String(item.id) : `${item.type}_${item.title}_${item.dateStr}`;

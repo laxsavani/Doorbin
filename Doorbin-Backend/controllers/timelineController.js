@@ -613,7 +613,10 @@ const getStudioCalendar = async (req, res) => {
       endDateFormatted: formatDDMMYYYY(t.endDate),
       startDate: t.startDate,
       endDate: t.endDate,
-      dateStr: t.endDate ? new Date(t.endDate).toISOString().split('T')[0] : new Date(t.startDate).toISOString().split('T')[0],
+      dateStr: (() => {
+        const d = t.endDate ? new Date(t.endDate) : (t.startDate ? new Date(t.startDate) : new Date());
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      })(),
       time: '05:00 PM'
     }));
 

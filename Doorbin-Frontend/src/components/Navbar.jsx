@@ -21,7 +21,7 @@ export const Navbar = () => {
 
   return (
     <header style={{
-      backgroundColor: 'var(--color-bg-card)',
+      backgroundColor: 'var(--color-bg-sidebar)',
       borderBottom: '1px solid var(--color-border)',
       padding: 'var(--spacing-3) var(--spacing-6)',
       display: 'flex',

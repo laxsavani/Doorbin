@@ -25,14 +25,18 @@ const recalculateProjectProgress = async (projectId) => {
   }
 
   const avgProgress = Number((totalStageProgress / stages.length).toFixed(2));
-  project.progressPercentage = avgProgress;
+  if (project.status === 'Completed') {
+    project.progressPercentage = 100;
+  } else {
+    project.progressPercentage = avgProgress;
+  }
 
-  // Auto status calculation
-  if (project.status !== 'On Hold') {
+  // Only auto-calculate status if not explicitly In Progress or Completed
+  if (project.status !== 'On Hold' && project.status !== 'Completed' && project.status !== 'In Progress') {
     const now = new Date();
     if (avgProgress === 100) {
       project.status = 'Completed';
-    } else if (now > project.endDate && avgProgress < 100) {
+    } else if (project.endDate && now > project.endDate && avgProgress < 100) {
       project.status = 'Delayed';
     } else if (avgProgress > 0) {
       project.status = 'In Progress';
@@ -61,7 +65,8 @@ const createProject = async (req, res) => {
     endDate,
     billingParty,
     productionManager,
-    assignedTeam
+    assignedTeam,
+    architect
   } = req.body;
 
   if (!projectName || !projectName.trim()) {
@@ -73,8 +78,12 @@ const createProject = async (req, res) => {
   if (!projectCategory || !['Architecture', 'Interior Design', 'Animation'].includes(projectCategory)) {
     return res.status(400).json({ message: 'Valid projectCategory (Architecture, Interior Design, Animation) is required' });
   }
-  if (!startDate || !endDate) {
-    return res.status(400).json({ message: 'startDate and endDate are required' });
+  if (startDate && endDate) {
+    const sTime = new Date(startDate).getTime();
+    const eTime = new Date(endDate).getTime();
+    if (sTime > eTime) {
+      return res.status(400).json({ message: 'startDate cannot be after endDate' });
+    }
   }
   if (!productionManager || !mongoose.Types.ObjectId.isValid(productionManager)) {
     return res.status(400).json({ message: 'Valid productionManager user ID is required' });
@@ -91,9 +100,9 @@ const createProject = async (req, res) => {
       return res.status(400).json({ message: 'Production Manager user not found' });
     }
 
-    const startMs = new Date(startDate).getTime();
-    const endMs = new Date(endDate).getTime();
-    const calcDays = Math.max(1, Math.ceil(Math.abs(endMs - startMs) / (1000 * 3600 * 24)) + 1);
+    const startMs = startDate ? new Date(startDate).getTime() : null;
+    const endMs = endDate ? new Date(endDate).getTime() : null;
+    const calcDays = (startMs && endMs) ? Math.max(1, Math.ceil(Math.abs(endMs - startMs) / (1000 * 3600 * 24)) + 1) : 0;
     const computedTotalDays = req.body.totalDays ? Number(req.body.totalDays) : calcDays;
 
     const project = await Project.create({
@@ -104,8 +113,8 @@ const createProject = async (req, res) => {
       projectSubType: projectSubType ? projectSubType.trim() : undefined,
       priority: priority || 'Medium',
       budget: budget ? Number(budget) : undefined,
-      startDate: new Date(startDate),
-      endDate: new Date(endDate),
+      startDate: startDate ? new Date(startDate) : undefined,
+      endDate: endDate ? new Date(endDate) : undefined,
       totalDays: computedTotalDays,
       totalWorkingDays: computedTotalDays,
       billingParty: billingParty ? billingParty.trim() : undefined,
@@ -374,6 +383,12 @@ const updateProject = async (req, res) => {
 
     if (status && ['Not Started', 'In Progress', 'On Hold', 'Completed', 'Delayed'].includes(status)) {
       project.status = status;
+      if (status === 'Completed') {
+        project.progressPercentage = 100;
+        await Stage.updateMany({ project: project._id }, { $set: { completionPercentage: 100, status: 'Completed' } });
+      } else if (status === 'In Progress' && project.progressPercentage === 0) {
+        project.progressPercentage = 10;
+      }
     }
 
     await project.save();

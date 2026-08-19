@@ -6,6 +6,7 @@ const userSchema = new mongoose.Schema({
   email:                { type: String, required: true, unique: true, lowercase: true },
   password:             { type: String, required: true },
   role:                 { type: mongoose.Schema.Types.ObjectId, ref: 'Role', required: true },
+  secondaryRole:        { type: mongoose.Schema.Types.ObjectId, ref: 'Role' },
   department:           { type: mongoose.Schema.Types.ObjectId, ref: 'Department' },
   phone:                { type: String },
   status:               { type: String, enum: ['Active', 'Inactive'], default: 'Active' },

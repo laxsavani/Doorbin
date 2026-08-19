@@ -21,6 +21,7 @@ export const Clients = () => {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedDirectoryCategory, setSelectedDirectoryCategory] = useState('All');
   const [viewMode, setViewMode] = useViewMode();
 
   // Modals & Active Client State
@@ -43,6 +44,7 @@ export const Clients = () => {
     address: '',
     gstDetails: '',
     industry: 'Real Estate & Infrastructure',
+    category: 'Client',
     notes: '',
     status: 'Active'
   });

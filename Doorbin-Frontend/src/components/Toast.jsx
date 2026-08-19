@@ -1,10 +1,11 @@
 import React, { useEffect } from 'react';
+import ReactDOM from 'react-dom';
 import { AlertCircle, CheckCircle2, Info, X } from 'lucide-react';
 import './Toast.css';
 
 /**
- * Toast alert component adhering to SOP #8:
- * Displays exact success & error messages returned from backend or validation response.
+ * Toast alert component mounted via React Portal to body.
+ * Always renders floating in top-right corner.
  */
 export const Toast = ({
   message,
@@ -20,16 +21,16 @@ export const Toast = ({
     return () => clearTimeout(timer);
   }, [message, duration, onClose]);
 
-  if (!message) return null;
+  if (!message || typeof document === 'undefined') return null;
 
   const icons = {
-    success: <CheckCircle2 size={18} color="var(--color-success)" />,
-    error: <AlertCircle size={18} color="var(--color-danger)" />,
-    info: <Info size={18} color="var(--color-secondary)" />
+    success: <CheckCircle2 size={18} color="#2E7D4E" />,
+    error: <AlertCircle size={18} color="#C75B39" />,
+    info: <Info size={18} color="#1C1A17" />
   };
 
-  return (
-    <div className="toast-container">
+  const toastContent = (
+    <div className="toast-portal-wrapper" style={{ position: 'fixed', top: '24px', right: '24px', zIndex: 999999, pointerEvents: 'auto' }}>
       <div className={`toast toast-${type}`} role="alert">
         {icons[type]}
         <div className="toast-content">{message}</div>
@@ -39,4 +40,6 @@ export const Toast = ({
       </div>
     </div>
   );
+
+  return ReactDOM.createPortal(toastContent, document.body);
 };

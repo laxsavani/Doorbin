@@ -19,6 +19,7 @@ export const TimelineGantt = () => {
   const [projects, setProjects] = useState([]);
   const [usersList, setUsersList] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [selectedProjectFilter, setSelectedProjectFilter] = useState('ALL');
   const [toast, setToast] = useState({ message: '', type: 'info' });
 
   // Separate Scroll Container Refs for Independent Navigation
