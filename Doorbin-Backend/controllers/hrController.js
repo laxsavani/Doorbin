@@ -1136,40 +1136,7 @@ const updateLeave = async (req, res) => {
   }
 };
 
-module.exports = {
-  getLeaveTypes,
-  createLeaveType,
-  updateLeaveType,
-  deleteLeaveType,
-  createEmployee,
-  getEmployees,
-  getEmployeeById,
-  updateEmployee,
-  uploadEmployeeDocument,
-  getEmployeeDocuments,
-  markAttendance,
-  clockIn,
-  clockOut,
-  getTodayAttendance,
-  getAttendanceByEmployee,
-  exportAttendance,
-  applyLeave,
-  getLeaves,
-  approveLeave,
-  updateLeave,
-  updateLeave,
-  createHoliday,
-  getHolidays,
-  deleteHoliday,
-  createPerformanceReview,
-  getPerformanceReviews,
-  getAttendanceReport,
-  getLeaveReport,
-  getPerformanceReport,
-  getDepartmentStrengthReport,
-  getResourceUtilizationReport,
-  getJoiningExitReport
-};
+
 
 
 // ============================================================
