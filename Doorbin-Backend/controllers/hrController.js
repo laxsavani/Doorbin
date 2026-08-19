@@ -1,4 +1,4 @@
-﻿const Employee = require('../models/Employee');
+const Employee = require('../models/Employee');
 const Attendance = require('../models/Attendance');
 const Leave = require('../models/Leave');
 const LeaveType = require('../models/LeaveType');
@@ -1260,4 +1260,38 @@ const deleteLeaveType = async (req, res) => {
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
   }
+};
+
+module.exports = {
+  getLeaveTypes,
+  createLeaveType,
+  updateLeaveType,
+  deleteLeaveType,
+  createEmployee,
+  getEmployees,
+  getEmployeeById,
+  updateEmployee,
+  uploadEmployeeDocument,
+  getEmployeeDocuments,
+  markAttendance,
+  clockIn,
+  clockOut,
+  getTodayAttendance,
+  getAttendanceByEmployee,
+  exportAttendance,
+  applyLeave,
+  getLeaves,
+  approveLeave,
+  updateLeave,
+  createHoliday,
+  getHolidays,
+  deleteHoliday,
+  createPerformanceReview,
+  getPerformanceReviews,
+  getAttendanceReport,
+  getLeaveReport,
+  getPerformanceReport,
+  getDepartmentStrengthReport,
+  getResourceUtilizationReport,
+  getJoiningExitReport
 };
